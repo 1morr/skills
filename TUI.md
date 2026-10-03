@@ -2,6 +2,12 @@
 
 `ticket-coordinator` 的參考檔。`<S>` 是 skill 的 `scripts/` 目錄。
 
+## 開 session
+
+- 剛啟動的 Claude Code 在 tui-idle 成立後幾秒內仍會吞掉輸入，`accepted: true` 照樣回來（v2.1.284 實測）。
+  `launch.sh` 因此多等 15 秒，送出後沒展開、畫面上又看不到票路徑，就補送，最多三次。
+- 仍然印 `expanded: NO`：先讀畫面。停在空輸入框，就在同一個終端補送一次，不必關掉重開。
+
 ## 讀畫面
 
 - `python <S>/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端

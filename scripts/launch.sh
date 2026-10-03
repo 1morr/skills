@@ -14,13 +14,22 @@ d = json.load(sys.stdin)
 p = next(t['worktreePath'] for t in d['result']['terminals'] if t['handle'] == os.environ['H'])
 print(os.path.join(os.path.expanduser('~/.claude/projects'), re.sub(r'[^A-Za-z0-9]', '-', p)).replace(os.sep, '/'))")
 orca terminal wait --terminal "$H" --for tui-idle --timeout-ms 60000 --json | grep -o '"satisfied": *[a-z]*'
-sleep 5
-MSYS_NO_PATHCONV=1 orca terminal send --terminal "$H" --text "$CMD $TICKET" --enter --wait-submit 20 --json | grep -o '"accepted": *[a-z]*'
-for i in $(seq 1 20); do
-  sleep 3
+# tui-idle 在輸入框能收字之前就會成立（CC v2.1.284 實測 sleep 5 仍兩次被吞，accepted 照樣是 true），所以多等，
+# 並且沒展開時看畫面：看不到票路徑就是被吞了，補送；看得到就是在跑，只是慢，繼續等
+sleep 15
+found() {
   for f in $(ls -t "$JDIR"/*.jsonl 2>/dev/null | head -5); do
     grep -q "$MARK" "$f" && continue
-    grep -q "command-args>$TICKET<" "$f" && { echo "jsonl=$f"; echo "expanded: yes"; exit 0; }
+    grep -q "command-args>$TICKET<" "$f" && { echo "jsonl=$f"; echo "expanded: yes"; return 0; }
   done
+  return 1
+}
+for attempt in 1 2 3; do
+  echo "send attempt $attempt"
+  MSYS_NO_PATHCONV=1 orca terminal send --terminal "$H" --text "$CMD $TICKET" --enter --wait-submit 20 --json | grep -o '"accepted": *[a-z]*'
+  for i in $(seq 1 10); do sleep 3; found && exit 0; done
+  PYTHONIOENCODING=utf-8 python "$D/scr.py" "$H" 30 | grep -qF "$TICKET" && { for i in $(seq 1 20); do sleep 3; found && exit 0; done; break; }
+  echo "command swallowed (ticket path not on screen), resending"
+  sleep 10
 done
-echo "expanded: NO —— 送 --interrupt、關掉 $H、查原因後重開；同一張票連兩次沒展開算卡住"; exit 2
+echo "expanded: NO —— 讀畫面查原因；送 --interrupt、關掉 $H 後重開；同一張票連兩次沒展開算卡住"; exit 2
