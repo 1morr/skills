@@ -18,9 +18,12 @@
 
 ## 等待
 
-- `orca terminal wait --for tui-idle` 在子 session 等自己的背景 shell、monitor、子代理時就會返回。`waitbg.sh`
-  另外看兩件事，任一成立就繼續等：畫面上有 spinner、`still running`、`N shells`；transcript 60 秒內有寫入，
-  或最後一則是還沒完成的 tool_use。AskUserQuestion 例外，它是在等你回答。
+- 以 transcript 為準，不以畫面為準：終端停在捲動模式時畫面不會更新，曾把還在跑的票誤判成做完。
+  `python <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy` / `waiting-bg`、
+  `asking`（停在 AskUserQuestion 等你）、`unknown`（額度、API 錯誤、被中斷，讀畫面判斷）。
+- `waitbg.sh` 每 30 秒問一次 `state.py`，`done` 而畫面上還有 shell / monitor 計數時繼續等（Monitor 認不出來）；
+  `waiting-bg` 半小時沒動靜、畫面也沒有在跑的東西時以 `state=stalled` 返回，多半是它停了背景工作卻沒留紀錄。
+- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，
