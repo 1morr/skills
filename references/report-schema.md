@@ -55,7 +55,7 @@ Text fields take light Markdown: paragraphs, `- ` and `1. ` lists, `` `code` ``,
 | `why.text`, `why.sources` | no | Empty `sources` renders as awaiting the author, with any `text` marked inferred. |
 | `how` | no | Approach. |
 | `decisions[]` | no | `decision`, `why`, optional `alternatives`, `basis` (`stated` or `inferred`, default `inferred`), optional `source`. |
-| `files` | yes | Changed path or glob → note. Exact paths win over globs; `*` crosses `/`. |
+| `files` | yes | Changed path or glob → note. Every path in the diff needs one, dot-directories included. A key matches the whole repo-relative path; exact paths win over globs; `*` crosses `/`. |
 | `hunks[]` | no | `file`, optional `match` (keeps hunks whose text contains it; all hunks without it), `note`. |
 | `evidence.level` | yes | `before-after`, `after`, `tests` or `static`. |
 | `evidence.why_not_higher` | below `before-after` | The obstacle. |

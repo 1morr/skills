@@ -6,7 +6,9 @@ Read this before running anything for evidence. Each section ends on what must h
 
 `.showcase/recipe.md` at the repo root is what earlier runs learned about running this repo. Read it first and follow it; it is a cache of discovery, so the repo wins when they disagree.
 
-After a run, write or update it with what the next run needs whatever the change is: which of several commands works, how to start each surface and know it is ready, where fake data and fake sign-ins live, how to prove provenance, every trap that cost you time, and how long slow steps take. Point at files instead of copying their contents, credentials included. A trick that served only this change stays in this report. Fix any line that turned out wrong, and end with `Last verified: <short SHA> <date>`.
+After a run, write or update it with what the next run needs whatever the change is: which of several commands works, how to start each surface and know it is ready, where fake data and fake sign-ins live, how to prove provenance, every trap that cost you time, and how long slow steps take. Point at files instead of copying their contents, credentials included.
+
+The recipe is about this repo. Three things stay out of it: what this run found (results and counts belong in the report), what only this change needed, and quirks of your own tools (they belong to whoever runs those tools, not to the repo). Edit in place: when a run proves a line wrong, rewrite that line instead of appending a correction below it. End with `Last verified: <short SHA> <date>`.
 
 ```markdown
 # Running this repo for a showcase

@@ -572,7 +572,7 @@ def render_html(model: dict, L: dict) -> str:
     generated = dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %z")
     return (
         f'<!doctype html><html lang="{html.escape(r.get("lang", "en"))}"><head><meta charset="utf-8">'
-        f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">'
         f"<title>{html.escape(r['title'])}</title><style>{CSS}</style></head><body><main>"
         f"<header><h1>{inline(r['title'])}</h1>"
         f'<div class="meta"><code>{html.escape(range_label(model, L))}</code> · {L["generated"]} {generated}</div>'
