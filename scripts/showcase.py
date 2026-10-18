@@ -418,6 +418,7 @@ figure{margin:1.1rem 0;padding:12px;background:var(--card);border:1px solid var(
 figcaption{font-size:.9rem;margin-bottom:.6rem}
 figure img{display:block;max-width:100%;height:auto;border:1px solid var(--line)}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pair>div{min-width:0}
 .pair .side-label{font-size:.78rem;color:var(--muted);margin-bottom:.25rem}
 .modes{display:flex;gap:.3rem;margin-bottom:.6rem}
 .modes button{font:inherit;font-size:.8rem;padding:.15rem .6rem;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:6px;cursor:pointer}

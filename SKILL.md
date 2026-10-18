@@ -16,7 +16,7 @@ Language: the one the user asks for or their standing instructions set; otherwis
 
 ## 1. Pin the range
 
-- A commit or range the user names: take it as given (`<commit>~1` to `<commit>` for a single commit).
+- A commit or range the user names: take it as given (`<commit>^` to `<commit>` for a single commit; `^` is the first parent, also for a merge).
 - A PR: its base branch and head commit, from `gh pr view <number> --json baseRefName,headRefOid`; `base` is the merge-base of the two.
 - A branch or the current work: `base` is `git merge-base HEAD origin/<default-branch>`; `head` is `HEAD`, or `null` for uncommitted work in the working tree.
 
@@ -45,7 +45,7 @@ Classify the change by what a reader could observe. A change can be several kind
 
 Climb the **evidence ladder** as high as the change calls for:
 
-1. `before-after`: base and head both exercised the same way (same screens, inputs, commands or test files).
+1. `before-after`: base and head both exercised the same way (same screens, inputs, commands or test files). A test that fails or does not compile on base and passes on head counts.
 2. `after`: head only.
 3. `tests`: test or command output from one side.
 4. `static`: nothing run.
@@ -90,4 +90,4 @@ Done when you have seen the page and each piece of evidence shows its difference
 
 ## 6. Hand over
 
-Give the user both file paths and three lines: the evidence level reached, what is unverified, and anything awaiting the author. Mention a new or changed `.showcase/recipe.md`. Post to the PR (`gh pr edit --body-file pr.md` or `gh pr comment --body-file pr.md`) when the user asks for it; attaching `showcase.html` is the drag-and-drop on the PR page.
+Give the user both file paths and three lines: the evidence level reached, what is unverified, and anything awaiting the author. Mention that `.showcase/` now sits untracked in the repo: the reports ignore themselves, and a new or changed `recipe.md` is the developer's to commit. Post to the PR (`gh pr edit --body-file pr.md` or `gh pr comment --body-file pr.md`) when the user asks for it; attaching `showcase.html` is the drag-and-drop on the PR page.

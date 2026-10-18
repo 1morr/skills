@@ -29,7 +29,7 @@ Without a recipe, look where the repo already records how it runs, roughly cheap
 
 ## Checkouts
 
-Run every side that is not the current working tree from its own checkout: `git worktree add <dir> <rev>`, with `<dir>` a fresh directory from `mktemp -d` (or the platform's equivalent) so parallel runs never collide. The developer's working tree, branch and stash stay untouched.
+Run every side that is not exactly the current working tree from its own checkout: `git worktree add --detach <dir> <rev>`. `<dir>` is a fresh directory outside the repo, made inside your session's scratch or temp area when you have one, else by `mktemp -d`, so parallel runs never collide. The developer's working tree, branch and stash stay untouched.
 
 A new worktree has no installed dependencies or build output. Install them with the repo's own command (a lockfile install is usually quick). If you link a dependency directory instead, remove the link before `git worktree remove`, so removal never follows it into the original.
 
@@ -59,6 +59,6 @@ Fake credentials committed for development or tests may be typed into the local 
 
 ## Cleanup
 
-Stop exactly the processes you started: record each PID (or the port it bound) when you start it and stop by that. Stopping by program name kills the user's unrelated processes. Then remove every worktree you added (`git worktree remove`, then `git worktree prune`).
+Stop exactly the processes you started: record each PID (or the port it bound) when you start it and stop by that. Stopping by program name kills the user's unrelated processes. Then remove every worktree you added (`git worktree remove`, then `git worktree prune`). Installs and codegen often dirty your own temporary worktree; `--force` is fine there and only there.
 
 Done when `git worktree list` and `git status` match what you found, and nothing you started is still running.
