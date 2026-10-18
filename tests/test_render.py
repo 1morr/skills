@@ -138,6 +138,29 @@ class RenderTest(unittest.TestCase):
         _, md_path, _ = self.render(why={"text": "", "sources": []})
         self.assertIn(showcase.LABELS["en"]["awaiting"], md_path.read_text(encoding="utf-8"))
 
+    def test_branch_name_shown_only_when_it_points_at_the_commit(self):
+        _, md_path, warnings = self.render(range={"base": "HEAD~1", "head": "HEAD", "base_ref": "main", "head_ref": "main"})
+        md = md_path.read_text(encoding="utf-8")
+        self.assertIn("→ main @", md)
+        self.assertNotIn("`main @", md)
+        self.assertTrue(any("base_ref `main` does not point" in w for w in warnings))
+
+    def test_personal_paths_and_secrets_warn(self):
+        for leaked in ("C:\\Users\\alice\\proj\\x.log", "/home/alice/x", "api_key=abcd1234efgh5678",
+                       "Authorization: Bearer abcdefghijklmnop1234"):
+            with self.subTest(leaked=leaked):
+                ev = {"level": "tests", "why_not_higher": "n/a",
+                      "items": [{"kind": "output", "caption": "run", "after": f"ok\n{leaked}\n"}]}
+                _, _, warnings = self.render(evidence=ev)
+                self.assertTrue(any("scrub" in w for w in warnings), warnings)
+
+    def test_placeholders_and_plain_text_do_not_warn(self):
+        ev = {"level": "tests", "why_not_higher": "n/a",
+              "items": [{"kind": "output", "caption": "run",
+                         "after": "token=REDACTED password: ******** /usr/local/bin users/home ok"}]}
+        _, _, warnings = self.render(evidence=ev)
+        self.assertFalse(any("scrub" in w for w in warnings), warnings)
+
     def test_zh_hant_labels(self):
         html_path, _, _ = self.render(lang="zh-Hant")
         self.assertIn("關鍵改動", html_path.read_text(encoding="utf-8"))

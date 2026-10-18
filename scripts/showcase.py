@@ -196,6 +196,33 @@ def split_hunks(diff_text: str) -> list[str]:
 # ---------- validation and assembly ----------
 
 
+def ref_at(repo: Path, ref: str | None, sha: str, field: str, warnings: list[str]) -> str | None:
+    """A branch name is shown only when it points at the commit, so it never misleads."""
+    if not ref or sha.startswith(ref):  # a SHA in a ref field adds nothing beside the SHA
+        return None
+    proc = subprocess.run(["git", "rev-parse", "--verify", "-q", ref + "^{commit}"],
+                          cwd=repo, capture_output=True, text=True)
+    if proc.stdout.strip() != sha:
+        warnings.append(f"range.{field} `{ref}` does not point at {sha[:8]}; left out of the report")
+        return None
+    return ref
+
+
+# Personal paths and secret-looking values that should never reach a reader.
+LEAK_PATTERNS = [
+    re.compile(r"\b[A-Za-z]:(?:\\\\|\\|/)(?:Users|Documents and Settings)(?:\\\\|\\|/)[^\\/\s\"]+", re.IGNORECASE),
+    re.compile(r"(?<![\w.])/(?:home|Users)/[\w.-]+"),
+    re.compile(r"(?i)\b(?:api[_-]?key|access[_-]?token|secret|password|passwd|authorization)\b[\"']?\s*[:=]\s*[\"']?"
+               r"(?!redacted|\*|x{3}|<|\$\{)[^\s\"',;]{8,}"),
+    re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/-]{16,}"),
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16})\b"),
+]
+
+
+def leaks(text: str) -> list[str]:
+    return [m.group(0) for p in LEAK_PATTERNS for m in p.finditer(text or "")]
+
+
 def load_text(base_dir: Path, item: dict, key: str, errors: list[str]) -> str | None:
     if key in item:
         return item[key]
@@ -229,6 +256,8 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
     rng = report["range"]
     base = git(repo, "rev-parse", "--verify", rng["base"] + "^{commit}").strip()
     head = git(repo, "rev-parse", "--verify", rng["head"] + "^{commit}").strip() if rng.get("head") else None
+    base_ref = ref_at(repo, rng.get("base_ref"), base, "base_ref", warnings)
+    head_ref = ref_at(repo, rng.get("head_ref"), head, "head_ref", warnings) if head else None
 
     try:
         exclude = report_dir.resolve().relative_to(repo.resolve()).as_posix()
@@ -301,10 +330,21 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
     if errors:
         raise ReportError("\n".join(errors))
 
+    texts = {"report.json": json.dumps(report, ensure_ascii=False)}
+    for item in items:
+        if item["kind"] == "output":
+            texts[f"evidence {item['caption']!r}"] = f"{item['before'] or ''}\n{item['after']}"
+    for where, text in texts.items():
+        found = sorted(set(leaks(text)))
+        if found:
+            warnings.append(f"possible personal path or secret in {where}: {', '.join(found[:5])}; scrub it")
+
     return {
         "report": report,
         "base": base,
         "head": head,
+        "base_ref": base_ref,
+        "head_ref": head_ref,
         "files": files,
         "hunks": hunks_out,
         "items": items,
@@ -404,10 +444,20 @@ td.num{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:
 details summary{cursor:pointer}
 .decision{padding:.6rem 0;border-bottom:1px solid var(--line)}
 .decision:last-child{border-bottom:0}
+figure .pair img,figure>img{cursor:zoom-in}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px;cursor:zoom-out;z-index:10}
+#zoom[hidden]{display:none}
+#zoom img{max-width:none;background:#fff}
 @media (max-width:720px){.pair{grid-template-columns:1fr}h1{font-size:1.45rem}}
 """
 
 JS = """
+var zoom=document.getElementById('zoom'),zoomImg=zoom.querySelector('img');
+document.querySelectorAll('figure .pair img, figure>img').forEach(function(i){
+  i.addEventListener('click',function(){zoomImg.src=i.src;zoomImg.alt=i.alt;zoom.hidden=false});
+});
+zoom.addEventListener('click',function(){zoom.hidden=true});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')zoom.hidden=true});
 document.querySelectorAll('.compare').forEach(function(c){
   var btns=c.querySelectorAll('[data-mode]');
   btns.forEach(function(b){b.addEventListener('click',function(){
@@ -430,10 +480,10 @@ document.querySelectorAll('.compare').forEach(function(c){
 
 
 def range_label(model: dict, L: dict) -> str:
-    rng = model["report"]["range"]
-    base = f"{rng.get('base_ref') or rng['base']} @ {model['base'][:8]}"
-    head = f"{rng.get('head_ref') or rng['head']} @ {model['head'][:8]}" if model["head"] else L["working_tree"]
-    return f"{base} → {head}"
+    def side(sha: str, ref: str | None) -> str:
+        return f"{ref} @ {sha[:8]}" if ref else sha[:8]
+    head = side(model["head"], model["head_ref"]) if model["head"] else L["working_tree"]
+    return f"{side(model['base'], model['base_ref'])} → {head}"
 
 
 def render_html(model: dict, L: dict) -> str:
@@ -525,7 +575,8 @@ def render_html(model: dict, L: dict) -> str:
         f"<title>{html.escape(r['title'])}</title><style>{CSS}</style></head><body><main>"
         f"<header><h1>{inline(r['title'])}</h1>"
         f'<div class="meta"><code>{html.escape(range_label(model, L))}</code> · {L["generated"]} {generated}</div>'
-        f"<nav>{nav}</nav></header>{sections}</main><script>{JS}</script></body></html>"
+        f"<nav>{nav}</nav></header>{sections}</main>"
+        f'<div id="zoom" hidden><img alt=""></div><script>{JS}</script></body></html>'
     )
 
 

@@ -50,7 +50,7 @@ Text fields take light Markdown: paragraphs, `- ` and `1. ` lists, `` `code` ``,
 | `lang` | no | Label language: `en` (default) or `zh-Hant`. |
 | `range.base` | yes | Any git revision. |
 | `range.head` | yes | A git revision, or `null` for the working tree including untracked files. |
-| `range.base_ref`, `range.head_ref` | no | Branch names shown beside the SHAs. |
+| `range.base_ref`, `range.head_ref` | no | Branch names shown beside the SHAs. Shown only when the branch points at that commit; otherwise dropped with a warning. |
 | `summary` | yes | User-facing effect. |
 | `why.text`, `why.sources` | no | Empty `sources` renders as awaiting the author, with any `text` marked inferred. |
 | `how` | no | Approach. |
@@ -66,6 +66,8 @@ Evidence kinds:
 
 - `image`: `after` image path. A screenshot of the head only.
 - `compare`: `before` and `after` image paths. Rendered side by side, with a slider when the two images share a size.
-- `output`: `command`, `after` text or `after_file`, optional `before` text or `before_file`. Text shows in `pr.md` too.
+- `output`: `command`, `after` text or `after_file`, optional `before` text or `before_file` (the same command on base). Text shows in `pr.md` too.
+
+The renderer warns about home-directory paths and secret-looking values in `report.json` and text evidence. It cannot read text inside images; scrub screenshots yourself.
 
 Images: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`.
