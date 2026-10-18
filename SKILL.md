@@ -40,6 +40,7 @@ Classify the change by what a reader could observe. A change can be several kind
 | Behaviour (CLI, API, library output, data processing) | the same input through base and head, outputs side by side |
 | Performance | the same benchmark on base and head |
 | Fix or new logic with tests | the new or changed tests run on base (failing) and head (passing) |
+| Fix without a test | a reproduction you write, failing on base and passing on head, its source shown in the report |
 | Refactor meant to keep behaviour | each side's own test suite green, public interface unchanged |
 | Docs, config or dependencies only | the narrative and diff are the evidence |
 
@@ -54,7 +55,7 @@ Below `before-after`, `why_not_higher` names the concrete obstacle, such as "the
 
 Before running anything, read [references/running.md](references/running.md): the repo's recipe, discovery, separate checkouts, proving each side runs its own code, capturing, and cleanup. Inputs are fake data; real accounts and live services come in only when the change itself is about them.
 
-Scrub everything you save: tokens, cookies, keys, personal names and emails, account data and home-directory paths. An attached report is public on a public repo.
+Evidence is **verbatim**: what the program printed or showed, in its own words and language. You may cut it to the relevant lines (mark each cut with `…`) and scrub it: replace a token, cookie, key, personal name or email, account detail or home-directory path with a placeholder such as `<redacted>` or `<home>`, and touch nothing else. An attached report is public on a public repo.
 
 Save evidence files in the report directory and reference them by relative path.
 
@@ -84,10 +85,12 @@ python <this skill's directory>/scripts/showcase.py .showcase/reports/<id>/repor
 
 The renderer reads every diff from git itself. It rejects a changed file without a note, a note matching no changed file, a hunk selector matching nothing, a missing evidence file, and a level below `before-after` without a reason. Fix the report until it exits 0, and act on each warning.
 
-Then screenshot the rendered page in a browser and look at it as the reader would. Browsers often refuse `file://` under automation; serve the report directory with `python -m http.server` on a free local port and stop it afterwards.
+Then view the rendered page in a browser at a desktop width, as the reader would. Browsers often refuse `file://` under automation; serve the report directory with `python -m http.server` on a free local port, as a process you track and stop like any other (references/running.md § Processes). Screenshot each evidence figure and each key-change block as its own element; a whole tall page shrinks past legibility.
 
-Done when you have seen the page and each piece of evidence shows its difference at display size, and each diff shows the lines its note describes. With no way to view a page, say so in the hand-over.
+Done when each figure shows its difference legibly at that width, each diff shows the lines its note describes, and the server is stopped. With no way to view a page, say so in the hand-over.
 
 ## 6. Hand over
+
+Before handing over, check that nothing you started still runs: each port you served on is free and each PID you recorded is gone.
 
 Give the user both file paths and three lines: the evidence level reached, what is unverified, and anything awaiting the author. Mention that `.showcase/` now sits untracked in the repo: the reports ignore themselves, and a new or changed `recipe.md` is the developer's to commit. Post to the PR (`gh pr edit --body-file pr.md` or `gh pr comment --body-file pr.md`) when the user asks for it; attaching `showcase.html` is the drag-and-drop on the PR page.

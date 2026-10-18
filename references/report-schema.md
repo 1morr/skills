@@ -66,7 +66,7 @@ Evidence kinds:
 
 - `image`: `after` image path. A screenshot of the head only.
 - `compare`: `before` and `after` image paths. Rendered side by side, with a slider when the two images share a size.
-- `output`: `command`, `after` text or `after_file`, optional `before` text or `before_file` (the same command on base). Text shows in `pr.md` too.
+- `output`: optional `command`, `after` text or `after_file`, optional `before` text or `before_file` (the same command on base). Without `command` it shows a file as is, such as a reproduction written for the showcase. Text shows in `pr.md` too.
 
 The renderer warns about home-directory paths and secret-looking values in `report.json` and text evidence. It cannot read text inside images; scrub screenshots yourself.
 
