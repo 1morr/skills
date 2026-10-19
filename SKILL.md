@@ -1,96 +1,106 @@
 ---
 name: showcase
-description: Showcase a code change for people who did not write it, as a self-contained HTML report plus PR-ready Markdown covering what changed, why, the decisions taken, annotated key diffs, and evidence (before/after screenshots, command output, test results). Use when asked to showcase, demo or walk through a change, branch, commit range or PR, or to show it before and after.
+description: 把一次程式改動展示給沒寫它的人：實跑修改前後兩版讓使用者親手操作對照，並產出自含截圖的 HTML 報告與可貼進 PR 的 Markdown，說明改了什麼、為什麼、做了哪些決策，附註解過的關鍵 diff 與證據（前後截圖、指令輸出、測試結果）。用於要展示、demo、walkthrough、說明一個改動 / 分支 / commit 範圍 / PR，或要看改動前後對照（showcase, before/after）時。
 ---
 
 # Showcase
 
-A showcase answers four questions for a **reader** who did not write the change: what does it do, why was it made, what was decided, and how can I see it myself. The reader is the developer who had an agent write the code, a reviewer, or anyone opening the PR. The PR's file view already holds the full diff; the showcase holds what the diff cannot say.
+Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼、為什麼做、做了哪些決定、我怎麼親眼看到。讀者是請 agent 寫程式的開發者、審查者，以及打開 PR 的任何人。完整 diff 在 PR 的檔案頁已經有了；showcase 補的是 diff 說不出來的部分。
 
-Output goes to `.showcase/reports/<id>/` at the repo root, where `<id>` is `pr-<number>`, else the head's short SHA, else `wip`. The directory ignores itself in git.
+產出有兩種，給兩種讀者：
 
-- `showcase.html`: one self-contained file with every image embedded. It reaches a PR as an attachment dragged into a comment on the web page (GitHub accepts `.html` up to 25 MB; `gh` cannot upload it).
-- `pr.md`: the same content without images, for the PR body or a comment.
+- **實機預覽**：給眼前的使用者。修改前（base）與修改後（head）兩版同時跑著，網頁開在使用者的瀏覽器、App 裝在模擬器或裝置上，讓使用者自己點、自己比。使用者說測完才收掉。
+- **報告**：給之後的讀者，放在 repo 外的 `<系統暫存目錄>/showcase/<repo 名>/<id>/`（使用者指定位置時用使用者的）。`<id>` 是 `pr-<編號>`，否則 head 的短 SHA，否則 `wip`。
+  - `showcase.html`：單一檔案，圖片全部內嵌。拖進 PR 的留言框就能附上（GitHub 接受 `.html`，上限 25 MB；`gh` 不能上傳它）。
+  - `pr.md`：同樣內容但不含圖片，給 PR 描述或留言用。
 
-Language: the one the user asks for or their standing instructions set; otherwise the language of the repo's PR descriptions, then its docs. Set `lang`: `en` and `zh-Hant` have labels, anything else gets English labels.
+報告語言：使用者指定的，或使用者長期指示裡設定的；都沒有就跟 repo 的 PR 描述，再來是 repo 文件。`lang` 設 `zh-Hant` 或 `en` 會有對應標籤，其他值用英文標籤。
 
-## 1. Pin the range
+沒有使用者在場時（CI、排程、被其他流程呼叫），跳過實機預覽與所有詢問：跑完證據就收尾，跑法不寫進任何檔案。
 
-- A commit or range the user names: take it as given (`<commit>^` to `<commit>` for a single commit; `^` is the first parent, also for a merge).
-- A PR: its base branch and head commit, from `gh pr view <number> --json baseRefName,headRefOid`; `base` is the merge-base of the two.
-- A branch or the current work: `base` is `git merge-base HEAD origin/<default-branch>`; `head` is `HEAD`, or `null` for uncommitted work in the working tree.
+## 1. 釘住範圍
 
-Done when `git diff --stat <base> [<head>]` lists exactly the change to showcase. When the range carries unrelated commits, ask which part to showcase.
+- 使用者指定的 commit 或範圍：照用（單一 commit 是 `<commit>^` 到 `<commit>`；`^` 是第一個 parent，merge 也一樣）。
+- PR：用 `gh pr view <編號> --json baseRefName,headRefOid` 取 base 分支與 head commit；`base` 是兩者的 merge-base。
+- 分支或手上的工作：`base` 是 `git merge-base HEAD origin/<預設分支>`；`head` 是 `HEAD`，未 commit 的工作則為 `null`（工作區）。
 
-## 2. Gather the why
+完成條件：`git diff --stat <base> [<head>]` 列出的正好是要展示的改動。範圍混進無關的 commit 時，問使用者要展示哪部分。
 
-Read every source that can state intent: the conversation that produced the change, the PR description, issues, tickets or specs referenced from commit messages, the branch name or the PR, the commit messages themselves, and ADRs or design docs the change touches or cites. Keep the list of sources you used. A ticket or doc that covers more than this range informs the why; the report still describes only the range.
+## 2. 收集「為什麼」
 
-A claim backed by a source is **stated**. Anything reconstructed from the code is **inferred** and carries that mark. When no source gives the motivation, `why.sources` stays empty and the report shows the why as awaiting the author: readers act on the why, so a visible gap serves them better than a plausible guess.
+讀每一個可能說明意圖的來源：產生這次改動的對話、PR 描述、commit message / 分支名 / PR 引用的 issue、票、規格、commit message 本身、改動碰到或引用的 ADR 與設計文件。記下用了哪些來源。票或文件涵蓋的範圍比這次改動大時，它只用來解釋為什麼；報告仍只描述這個範圍。
 
-Done when every sentence in the why and in each decision is either stated with its source or marked inferred.
+有來源支持的說法是**有來源**；從程式碼反推的是**推斷**，要標出來。沒有任何來源說明動機時，`why.sources` 留空，報告會顯示「待作者補充」：讀者會依「為什麼」行事，看得見的空白比看似合理的猜測對他們更有用。
 
-## 3. Collect evidence
+完成條件：「為什麼」與每個決策裡的每一句，不是附了來源，就是標了推斷。
 
-Classify the change by what a reader could observe. A change can be several kinds; the main effect a reader would look for gets the strongest evidence, and secondary effects may stop lower or go to `unverified`.
+## 3. 收集證據
 
-| Kind | Evidence |
+按讀者能觀察到什麼來分類改動。一個改動可以同時屬於多類；讀者最想看的主要效果拿最強的證據，次要效果可以停在較低等級或列進 `unverified`。
+
+| 類型 | 證據 |
 |---|---|
-| Visible UI | screenshots of every affected screen and state, base and head |
-| Behaviour (CLI, API, library output, data processing) | the same input through base and head, outputs side by side |
-| Performance | the same benchmark on base and head |
-| Fix or new logic with tests | the new or changed tests run on base (failing) and head (passing) |
-| Fix without a test | a reproduction you write, failing on base and passing on head, its source shown in the report |
-| Refactor meant to keep behaviour | each side's own test suite green, public interface unchanged |
-| Docs, config or dependencies only | the narrative and diff are the evidence |
+| 看得見的 UI | 每個受影響的畫面與狀態，base 與 head 各截一張 |
+| 行為（CLI、API、函式庫輸出、資料處理） | 同一份輸入分別跑 base 與 head，輸出並排 |
+| 效能 | 同一個 benchmark 跑 base 與 head |
+| 附測試的修正或新邏輯 | 新增或改動的測試在 base 跑（失敗）、在 head 跑（通過） |
+| 沒附測試的修正 | 自己寫一支重現，在 base 失敗、在 head 通過，原始碼放進報告 |
+| 意在保持行為的重構 | 兩邊各自的測試都綠、公開介面沒變 |
+| 只有文件、設定或依賴 | 敘述與 diff 本身就是證據 |
 
-Climb the **evidence ladder** as high as the change calls for:
+照改動需要，在**證據階梯**上爬得越高越好：
 
-1. `before-after`: base and head both exercised the same way (same screens, inputs, commands or test files). A test that fails or does not compile on base and passes on head counts.
-2. `after`: head only.
-3. `tests`: test or command output from one side.
-4. `static`: nothing run.
+1. `before-after`：base 與 head 用同樣方式跑過（同樣的畫面、輸入、指令或測試檔）。測試在 base 失敗或編譯不過、在 head 通過，也算。
+2. `after`：只跑了 head。
+3. `tests`：一邊的測試或指令輸出。
+4. `static`：什麼都沒跑。
 
-Below `before-after`, `why_not_higher` names the concrete obstacle, such as "the screen needs a signed-in account". Readers weigh the whole report by that line.
+低於 `before-after` 時，`why_not_higher` 寫出具體障礙，例如「這個畫面需要登入真實帳號」。讀者靠這一行判斷整份報告可以信到什麼程度。
 
-Before running anything, read [references/running.md](references/running.md): the repo's recipe, discovery, separate checkouts, proving each side runs its own code, capturing, and cleanup. Inputs are fake data; real accounts and live services come in only when the change itself is about them.
+動手跑任何東西之前，先讀 [references/running.md](references/running.md)：跑法從哪來、獨立 checkout、證明每一邊跑的是自己的程式碼、擷取、實機預覽與收尾。輸入用假資料；只有改動本身就是關於真實帳號或外部服務時才碰它們。
 
-Evidence is **verbatim**: what the program printed or showed, in its own words and language. You may cut it to the relevant lines (mark each cut with `…`) and scrub it: replace a token, cookie, key, personal name or email, account detail or home-directory path with a placeholder such as `<redacted>` or `<home>`, and touch nothing else. An attached report is public on a public repo.
+證據是**原文**：程式印出或顯示的東西，用它自己的字詞與語言。可以刪到只剩相關的行（每處刪減標 `…`），也可以遮蔽：把 token、cookie、金鑰、個人姓名或 email、帳號資料、家目錄路徑換成 `<redacted>`、`<home>` 這類佔位符，其他一字不動。附上的報告在公開 repo 上就是公開的。
 
-Save evidence files in the report directory and reference them by relative path.
+證據檔存在報告目錄，用相對路徑引用。
 
-Done when each kind the change belongs to has evidence or a `why_not_higher` naming it, and running.md's provenance and cleanup checks hold.
+完成條件：改動所屬的每一類都有證據，或 `why_not_higher` 點名了它；running.md 的出處確認成立。
 
-## 4. Write the narrative
+## 4. 寫敘述
 
-Write for a reader who has not opened the code.
+寫給沒打開過程式碼的讀者。
 
-- `summary`: in 1 to 3 sentences, what changes for someone using the software. Effects, not implementation.
-- `how`: the approach in plain words, naming the main moving parts.
-- `decisions`: each choice a reviewer could question, with why, the alternatives considered, and stated or inferred.
-- `files`: a note for every changed file. A glob key gives one note to a group, such as generated code, lockfiles or a mechanical rename.
-- `hunks`: the few hunks that carry the change, each with a note on what it does and why. Narrow each with `match` to the lines that matter.
-- `try_it`: steps a reviewer follows from a fresh checkout, with fake data, to see the change.
-- `unverified`: what you did not check, such as platforms, flows and edge cases.
+- `summary`：1 到 3 句，使用這個軟體的人會感受到什麼改變。寫效果，不寫實作。
+- `how`：用白話說做法，點出主要的組成部分。
+- `decisions`：審查者可能質疑的每個選擇：為什麼、考慮過哪些替代方案、有來源還是推斷。
+- `files`：每個改動的檔案一則說明。用 glob 當鍵可以讓一組檔案共用一則，例如產生的程式碼、lockfile、機械式改名。
+- `hunks`：撐起這次改動的少數幾段 diff，每段說明它做什麼、為什麼。用 `match` 縮到真正重要的那幾行。
+- `try_it`：審查者從乾淨的 checkout 出發、用假資料親眼看到改動的步驟。
+- `unverified`：沒驗證到的，例如平台、流程、邊界情況。
 
-Done when a reader can answer "what, why, and how do I see it" from the summary, the why and `try_it` alone.
+完成條件：讀者只看 summary、「為什麼」與 `try_it`，就答得出「改了什麼、為什麼、我怎麼看到」。
 
-## 5. Render
+## 5. 渲染並檢視
 
-Write `report.json` in the report directory, in the format of [references/report-schema.md](references/report-schema.md), then run with Python 3.9 or later:
+在報告目錄寫 `report.json`，格式見 [references/report-schema.md](references/report-schema.md)，然後在 repo 根目錄用 Python 3.9 以上執行：
 
 ```
-python <this skill's directory>/scripts/showcase.py .showcase/reports/<id>/report.json
+python <本 skill 的目錄>/scripts/showcase.py <報告目錄>/report.json
 ```
 
-The renderer reads every diff from git itself. It rejects a changed file without a note, a note matching no changed file, a hunk selector matching nothing, a missing evidence file, and a level below `before-after` without a reason. Fix the report until it exits 0, and act on each warning.
+渲染器自己從 git 讀每段 diff。以下情況會拒絕：改動的檔案沒有說明、說明對不上任何改動的檔案、hunk 選擇器什麼都沒選到、證據檔不存在、等級低於 `before-after` 卻沒寫原因。修報告直到它以 0 結束，並處理每個警告。
 
-Then view the rendered page in a browser at a desktop width, as the reader would. Browsers often refuse `file://` under automation; serve the report directory with `python -m http.server` on a free local port, as a process you track and stop like any other (references/running.md § Processes). Screenshot each evidence figure and each key-change block as its own element; a whole tall page shrinks past legibility.
+接著用瀏覽器以桌面寬度檢視渲染出的頁面，像讀者那樣看。自動化工具常常擋 `file://`；用 `python -m http.server` 在一個空閒的本機 port 服務報告目錄，把它當成要追蹤與停止的程序（running.md〈程序〉）。每張證據圖與每段關鍵改動各自用元素截圖看；整頁長截圖縮小後什麼都看不清。
 
-Done when each figure shows its difference legibly at that width, each diff shows the lines its note describes, and the server is stopped. With no way to view a page, say so in the hand-over.
+完成條件：每張證據圖在該寬度下看得清它的差異，每段 diff 顯示的正是說明描述的那幾行，報告用的 server 已停止。沒辦法檢視頁面時，在交接時說明。
 
-## 6. Hand over
+## 6. 交接
 
-Before handing over, check that nothing you started still runs: each port you served on is free and each PID you recorded is gone.
+給使用者：
 
-Give the user both file paths and three lines: the evidence level reached, what is unverified, and anything awaiting the author. Mention that `.showcase/` now sits untracked in the repo: the reports ignore themselves, and a new or changed `recipe.md` is the developer's to commit. Post to the PR (`gh pr edit --body-file pr.md` or `gh pr comment --body-file pr.md`) when the user asks for it; attaching `showcase.html` is the drag-and-drop on the PR page.
+- **實機預覽**：每一邊在哪裡（網址、裝置、或在哪個目錄跑什麼指令）、要登入的話假帳號定義在哪個檔案，以及「測完跟我說，我會收掉」。
+- **報告**：兩個檔案的路徑，加三行：達到的證據等級、沒驗證到的、待作者補充的。
+- **跑法**：這次自己找出、而 repo 的 agent 指令檔裡沒有的跑法（指令、陷阱、出處確認方式），連同打算寫進去的文字，問使用者能不能寫進 repo 的 `AGENTS.md`（repo 只有 `CLAUDE.md` 時寫那裡），照該 repo 改指令檔的規矩寫。使用者同意才寫；不同意就不寫，這個 session 不再問，下次重新找跑法，找不到就問使用者。
+
+使用者要求時才貼到 PR（`gh pr edit --body-file pr.md` 或 `gh pr comment --body-file pr.md`）；附上 `showcase.html` 要在 PR 網頁上拖放。
+
+使用者說測完後，照 running.md〈收尾〉收掉預覽。

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Render a change showcase: report.json -> showcase.html + pr.md.
+"""把 report.json 渲染成 showcase.html 與 pr.md（寫在 report.json 旁邊）。
 
-Stdlib only, so it runs in any repo without installing anything.
-Input format: ../references/report-schema.md.
+只用標準函式庫，任何 repo 不必安裝東西就能跑。輸入格式見
+../references/report-schema.md。
 
-The diff text is read from git here, never from the report, so every hunk
-shown to a reader is the real one.
+diff 一律在這裡從 git 讀，不從報告讀，所以讀者看到的每段 hunk 都是真的。
 """
 
 from __future__ import annotations
@@ -23,9 +22,9 @@ import sys
 from pathlib import Path
 
 LEVELS = ("before-after", "after", "tests", "static")
-# GitHub caps comment attachments at 25 MB; leave headroom.
+# GitHub 留言附件上限 25 MB，留一點餘裕。
 MAX_HTML_BYTES = 20 * 1024 * 1024
-# GitHub caps a PR body or comment at 65536 characters.
+# GitHub 的 PR 描述或留言上限 65536 字元。
 MAX_PR_CHARS = 60000
 LONG_HUNK_LINES = 150
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
@@ -101,7 +100,7 @@ STATUS = {"A": "added", "M": "modified", "D": "deleted", "R": "renamed", "C": "c
 
 
 class ReportError(Exception):
-    """The report cannot be rendered; the message lists every problem found."""
+    """報告無法渲染；訊息列出找到的每個問題。"""
 
 
 # ---------- git ----------
@@ -148,7 +147,7 @@ def changed_files(repo: Path, base: str, head: str | None, exclude: str | None) 
             i += 1
             continue
         added, deleted, path = tok.split("\t", 2)
-        if path == "":  # rename: old and new follow as separate tokens
+        if path == "":  # 改名：舊路徑與新路徑接在後面各自成一個 token
             path = num_tokens[i + 2]
             i += 3
         else:
@@ -197,8 +196,8 @@ def split_hunks(diff_text: str) -> list[str]:
 
 
 def ref_at(repo: Path, ref: str | None, sha: str, field: str, warnings: list[str]) -> str | None:
-    """A branch name is shown only when it points at the commit, so it never misleads."""
-    if not ref or sha.startswith(ref):  # a SHA in a ref field adds nothing beside the SHA
+    """分支名只在它正指向該 commit 時才顯示，免得誤導。"""
+    if not ref or sha.startswith(ref):  # ref 欄位填的是 SHA 時，放在 SHA 旁邊沒有資訊量
         return None
     proc = subprocess.run(["git", "rev-parse", "--verify", "-q", ref + "^{commit}"],
                           cwd=repo, capture_output=True, text=True)
@@ -208,7 +207,7 @@ def ref_at(repo: Path, ref: str | None, sha: str, field: str, warnings: list[str
     return ref
 
 
-# Personal paths and secret-looking values that should never reach a reader.
+# 不該送到讀者手上的個人路徑與像秘密的值。
 LEAK_PATTERNS = [
     re.compile(r"\b[A-Za-z]:(?:\\\\|\\|/)(?:Users|Documents and Settings)(?:\\\\|\\|/)[^\\/\s\"]+", re.IGNORECASE),
     re.compile(r"(?<![\w.])/(?:home|Users)/[\w.-]+"),
@@ -243,7 +242,7 @@ def data_uri(path: Path) -> str:
 
 
 def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
-    """Validate the report against the repo and attach everything rendering needs."""
+    """對照 repo 驗證報告，並備齊渲染需要的一切。"""
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -268,7 +267,7 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
         errors.append(f"no changes between {rng['base']} and {rng.get('head') or 'the working tree'}")
     by_path = {f["path"]: f for f in files}
 
-    # Every changed file gets a note; every note key covers a changed file.
+    # 每個改動的檔案都有說明；每個說明鍵都對得上改動的檔案。
     notes: dict[str, str] = report["files"]
     used: set[str] = set()
     for f in files:
@@ -467,7 +466,7 @@ document.querySelectorAll('.compare').forEach(function(c){
   })});
   var r=c.querySelector('input[type=range]'),s=c.querySelector('.slider');
   r.addEventListener('input',function(){s.style.setProperty('--pos',r.value+'%')});
-  // A slider over images of different sizes would misalign; offer side by side only.
+  // 尺寸不同的兩張圖用滑桿會對不齊，只提供並排。
   var imgs=c.querySelectorAll('.pair img');
   function check(){
     if(!imgs[0].complete||!imgs[1].complete)return;
@@ -689,10 +688,8 @@ def render_md(model: dict, L: dict, include_hunks: bool = True) -> str:
 def render(report_path: Path, repo: Path | None = None) -> tuple[Path, Path, list[str]]:
     report_path = report_path.resolve()
     report_dir = report_path.parent
-    # The report directory ignores itself, so it never shows up as part of the change.
-    (report_dir / ".gitignore").write_text("*\n", encoding="utf-8")
     if repo is None:
-        repo = Path(git(report_dir, "rev-parse", "--show-toplevel").strip())
+        repo = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
     report = json.loads(report_path.read_text(encoding="utf-8"))
     model, warnings = build(report, report_dir, repo)
     L = LABELS.get(report.get("lang", "en"), LABELS["en"])
@@ -715,7 +712,7 @@ def render(report_path: Path, repo: Path | None = None) -> tuple[Path, Path, lis
 def main() -> int:
     ap = argparse.ArgumentParser(description="Render report.json into showcase.html and pr.md beside it.")
     ap.add_argument("report", type=Path)
-    ap.add_argument("--repo", type=Path, help="repository root (default: the repo containing the report)")
+    ap.add_argument("--repo", type=Path, help="repository root (default: the repo containing the current directory)")
     args = ap.parse_args()
     try:
         html_path, md_path, warnings = render(args.report, args.repo)

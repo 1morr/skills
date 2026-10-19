@@ -1,77 +1,72 @@
-# Running base and head
+# 跑修改前與修改後
 
-Read this before running anything for evidence. Each section ends on what must hold before you trust the result.
+為證據跑任何東西之前讀這份。每一節結尾是相信結果之前必須成立的條件。
 
-## Recipe
+## 跑法從哪來
 
-`.showcase/recipe.md` at the repo root is what earlier runs learned about running this repo. Read it first and follow it; it is a cache of discovery, so the repo wins when they disagree.
+依序找，前一個沒有才往下：
 
-After a run, write or update it with what the next run needs whatever the change is: which of several commands works, how to start each surface and know it is ready, where fake data and fake sign-ins live, how to prove provenance, every trap that cost you time, and how long slow steps take. Point at files instead of copying their contents, credentials included.
+1. repo 的 agent 指令檔（`AGENTS.md`、`CLAUDE.md`，以及子目錄裡的同名檔）與 project skills。之前的 showcase 經使用者同意後，會把跑法寫在這裡。
+2. repo 自己記錄怎麼跑的地方，大致由便宜到貴：README、CONTRIBUTING 與開發文件、CI workflow（CI 證明了那些指令能跑）、套件 scripts 與 task runner、e2e 與 Storybook 設定、container 檔案、fixture、seed、mock 與假伺服器。有 e2e 測試的 repo 通常附假後端或種子資料：e2e 設定告訴你怎麼啟動，spec 告訴你怎麼走到每個狀態。
+3. 都找不到：問使用者怎麼啟動，不要猜。
 
-The recipe is about this repo. Three things stay out of it: what this run found (results and counts belong in the report), what only this change needed, and quirks of your own tools (they belong to whoever runs those tools, not to the repo). Edit in place: when a run proves a line wrong, rewrite that line instead of appending a correction below it. End with `Last verified: <short SHA> <date>`.
+指令檔寫的和 repo 實際行為不一致時，以 repo 為準，並在交接時把要修正的那行一起提給使用者。
 
-```markdown
-# Running this repo for a showcase
+## 執行目錄
 
-## Web UI
-- Start: `<command>` (from `<dir>`), ready when `<log line or URL responds>`.
-- Data: `<fixture/seed/fake server>`, scenario `<name>` for `<state>`.
-- Sign-in: fake account defined in `<file>`.
-- Provenance: `<how to confirm the running code is this checkout>`.
-- Gotchas: `<trap and fix>`.
+每次執行在 repo 外建一個新目錄：有 session 的 scratch 或暫存區就建在裡面，否則用 `mktemp -d`。這次執行所有暫時的東西都放這裡：worktree、輔助腳本、log、原始擷取。平行的執行不會互撞，收尾也只需清一處。
 
-Last verified: a1b2c3d 2026-01-31
-```
+Windows 上在 POSIX shell 裡，傳給 shell 以外程式（node、python、瀏覽器）的路徑要轉成原生格式：`cygpath -m`。
 
-The recipe lives in the repo so every developer and agent shares it. Tell the user it is new or changed; committing it is their call.
+## Checkout
 
-## Discovery
+不是「目前工作區」本身的那一邊，都用自己的 checkout 跑：`git worktree add --detach <執行目錄>/<邊> <rev>`。開發者的工作區、分支與 stash 保持原樣。
 
-Without a recipe, look where the repo already records how it runs, roughly cheapest first: agent instructions and project skills, README and CONTRIBUTING and development docs, CI workflows (CI proves those commands work), package scripts and task runners, e2e and Storybook configs, container files, fixtures, seeds, mocks and fake servers. Repos with e2e tests usually ship a fake backend or seed data; the e2e config shows how to start it and the specs show how to reach each state.
+新的 worktree 沒有安裝好的依賴，也沒有建置產物。用 repo 自己的指令安裝（有 lockfile 通常很快）。如果改用連結共用依賴目錄，移除 worktree 之前先拆掉連結，免得移除動作沿著連結刪到原本那份。
 
-## Run directory
+## 出處確認
 
-Make one fresh directory per run, outside the repo: inside your session's scratch or temp area when you have one, else from `mktemp -d`. Everything temporary for this run goes in it: worktrees, helper scripts, logs, raw captures. Parallel runs then never collide, and cleanup is one place.
+相信任何輸出之前，證明每一邊跑的是自己那份 checkout 的程式碼。editable install、全域建置、共用的 virtualenv、快取的 bundle，或 port 上早已有一個 server，都會讓「base」默默跑了 head 的程式碼，或反過來。檢查一個兩邊不同的東西：程序 import 進來的模組路徑、server 服務的建置目錄、版本字串，或這次改動本身改到的字串。
 
-On Windows under a POSIX shell, programs that are not the shell (node, python, browsers) need native paths: convert with `cygpath -m`.
+完成條件：每一邊都出現一個只可能來自它自己 checkout 的標記。
 
-## Checkouts
+## 程序
 
-Run every side that is not exactly the current working tree from its own checkout: `git worktree add --detach <run-dir>/<side> <rev>`. The developer's working tree, branch and stash stay untouched.
+每個常駐程序（server、watcher、模擬器）要能活過單次工具呼叫：用工具的背景模式，或分離式啟動。記下真正在服務的那個程序的 PID，不是外層包裝：套件執行器的 shim 與 shell 包裝會藏住它，所以直接啟動程式本身，或從它監聽的 port 反查 PID。之後只按這些 PID 停止。按程式名稱停止會殺掉使用者其他無關的程序。
 
-A new worktree has no installed dependencies or build output. Install them with the repo's own command (a lockfile install is usually quick). If you link a dependency directory instead, remove the link before removing the worktree, so removal never follows it into the original.
+## 相同條件
 
-## Provenance
+base 與 head 用同樣的輸入資料、視窗大小、語系、主題與時鐘，等動畫結束、網路靜止。這樣證據裡的每個差異都來自改動本身。
 
-Before trusting any output, prove each side runs its own checkout's code. Editable installs, global builds, a shared virtualenv, a cached bundle or a server already holding the port all make a "base" run silently execute head's code, or the reverse. Check something that differs between the two: the module path the process imported, the build directory a server serves, a version string, or a string the change itself edits.
+## 走到某個狀態
 
-Done when each side shows a marker that could only come from its own checkout.
+把 app 帶到改動影響的每個狀態。repo 的 e2e 輔助程式已經知道怎麼登入、塞資料、點過流程，先借用它們再考慮自己寫步驟。要好幾分鐘才到得了的狀態（排程觸發、長時間工作）值得跑一次；安排好擷取順序，讓自己只經過它一次。
 
-## Processes
+為開發或測試而 commit 進 repo 的假帳密，可以拿來登入本機的 app。它們不進報告，也不寫進指令檔，跟任何秘密一樣。
 
-Start each long-lived process (server, watcher, emulator) so it outlives a single tool call: your tool's background mode, or a detached start. Record the PID of the process that actually serves, not a wrapper: package-runner shims and shell wrappers hide it, so start the program directly or resolve the PID from the port it listens on. Stop processes by those PIDs. Stopping by program name kills the user's unrelated processes.
+## 擷取
 
-## Same conditions
+- **截圖**框住改動的區域：元素截圖，或帶足夠周邊、讓人找得到位置的裁切矩形。只有「在頁面上的位置」本身是重點時，才另加整頁截圖。讀者要能在報告的顯示寬度下看出差異。
+- 兩邊用同一個裁切矩形，即使改動讓元素變高，滑桿也對得齊。
+- 用 JPEG 或 WebP，HTML 才不會太大。
+- **文字輸出**留下顯示結果的那幾行：摘要行、斷言、改變的值。刪掉 log 雜訊，每處刪減標 `…`。
+- **測試當證據**：新增或改動的測試在兩邊都跑，就是 before-after 證據。把 head 的測試檔複製進 base 的 checkout；在那裡失敗（或編譯不過）、在 head 通過，顯示了改動新增的東西。重構的話，base 自己的測試在 base 通過、head 的在 head 通過，顯示行為保持不變。
+- **自己寫的重現**：給沒附測試的改動用。放在執行目錄、兩邊都跑，原始碼以不帶 `command` 的 `output` 項目放進報告，說明寫明「為這次 showcase 撰寫，不屬於這次改動」。
 
-Base and head get the same input data, viewport, locale, theme and clock, with animations settled and network idle. Then every difference in the evidence comes from the change.
+## 實機預覽
 
-## Reaching a state
+證據收完後，兩邊不要停，讓使用者親手比對：
 
-Drive the app to each state the change affects. The repo's e2e helpers already know how to sign in, seed and click through, so borrow them before scripting your own steps. A state that takes minutes to reach (a scheduler tick, a long job) is worth one run; plan the captures so you pass through it once.
+- **網頁**：base 與 head 各佔一個 port，用使用者的預設瀏覽器打開兩個網址（Windows `start`、macOS `open`、Linux `xdg-open`）。
+- **手機或桌面 app**：照 repo 對裝置與模擬器的規矩做（有些裝置上放著不能動的資料或別的版本）。只安裝這次建置出來的東西。要裝到裝置上已經有的 app id 時（會覆蓋它，可能清掉它的資料），repo 的規矩明確允許才裝，否則先問使用者。兩版的 app id 不同時兩版都裝；相同時裝 head，並給使用者切換到 base（以及切回來）的確切指令。需要模擬器而它沒開時，啟動它。
+- **CLI 或函式庫**：兩個 checkout 留著，給使用者在各自目錄要跑的確切指令。
 
-Fake credentials committed for development or tests may be typed into the local app. They stay out of the report and the recipe, like any secret.
+在交接時列出每一邊在哪裡、怎麼用，以及你記下的 PID。預覽期間 worktree 要留著。
 
-## Capturing
+## 收尾
 
-- **Screenshots** frame the changed region: an element screenshot, or a clip rectangle with enough surroundings to find it on the page. Add a full-page shot only when position on the page is the point. A reader must see the difference at the report's display width.
-- Capture both sides with the same clip rectangle, so the pair lines up in the slider even when the change alters the element's height.
-- JPEG or WebP keeps the HTML small.
-- **Text output** keeps the lines that show the result: the summary line, the assertion, the changed value. Cut logging noise, marking each cut with `…`.
-- **Tests as evidence**: a new or changed test run on both sides is before-after evidence. Copy head's test files into the base checkout; failing there (or not compiling) and passing on head shows what the change adds. For a refactor, the base's own suite passing on base and head's passing on head shows behaviour kept.
-- **A reproduction you write** for a change that brought no test: keep it in the run directory, run it on both sides, and add its source to the report as an `output` item without a `command`, captioned as written for this showcase and not part of the change.
+時機：使用者說測完了；沒有使用者在場時則在證據收完後馬上收。
 
-## Cleanup
+停掉你記下的每個 PID，移除你加的每個 worktree（`git worktree remove`，再 `git worktree prune`）。安裝與 codegen 常把你自己的暫時 worktree 弄髒；在那裡、也只在那裡，可以用 `--force`。從裝置移除你為預覽裝上去、原本不在的 app；覆蓋過的原有 app 無法復原，在交接時已經說過。啟動過的模擬器問使用者要不要關。最後刪掉執行目錄。
 
-Stop every PID you recorded, then remove every worktree you added (`git worktree remove`, then `git worktree prune`). Installs and codegen often dirty your own temporary worktree; `--force` is fine there and only there. Then remove the run directory.
-
-Done when `git worktree list` and `git status` match what you found, and no PID you recorded is alive.
+完成條件：`git worktree list` 與 `git status` 和開始時一致，你記下的 PID 都已不在，port 都已釋放。

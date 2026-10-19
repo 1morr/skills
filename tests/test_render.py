@@ -1,6 +1,6 @@
-"""Renderer behaviour against a throwaway git repo.
+"""對一個用完即丟的 git repo 驗證渲染器的行為。
 
-Run from the skill directory: python -m unittest discover -s tests
+在 skill 目錄執行：python -m unittest discover -s tests
 """
 
 import base64
@@ -17,7 +17,7 @@ spec = importlib.util.spec_from_file_location("showcase", SCRIPT)
 showcase = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(showcase)
 
-# 1x1 transparent PNG
+# 1x1 透明 PNG
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 )
@@ -45,13 +45,16 @@ class RenderTest(unittest.TestCase):
         (self.repo / "gen" / "b.g.js").write_text("b\n", encoding="utf-8")
         run(self.repo, "add", "-A")
         run(self.repo, "commit", "-q", "-m", "change")
-        self.out = self.repo / ".showcase" / "reports" / "t"
-        self.out.mkdir(parents=True)
+        # 報告預設放在 repo 外
+        self.outside = tempfile.TemporaryDirectory()
+        self.out = Path(self.outside.name) / "t"
+        self.out.mkdir()
         (self.out / "before.png").write_bytes(PNG)
         (self.out / "after.png").write_bytes(PNG)
 
     def tearDown(self):
         self.tmp.cleanup()
+        self.outside.cleanup()
 
     def report(self, **over):
         r = {
@@ -77,7 +80,13 @@ class RenderTest(unittest.TestCase):
         return self.out / "report.json"
 
     def render(self, **over):
-        return showcase.render(self.report(**over))
+        return showcase.render(self.report(**over), self.repo)
+
+    def test_report_outside_repo_writes_nothing_into_the_repo(self):
+        self.render()
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo,
+                                capture_output=True, text=True, check=True).stdout
+        self.assertEqual(status, "")
 
     def test_renders_self_contained_html_with_escaped_diff(self):
         html_path, md_path, _ = self.render()
@@ -125,6 +134,12 @@ class RenderTest(unittest.TestCase):
             self.render(evidence=ev)
 
     def test_working_tree_includes_untracked_files_but_not_the_report(self):
+        # 使用者把報告放進 repo 時，報告本身不能被當成改動
+        inside = self.repo / "reports" / "t"
+        inside.mkdir(parents=True)
+        for f in self.out.iterdir():
+            (inside / f.name).write_bytes(f.read_bytes())
+        self.out = inside
         (self.repo / "new.py").write_text("print('new')\n", encoding="utf-8")
         files = {"app.js": "a", "old.txt": "b", "gen/*.g.js": "c", "new.py": "New script."}
         html_path, _, _ = self.render(
@@ -133,6 +148,7 @@ class RenderTest(unittest.TestCase):
         page = html_path.read_text(encoding="utf-8")
         self.assertIn("print(&#x27;new&#x27;)", page)
         self.assertNotIn("report.json", page)
+        self.assertNotIn("before.png", page)
 
     def test_missing_motivation_is_flagged_not_invented(self):
         _, md_path, _ = self.render(why={"text": "", "sources": []})
