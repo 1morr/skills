@@ -33,8 +33,9 @@
   "evidence": {
     "level": "before-after",
     "items": [
-      { "kind": "compare", "caption": "從第 40 筆返回", "before": "before-back.jpg", "after": "after-back.jpg" },
-      { "kind": "image", "caption": "沒有結果時", "after": "after-empty.jpg" },
+      { "kind": "compare", "caption": "從第 40 筆返回：修改前回到頂端，修改後停在第 40 筆", "before": "before-back.jpg", "after": "after-back.jpg" },
+      { "kind": "compare", "caption": "快速連點三筆再返回：修改前每次都跳回頂端，修改後每次都回到原位", "before": "before-clicks.webm", "after": "after-clicks.webm" },
+      { "kind": "image", "caption": "沒有結果時：顯示空狀態，沒有捲軸", "after": "after-empty.jpg" },
       { "kind": "output", "caption": "單元測試", "command": "npm test -- ResultList", "before_file": "tests-before.txt", "after_file": "tests-after.txt" }
     ]
   },
@@ -63,10 +64,12 @@
 
 證據種類：
 
-- `image`：`after` 圖片路徑。只有 head 的截圖。
-- `compare`：`before` 與 `after` 圖片路徑。並排顯示，兩張尺寸相同時另有滑桿。
-- `output`：選填 `command`、`after` 文字或 `after_file`、選填 `before` 文字或 `before_file`（同一指令在 base 的結果）。沒有 `command` 時原樣顯示一個檔案，例如為 showcase 寫的重現。文字也會出現在 `pr.md`（有產出時）。
+- `image`：`after` 截圖或錄影路徑。只有 head 的。
+- `compare`：`before` 與 `after` 截圖或錄影路徑。並排顯示；兩張截圖尺寸相同時另有滑桿，錄影只並排。
+- `output`：選填 `command`、`after` 文字或 `after_file`、選填 `before` 文字或 `before_file`（同一指令在 base 的結果）。沒有 `command` 時原樣顯示一個檔案，例如為 showcase 寫的重現。
 
-圖片：`.png`、`.jpg`、`.jpeg`、`.webp`、`.gif`、`.svg`。
+截圖：`.png`、`.jpg`、`.jpeg`、`.webp`、`.gif`、`.svg`。錄影：`.webm`、`.mp4`，自動播放並循環。
+
+`pr.md` 沒有截圖與錄影，只列出它們的 `caption`，所以 caption 要寫出看到的差異。文字證據原樣放進 `pr.md`。
 
 渲染器會對 `report.json` 與文字證據裡的家目錄路徑、像秘密的值發出警告。它讀不到圖片裡的字；截圖要自己遮蔽。

@@ -1,61 +1,69 @@
 ---
 name: showcase
-description: 把一次程式改動展示給沒寫它的人：實跑修改前後兩版讓使用者親手操作對照，並產出自含截圖、可附到 PR 的 HTML 報告，說明改了什麼、為什麼、做了哪些決策，附註解過的關鍵 diff 與證據（前後截圖、指令輸出、測試結果）。用於要展示、demo、walkthrough、說明一個改動 / 分支 / commit 範圍 / PR，或要看改動前後對照（showcase, before/after）時。
-argument-hint: "[commit / 範圍 / PR / 分支] [預覽 | 只截圖 | 不實跑]"
+description: Show a code change to someone who did not write it, so they can see what an agent changed without asking it or running the code themselves. Runs the code before and after the change, captures evidence (screenshots, screen recordings, command output, test results), and renders a self-contained HTML report, plus text-only Markdown for a PR, explaining what changed, why, and which decisions were made, with annotated key diffs. Use when asked to showcase, demo, walk through, or explain a change, branch, commit range, or PR, to compare before and after, or after finishing a feature. Also triggers on 展示改動、前後對照.
+argument-hint: "[commit | range | PR# | branch] [no-run] [pr] [auto]"
 ---
 
 # Showcase
 
-Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼、為什麼做、做了哪些決定、我怎麼親眼看到。讀者是請 agent 寫程式的開發者、審查者，以及打開 PR 的任何人。完整 diff 在 PR 的檔案頁已經有了；showcase 補的是 diff 說不出來的部分。
+Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼、為什麼做、做了哪些決定、我怎麼親眼看到。讀者不必去問寫它的 agent，也不必自己把程式跑起來。完整 diff 在 PR 的檔案頁已經有了；showcase 補的是 diff 說不出來的部分。
 
-產出有兩種，給兩種讀者：
+產出放在 repo 外的 `<系統暫存目錄>/showcase/<repo 名>/<id>/`（使用者指定位置時用使用者的）。`<id>` 是 `pr-<編號>`（範圍正好是整個 PR 時），否則 head 的短 SHA，否則 `wip`。目錄已存在時不碰它，改用 `<id>-2`、`<id>-3`…… 的新目錄：裡面可能是別人或上一次的報告。
 
-- **實機預覽**（使用者選了才做）：給眼前的使用者。修改前（base）與修改後（head）兩版同時跑著，網頁開在使用者看得見的瀏覽器視窗、App 裝在模擬器或裝置上，都已登入並停在要比對的畫面，讓使用者自己點、自己比。使用者說測完才收掉。
-- **報告**：給之後的讀者，放在 repo 外的 `<系統暫存目錄>/showcase/<repo 名>/<id>/`（使用者指定位置時用使用者的）。`<id>` 是 `pr-<編號>`（範圍正好是整個 PR 時），否則 head 的短 SHA，否則 `wip`。目錄已存在時不碰它，改用 `<id>-2`、`<id>-3`…… 的新目錄：裡面可能是別人或上一次的報告。
-  - `showcase.html`：單一檔案，圖片全部內嵌。拖進 PR 的留言框就能附上（GitHub 接受 `.html`，上限 25 MB；`gh` 不能上傳它）。
-  - `pr.md`：只在使用者要貼到 PR 時產出（第 7 步）。同樣內容但不含圖片：PR 上的 HTML 附件只是一個要下載的連結，讀者在 PR 頁面上直接讀到的是這份文字。
+- `showcase.html`：單一檔案，截圖與錄影全部內嵌。拖進 PR 的留言框就能附上（GitHub 接受 `.html`，上限 25 MB；`gh` 不能上傳它）。
+- `pr.md`：只在要貼到 PR 時產出。內容與 HTML 相同，但沒有圖片與錄影，單獨貼出來也讀得懂。
 
 報告語言：使用者指定的，或使用者長期指示裡設定的；都沒有就跟 repo 的 PR 描述，再來是 repo 文件。`lang` 設 `zh-Hant` 或 `en` 會有對應標籤，其他值用英文標籤。
 
-沒有使用者在場時（CI、排程、被其他流程呼叫），跳過實機預覽與所有詢問：跑完證據就收尾，跑法不寫進任何檔案。
+## 叫用方式
+
+使用者可以用參數，也可以用口語說。沒說的照預設做，不問。
+
+- 範圍：commit、範圍、PR 編號或分支。省略時見第 1 步。
+- `no-run`（「不實跑」）：什麼都不跑。證據停在 `tests` 或 `static`，`why_not_higher` 寫「使用者選擇不實跑」。
+- `pr`（「貼到 PR」）：最後把 `pr.md` 貼成 PR 留言（第 7 步）。
+- `auto`（「不要問我」）：全程不提問、不開瀏覽器、不提議改 repo 的檔案。需要使用者決定的事一律選不動手的那邊，並列進 `unverified`。被其他流程呼叫，或沒有使用者在場時（CI、排程、hook），也照這樣做。
+
+預設是：能跑就實跑，證據擷取完馬上收掉。
 
 ## 1. 確認要展示什麼
 
-使用者叫用時已經說了的照用，沒說的才問，所有問題放進同一次提問。
+範圍沒指定時，依序看這些候選：
 
-- **哪個改動**：沒指定時，從 git 狀態列出候選讓使用者選：未 commit 的工作、目前分支相對預設分支的改動、目前分支的 PR、最近幾個 commit。只有一個合理候選時，說明你要用它，直接開始。
-- **怎麼跑**：改動有使用者操作得到的東西（UI、CLI、API）時，給三個選項：
-  - 實跑並留著給使用者測（實機預覽）
-  - 只實跑擷取證據，擷取完就收
-  - 不實跑，只要說明與 diff
+1. 這個 session 做的改動：從 session 開始時的 HEAD 到現在，含未 commit 的工作。
+2. 未 commit 的工作。
+3. 目前分支相對預設分支的改動。
+4. 目前分支的 PR。
 
-  提問時說清楚代價與會動到什麼：要建置幾個版本、大概要多久、會啟動或安裝什麼（例如裝到模擬器會覆蓋同 app id 的版本）。沒有操作得到的東西（重構、文件、純內部邏輯）時不問這題，說明為什麼不預覽，照證據階梯用測試或輸出當證據。
+只有一個合理候選、或在 `auto` 下時，取第一個存在的，說一句你用哪個，然後直接開始。候選不只一個時，一次問完。
 
-選了不實跑時，第 4 步停在 `tests` 或 `static`，`why_not_higher` 寫「使用者選擇不實跑」。
+改動沒有使用者操作得到的東西時（重構、文件、純內部邏輯），不會有畫面可截；照證據階梯，用測試或輸出當證據。
 
 ## 2. 釘住範圍
 
-- 使用者指定的 commit 或範圍：照用（單一 commit 是 `<commit>^` 到 `<commit>`；`^` 是第一個 parent，merge 也一樣）。
+- 使用者指定的 commit 或範圍：照用。單一 commit 是 `<commit>^` 到 `<commit>`；`^` 是第一個 parent，merge 也一樣。
 - PR：用 `gh pr view <編號> --json baseRefName,headRefOid` 取 base 分支與 head commit；`base` 是兩者的 merge-base。
-- 分支或手上的工作：`base` 是 `git merge-base HEAD origin/<預設分支>`；`head` 是 `HEAD`，未 commit 的工作則為 `null`（工作區）。
+- 這個 session 的改動：`base` 是 session 開始時的 HEAD，`head` 是 `null`（工作區）。
+- 分支或手上的工作：`base` 是 `git merge-base HEAD origin/<預設分支>`（沒有 remote 時用本地的預設分支）；`head` 是 `HEAD`，未 commit 的工作則為 `null`。
 
-完成條件：`git diff --stat <base> [<head>]` 列出的正好是要展示的改動。範圍混進無關的 commit 時，問使用者要展示哪部分。
+完成條件：`git diff --stat <base> [<head>]` 列出的正好是要展示的改動。範圍混進無關的 commit 時，問使用者要展示哪部分；`auto` 下照原範圍做，並在 `unverified` 註明。
 
 ## 3. 收集「為什麼」
 
-讀每一個可能說明意圖的來源：產生這次改動的對話、PR 描述、commit message / 分支名 / PR 引用的 issue、票、規格、commit message 本身、改動碰到或引用的 ADR 與設計文件。記下用了哪些來源。票或文件涵蓋的範圍比這次改動大時，它只用來解釋為什麼；報告仍只描述這個範圍。
+讀每一個可能說明意圖的來源：產生這次改動的對話、PR 描述、commit message、分支名、PR 引用的 issue / 票 / 規格、改動碰到或引用的 ADR 與設計文件。記下用了哪些來源。票或文件涵蓋的範圍比這次改動大時，它只用來解釋為什麼；報告仍只描述這個範圍。
 
-有來源支持的說法是**有來源**；從程式碼反推的是**推斷**，要標出來。沒有任何來源說明動機時，`why.sources` 留空，報告會顯示「待作者補充」：讀者會依「為什麼」行事，看得見的空白比看似合理的猜測對他們更有用。
+有來源支持的說法是**有來源**；從程式碼反推的是**推斷**，要標出來。沒有任何來源說明動機時，`why.sources` 留空，報告會顯示「待作者補充」。讀者會依「為什麼」行事，看得見的空白比看似合理的猜測對他們更有用。
 
 完成條件：「為什麼」與每個決策裡的每一句，不是附了來源，就是標了推斷。
 
 ## 4. 收集證據
 
-按讀者能觀察到什麼來分類改動。一個改動可以同時屬於多類；讀者最想看的主要效果拿最強的證據，次要效果可以停在較低等級或列進 `unverified`。
+按讀者能觀察到什麼來分類改動。一個改動可以同時屬於多類；讀者最想看的主要效果拿最強的證據，次要效果可以停在較低等級，或列進 `unverified`。
 
 | 類型 | 證據 |
 |---|---|
 | 看得見的 UI | 每個受影響的畫面與狀態，base 與 head 各截一張 |
+| 要操作才看得出的 UI（動畫、轉場、多步流程、拖放、載入狀態） | base 與 head 用同一套操作各錄一段 |
 | 行為（CLI、API、函式庫輸出、資料處理） | 同一份輸入分別跑 base 與 head，輸出並排 |
 | 效能 | 同一個 benchmark 跑 base 與 head |
 | 附測試的修正或新邏輯 | 新增或改動的測試在 base 跑（失敗）、在 head 跑（通過） |
@@ -72,11 +80,21 @@ Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼�
 
 低於 `before-after` 時，`why_not_higher` 寫出具體障礙，例如「這個畫面需要登入真實帳號」。讀者靠這一行判斷整份報告可以信到什麼程度。
 
-動手跑任何東西之前，先讀 [references/running.md](references/running.md)：跑法從哪來、獨立 checkout、證明每一邊跑的是自己的程式碼、擷取、實機預覽與收尾。輸入用假資料；只有改動本身就是關於真實帳號或外部服務時才碰它們。
+動手跑任何東西之前，先讀 [references/running.md](references/running.md)。它涵蓋：跑法從哪來、獨立 checkout、證明每一邊跑的是自己的程式碼、擷取與錄影、收尾。
 
-證據是**原文**：程式印出或顯示的東西，用它自己的字詞與語言。可以刪到只剩相關的行（每處刪減標 `…`），也可以遮蔽：把 token、cookie、金鑰、個人姓名或 email、帳號資料、家目錄路徑換成 `<redacted>`、`<home>` 這類佔位符，其他一字不動。留下的每一行都是程式印出的原樣；你的摘要與計數寫在 caption，不混進輸出。附上的報告在公開 repo 上就是公開的。
+輸入用假資料。只有改動本身就是關於真實帳號或外部服務時才碰它們，而且要先問；`auto` 下不碰，列進 `unverified`。
 
-repo 的驗證規矩要求的平台或流程超出使用者這次要的範圍時，照使用者的範圍做，其餘列進 `unverified` 並註明 repo 規矩原本要求。
+每項證據的 caption 寫兩件事：情境，以及**看到的差異**。例如「從第 40 筆返回：修改前回到頂端，修改後停在第 40 筆」。只讀 `pr.md` 的讀者看不到圖，靠 caption 知道差在哪。
+
+證據是**原文**：程式印出或顯示的東西，用它自己的字詞與語言。
+
+- 可以刪到只剩相關的行，每處刪減標 `…`。
+- 可以遮蔽：把 token、cookie、金鑰、個人姓名或 email、帳號資料、家目錄路徑換成 `<redacted>`、`<home>` 這類佔位符，其他一字不動。
+- 留下的每一行都是程式印出的原樣；你的摘要與計數寫在 caption，不混進輸出。
+
+附上的報告在公開 repo 上就是公開的。
+
+repo 的驗證規矩要求的平台或流程超出這次範圍時，照這次的範圍做，其餘列進 `unverified`，並註明 repo 規矩原本要求。
 
 證據檔存在報告目錄，用相對路徑引用。
 
@@ -90,39 +108,44 @@ repo 的驗證規矩要求的平台或流程超出使用者這次要的範圍時
 - `how`：用白話說做法，點出主要的組成部分。
 - `decisions`：審查者可能質疑的每個選擇：為什麼、考慮過哪些替代方案、有來源還是推斷。
 - `files`：每個改動的檔案一則說明。用 glob 當鍵可以讓一組檔案共用一則，例如產生的程式碼、lockfile、機械式改名。
-- `hunks`：撐起這次改動的少數幾段 diff，每段說明它做什麼、為什麼。`match` 選出含它的 hunk，並縮到含它的行與前後 `context` 行；很長的新檔也這樣挑出關鍵段。每段 hunk 只給一個條目。
+- `hunks`：撐起這次改動的少數幾段 diff，每段說明它做什麼、為什麼。用 `match` 縮到關鍵的那幾行，很長的新檔也一樣；每段 hunk 只給一個條目。
 - `try_it`：審查者從乾淨的 checkout 出發、用假資料親眼看到改動的步驟。
 - `unverified`：沒驗證到的，例如平台、流程、邊界情況。
 
 完成條件：讀者只看 summary、「為什麼」與 `try_it`，就答得出「改了什麼、為什麼、我怎麼看到」。
 
-## 6. 渲染並檢視
+## 6. 渲染並檢查
 
 在報告目錄寫 `report.json`，格式見 [references/report-schema.md](references/report-schema.md)，然後在 repo 根目錄用 Python 3.9 以上執行：
 
 ```
-python <本 skill 的目錄>/scripts/showcase.py <報告目錄>/report.json
+python <本 skill 的目錄>/scripts/showcase.py <報告目錄>/report.json [--pr-md]
 ```
 
-渲染器自己從 git 讀每段 diff。以下情況會拒絕：改動的檔案沒有說明、說明對不上任何改動的檔案、hunk 選擇器什麼都沒選到、證據檔不存在、等級低於 `before-after` 卻沒寫原因。修報告直到它以 0 結束，並處理每個警告。
+要貼到 PR 時加 `--pr-md`，會另外寫出 `pr.md`。
 
-接著用瀏覽器以桌面寬度檢視渲染出的頁面，像讀者那樣看。自動化工具常常擋 `file://`；用 `python -m http.server` 在一個空閒的本機 port 服務報告目錄，把它當成要追蹤與停止的程序（running.md〈程序〉）。每張證據圖（`#ev-1`、`#ev-2`……）與每段關鍵改動（`#hunk-1`……）各自用元素截圖看；整頁長截圖縮小後什麼都看不清。
+渲染器自己從 git 讀每段 diff，並對照 repo 檢查報告。修報告直到它以 0 結束，並處理每個警告。
 
-完成條件：每張證據圖在該寬度下看得清它的差異，每段 diff 顯示的正是說明描述的那幾行，報告用的 server 已停止。沒辦法檢視頁面時，在交接時說明。
+接著逐張打開證據截圖檢查：縮到報告的顯示寬度（約 1000px，並排時每張約 500px）時，差異仍看得清楚。錄影要檢查兩件事：
+
+- 長度與檔案大小合理。
+- 開頭停在操作前、結尾停在結果上。能抽影格就抽頭尾各一張看，例如用 `ffmpeg`。
+
+完成條件：每項證據在報告寬度下看得出它的差異。沒辦法檢查的，在交接時說明。
 
 ## 7. 交接
 
-給使用者：
+不是 `auto` 時，用預設瀏覽器打開 `showcase.html`（Windows `start`、macOS `open`、Linux `xdg-open`）。給使用者它的路徑，再加三行：
 
-- **實機預覽**（有做時）：交代以下幾點：
-  - 每一邊在哪裡：網址、裝置，或在哪個目錄跑什麼指令。
-  - 已經開好的視窗各自是哪一邊、停在什麼畫面。
-  - 要比對什麼、怎麼操作。
-  - 需要登入時，帳號與密碼本身。使用者重新登入或另開視窗時會用到。
-  - 「測完跟我說，我會收掉」。
-- **報告**：使用者在場時，用預設瀏覽器打開 `showcase.html`（Windows `start`、macOS `open`、Linux `xdg-open`）。給它的路徑，再加三行：達到的證據等級、沒驗證到的、待作者補充的。
-- **跑法**（repo 的指令檔已經夠用時略過）：這次自己找出或問使用者得來、而 repo 的 agent 指令檔裡沒有的跑法（指令、陷阱、出處確認方式），連同打算寫進去的文字，問使用者能不能寫進 repo 的 `AGENTS.md`（repo 只有 `CLAUDE.md` 時寫那裡），照該 repo 改指令檔的規矩寫。使用者同意才寫；不同意就不寫，這個 session 不再問，下次重新找跑法，找不到就問使用者。
+- 達到的證據等級
+- 沒驗證到的
+- 待作者補充的
 
-使用者要求貼到 PR 時，渲染指令加 `--pr-md` 重跑一次，產出與目前報告一致的 `pr.md`，再用 `gh pr edit --body-file pr.md` 或 `gh pr comment --body-file pr.md` 貼上；接著請使用者在 PR 網頁上把 `showcase.html` 拖進留言框當附件。
+**貼到 PR**（有 `pr` 時）：
 
-使用者說測完後，照 running.md〈收尾〉收掉預覽。
+- 用 `gh pr comment <編號> --body-file pr.md` 貼成留言。
+- 不要用 `gh pr edit --body-file`：它會整份蓋掉作者寫的 PR 描述。使用者要求放進描述時，把 `pr.md` 接在原描述後面。
+- 範圍沒有對應的 PR 時不開新 PR，在交接時說明。
+- 想在 PR 上看到截圖與錄影的讀者，需要使用者在網頁上把 `showcase.html` 拖進留言框；交接時提一句。
+
+**記下跑法**（不是 `auto`，且 repo 的指令檔不夠用時）：這次自己找出、或問使用者得來的跑法，包括指令、陷阱、出處確認方式，下次叫用就不必重找。把打算寫的文字給使用者看，問一次能不能寫進 repo 的 `AGENTS.md`（repo 只有 `CLAUDE.md` 時寫那裡），照該 repo 改指令檔的規矩寫。同意才寫。
