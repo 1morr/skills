@@ -27,6 +27,8 @@ MAX_HTML_BYTES = 20 * 1024 * 1024
 # GitHub 的 PR 描述或留言上限 65536 字元。
 MAX_PR_CHARS = 60000
 LONG_HUNK_LINES = 150
+DEFAULT_CONTEXT = 6
+GAP = "⋯"
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 
 LABELS = {
@@ -180,6 +182,24 @@ def file_diff(repo: Path, base: str, head: str | None, f: dict) -> str:
     return git(repo, "diff", "--no-color", "-M", *rev, "--", *paths)
 
 
+def trim_hunk(hunk: str, needle: str, context: int) -> str:
+    """只留含 needle 的行與前後 context 行；省略處以 ⋯ 標出，讀者才看得到自己少看了什麼。"""
+    header, *body = hunk.split("\n")
+    hits = [i for i, line in enumerate(body) if needle in line]
+    if not hits:  # 只命中標頭（函式名）時整段保留
+        return hunk
+    keep = sorted({j for i in hits for j in range(max(0, i - context), min(len(body), i + context + 1))})
+    out, prev = [header], -1
+    for i in keep:
+        if i > prev + 1:
+            out.append(GAP)
+        out.append(body[i])
+        prev = i
+    if prev < len(body) - 1:
+        out.append(GAP)
+    return "\n".join(out)
+
+
 def split_hunks(diff_text: str) -> list[str]:
     hunks: list[list[str]] = []
     for line in diff_text.splitlines():
@@ -283,7 +303,8 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
             errors.append(f"`files` key matches no changed file: {key}")
 
     hunks_out = []
-    for h in report.get("hunks", []):
+    chosen: dict[tuple[str, str], int] = {}  # (檔案, hunk 標頭) → 第幾個條目選了它
+    for n, h in enumerate(report.get("hunks", []), 1):
         f = by_path.get(h.get("file", ""))
         if f is None:
             errors.append(f"hunk file is not in the change: {h.get('file')}")
@@ -293,9 +314,16 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
         if not sel:
             errors.append(f"hunk selector matched nothing in {f['path']}: {h.get('match')!r}")
             continue
+        for x in sel:
+            key = (f["path"], x.split("\n", 1)[0])
+            if key in chosen:
+                warnings.append(f"hunks entries {chosen[key]} and {n} select the same hunk in {f['path']}; merge them")
+            chosen.setdefault(key, n)
+        if h.get("match"):
+            sel = [trim_hunk(x, h["match"], h.get("context", DEFAULT_CONTEXT)) for x in sel]
         lines = sum(x.count("\n") + 1 for x in sel)
         if lines > LONG_HUNK_LINES:
-            warnings.append(f"{f['path']}: {lines} diff lines selected; narrow `match` to the lines that carry the change")
+            warnings.append(f"{f['path']}: {lines} diff lines selected; narrow `match` or lower `context`")
         hunks_out.append({"file": f["path"], "note": h.get("note", ""), "text": "\n".join(sel)})
 
     ev = report["evidence"]
@@ -384,7 +412,7 @@ def blocks(text: str) -> str:
 def diff_html(text: str) -> str:
     rows = []
     for line in text.splitlines():
-        cls = "hunk" if line.startswith("@@") else "add" if line.startswith("+") else "del" if line.startswith("-") else "ctx"
+        cls = "hunk" if line.startswith("@@") or line == GAP else "add" if line.startswith("+") else "del" if line.startswith("-") else "ctx"
         rows.append(f'<span class="{cls}">{html.escape(line) or " "}</span>')
     return f'<pre class="diff">{"".join(rows)}</pre>'
 
@@ -497,14 +525,14 @@ def render_html(model: dict, L: dict) -> str:
     if ev.get("why_not_higher"):
         body += f'<span class="meta">{L["why_not_higher"]}: {inline(ev["why_not_higher"])}</span>'
     body += "</div>"
-    for item in model["items"]:
+    for n, item in enumerate(model["items"], 1):
         cap = f"<figcaption>{inline(item['caption'])}</figcaption>" if item["caption"] else ""
         if item["kind"] == "image":
-            body += f'<figure>{cap}<img src="{item["after"]}" alt="{html.escape(item["caption"])}"></figure>'
+            body += f'<figure id="ev-{n}">{cap}<img src="{item["after"]}" alt="{html.escape(item["caption"])}"></figure>'
         elif item["kind"] == "compare":
             alt = html.escape(item["caption"])
             body += (
-                f'<figure class="compare" data-mode="pair">{cap}'
+                f'<figure id="ev-{n}" class="compare" data-mode="pair">{cap}'
                 f'<div class="modes"><button data-mode="pair" aria-pressed="true">{L["side_by_side"]}</button>'
                 f'<button data-mode="slider" aria-pressed="false">{L["slider"]}</button></div>'
                 f'<div class="pair"><div><div class="side-label">{L["before"]}</div><img src="{item["before"]}" alt="{L["before"]}: {alt}"></div>'
@@ -515,7 +543,7 @@ def render_html(model: dict, L: dict) -> str:
                 f'<div class="slider-legend"><span>◀ {L["before"]}</span><span>{L["after_label"]} ▶</span></div></div></figure>'
             )
         else:
-            body += f"<figure>{cap}"
+            body += f'<figure id="ev-{n}">{cap}'
             if item["command"]:
                 body += f'<div class="meta">{L["command"]}: <code>{html.escape(item["command"])}</code></div>'
             if item["before"] is not None:
@@ -555,8 +583,9 @@ def render_html(model: dict, L: dict) -> str:
 
     if model["hunks"]:
         body = ""
-        for h in model["hunks"]:
-            body += f'<h3><code>{html.escape(h["file"])}</code></h3><div class="hunk-note">{blocks(h["note"])}</div>{diff_html(h["text"])}'
+        for n, h in enumerate(model["hunks"], 1):
+            body += (f'<div class="hunk-block" id="hunk-{n}"><h3><code>{html.escape(h["file"])}</code></h3>'
+                     f'<div class="hunk-note">{blocks(h["note"])}</div>{diff_html(h["text"])}</div>')
         sec.append(("key-changes", L["key_changes"], body))
 
     sec.append(("files", L["files"], files_table(model, L)))

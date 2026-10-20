@@ -123,6 +123,31 @@ class RenderTest(unittest.TestCase):
         with self.assertRaisesRegex(showcase.ReportError, "matched nothing"):
             self.render(hunks=[{"file": "app.js", "match": "nonexistent", "note": ""}])
 
+    def test_match_trims_to_matching_lines_with_context(self):
+        lines = [f"line{i:02d}" for i in range(60)]
+        lines[30] = "needle()"
+        (self.repo / "big.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        files = {"app.js": "a", "old.txt": "b", "gen/*.g.js": "c", "big.py": "New file."}
+        _, md_path, _ = self.render(range={"base": "HEAD~1", "head": None}, files=files,
+                                    hunks=[{"file": "big.py", "match": "needle", "context": 2, "note": "x"}])
+        md = md_path.read_text(encoding="utf-8")
+        for kept in ("+line28", "+needle()", "+line32"):
+            self.assertIn(kept, md)
+        for dropped in ("+line27", "+line33", "+line00"):
+            self.assertNotIn(dropped, md)
+        self.assertEqual(md.count(showcase.GAP), 2)
+
+    def test_two_entries_selecting_one_hunk_warn(self):
+        _, _, warnings = self.render(hunks=[{"file": "app.js", "match": "name", "note": "a"},
+                                            {"file": "app.js", "match": "script", "note": "b"}])
+        self.assertTrue(any("select the same hunk" in w for w in warnings), warnings)
+
+    def test_figures_and_hunks_have_ids(self):
+        html_path, _, _ = self.render()
+        page = html_path.read_text(encoding="utf-8")
+        for anchor in ('id="ev-1"', 'id="ev-2"', 'id="hunk-1"'):
+            self.assertIn(anchor, page)
+
     def test_level_below_before_after_needs_reason(self):
         ev = {"level": "tests", "items": []}
         with self.assertRaisesRegex(showcase.ReportError, "why_not_higher"):

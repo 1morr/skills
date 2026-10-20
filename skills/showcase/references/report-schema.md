@@ -55,7 +55,7 @@
 | `how` | 否 | 做法。 |
 | `decisions[]` | 否 | `decision`、`why`、選填 `alternatives`、`basis`（`stated` 有來源或 `inferred` 推斷，預設 `inferred`）、選填 `source`。 |
 | `files` | 是 | 改動的路徑或 glob → 說明。diff 裡的每個路徑都需要一則，點開頭的目錄也算。鍵比對完整的 repo 相對路徑；精確路徑優先於 glob；`*` 會跨過 `/`。 |
-| `hunks[]` | 否 | `file`、選填 `match`（保留文字含它的 hunk；不給就是全部）、`note`。 |
+| `hunks[]` | 否 | `file`、選填 `match`（選出含它的 hunk，並縮到含它的行與前後 `context` 行，省略處標 `⋯`；不給就是整個檔案的全部 hunk）、選填 `context`（預設 6）、`note`。兩個條目選到同一段 hunk 會警告。 |
 | `evidence.level` | 是 | `before-after`、`after`、`tests` 或 `static`。 |
 | `evidence.why_not_higher` | 低於 `before-after` 時 | 障礙是什麼。 |
 | `evidence.items[]` | 否 | 種類見下。 |
