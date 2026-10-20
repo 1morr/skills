@@ -1,6 +1,7 @@
 ---
 name: showcase
 description: 把一次程式改動展示給沒寫它的人：實跑修改前後兩版讓使用者親手操作對照，並產出自含截圖、可附到 PR 的 HTML 報告，說明改了什麼、為什麼、做了哪些決策，附註解過的關鍵 diff 與證據（前後截圖、指令輸出、測試結果）。用於要展示、demo、walkthrough、說明一個改動 / 分支 / commit 範圍 / PR，或要看改動前後對照（showcase, before/after）時。
+argument-hint: "[commit / 範圍 / PR / 分支] [預覽 | 只截圖 | 不實跑]"
 ---
 
 # Showcase

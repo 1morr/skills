@@ -4,7 +4,7 @@
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
-| [showcase](skills/showcase/SKILL.md) | `/1morr:showcase [commit / 範圍 / PR]`，或直接說「展示這個改動」 | 把一次改動展示給沒寫它的人：可以把修改前後兩版都跑起來讓你親手對照（網頁開在瀏覽器、App 裝到模擬器），並產出內嵌截圖的 HTML 報告（要貼到 PR 時另產出純文字版），說明改了什麼、為什麼、做了哪些決策 |
+| [showcase](skills/showcase/SKILL.md) | `/1morr:showcase [commit / 範圍 / PR / 分支] [預覽 \| 只截圖 \| 不實跑]`，或直接說「展示這個改動」；沒寫的會一次問你 | 把一次改動展示給沒寫它的人：可以把修改前後兩版都跑起來讓你親手對照（網頁開在瀏覽器、App 裝到模擬器），並產出內嵌截圖的 HTML 報告（要貼到 PR 時另產出純文字版），說明改了什麼、為什麼、做了哪些決策 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序]`（只能手動叫用） | 當協調者，用 [Orca](https://www.onorca.dev) 為每張票開一個子 Claude Code session 解票、代答提問、驗收、合併，逐張跑完隊列。需要 Orca |
 
 ## 安裝
