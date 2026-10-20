@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "1morr-skills",
+  "owner": { "name": "1morr", "url": "https://github.com/1morr" },
+  "description": "1morr 的 Claude Code skills。",
+  "plugins": [
+    {
+      "name": "1morr",
+      "source": "./",
+      "description": "showcase：把改動實跑前後對照並產出報告；ticket-coordinator：用 Orca 逐張協調子 session 解票。",
+      "category": "productivity"
+    }
+  ]
+}

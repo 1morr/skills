@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # showcase 的測試要讀 git diff，淺 clone 也夠，但要有 git 身分做測試用的 commit
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: git identity for test repos
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+      - name: showcase
+        run: python -m unittest discover -s skills/showcase/tests -v
+      - name: ticket-coordinator
+        run: bash skills/ticket-coordinator/scripts/selftest.sh

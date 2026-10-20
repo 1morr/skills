@@ -1,0 +1,8 @@
+{
+  "name": "1morr",
+  "description": "showcase：把改動實跑前後對照並產出報告；ticket-coordinator：用 Orca 逐張協調子 session 解票。",
+  "author": { "name": "1morr", "url": "https://github.com/1morr" },
+  "repository": "https://github.com/1morr/skills",
+  "license": "MIT",
+  "keywords": ["showcase", "code-review", "before-after", "orca", "tickets"]
+}

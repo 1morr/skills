@@ -1,0 +1,43 @@
+# skills
+
+給 [Claude Code](https://code.claude.com) 用的 skills，打包成一個 plugin。
+
+| Skill | 叫用 | 做什麼 |
+|---|---|---|
+| [showcase](skills/showcase/SKILL.md) | `/1morr:showcase [commit / 範圍 / PR]`，或直接說「展示這個改動」 | 把一次改動展示給沒寫它的人：可以把修改前後兩版都跑起來讓你親手對照（網頁開在瀏覽器、App 裝到模擬器），並產出內嵌截圖的 HTML 報告與可貼進 PR 的 Markdown，說明改了什麼、為什麼、做了哪些決策 |
+| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序]`（只能手動叫用） | 當協調者，用 [Orca](https://www.onorca.dev) 為每張票開一個子 Claude Code session 解票、代答提問、驗收、合併，逐張跑完隊列。需要 Orca |
+
+## 安裝
+
+在 Claude Code 裡：
+
+```
+/plugin marketplace add 1morr/skills
+/plugin install 1morr@1morr-skills
+```
+
+plugin 不釘版本，`/plugin update 1morr@1morr-skills` 會更新到最新 commit；也可以在 `/plugin` 的 Marketplaces 分頁打開自動更新。
+
+## 開發
+
+把 clone 下來的目錄加成 marketplace，plugin 會直接從這個目錄載入：改完檔案，開新 session 或執行 `/reload-plugins` 就生效，不用 push、不用重裝。
+
+```
+claude plugin marketplace add <clone 的路徑>
+claude plugin install 1morr@1morr-skills
+```
+
+新增 skill：建 `skills/<名稱>/SKILL.md`，plugin 會自動載入；同時在上面的表格加一列。
+
+測試（CI 跑的就是這兩條）：
+
+```
+python -m unittest discover -s skills/showcase/tests
+bash skills/ticket-coordinator/scripts/selftest.sh
+```
+
+檢查 manifest：`claude plugin validate .`。manifest 刻意不寫 `version`（寫了會把使用者釘在那個版本），所以 validator 會提醒缺 `version`，那條可以忽略。
+
+## 授權
+
+MIT
