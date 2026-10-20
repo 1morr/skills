@@ -65,7 +65,7 @@
 
 - `image`：`after` 圖片路徑。只有 head 的截圖。
 - `compare`：`before` 與 `after` 圖片路徑。並排顯示，兩張尺寸相同時另有滑桿。
-- `output`：選填 `command`、`after` 文字或 `after_file`、選填 `before` 文字或 `before_file`（同一指令在 base 的結果）。沒有 `command` 時原樣顯示一個檔案，例如為 showcase 寫的重現。文字也會出現在 `pr.md`。
+- `output`：選填 `command`、`after` 文字或 `after_file`、選填 `before` 文字或 `before_file`（同一指令在 base 的結果）。沒有 `command` 時原樣顯示一個檔案，例如為 showcase 寫的重現。文字也會出現在 `pr.md`（有產出時）。
 
 圖片：`.png`、`.jpg`、`.jpeg`、`.webp`、`.gif`、`.svg`。
 

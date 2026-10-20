@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""把 report.json 渲染成 showcase.html 與 pr.md（寫在 report.json 旁邊）。
+"""把 report.json 渲染成 showcase.html（寫在 report.json 旁邊）；加 --pr-md 時另寫 pr.md。
 
 只用標準函式庫，任何 repo 不必安裝東西就能跑。輸入格式見
 ../references/report-schema.md。
@@ -714,7 +714,8 @@ def render_md(model: dict, L: dict, include_hunks: bool = True) -> str:
 # ---------- entry point ----------
 
 
-def render(report_path: Path, repo: Path | None = None) -> tuple[Path, Path, list[str]]:
+def render(report_path: Path, repo: Path | None = None,
+           pr_md: bool = False) -> tuple[Path, Path | None, list[str]]:
     report_path = report_path.resolve()
     report_dir = report_path.parent
     if repo is None:
@@ -729,6 +730,8 @@ def render(report_path: Path, repo: Path | None = None) -> tuple[Path, Path, lis
     if size > MAX_HTML_BYTES:
         warnings.append(f"showcase.html is {size / 1e6:.1f} MB; GitHub attachments cap at 25 MB. Use JPEG/WebP screenshots or fewer of them.")
 
+    if not pr_md:
+        return html_path, None, warnings
     md = render_md(model, L)
     if len(md) > MAX_PR_CHARS:
         md = render_md(model, L, include_hunks=False)
@@ -739,19 +742,22 @@ def render(report_path: Path, repo: Path | None = None) -> tuple[Path, Path, lis
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Render report.json into showcase.html and pr.md beside it.")
+    ap = argparse.ArgumentParser(description="Render report.json into showcase.html beside it.")
     ap.add_argument("report", type=Path)
     ap.add_argument("--repo", type=Path, help="repository root (default: the repo containing the current directory)")
+    ap.add_argument("--pr-md", action="store_true",
+                    help="also write pr.md, the image-free text to paste into a PR")
     args = ap.parse_args()
     try:
-        html_path, md_path, warnings = render(args.report, args.repo)
+        html_path, md_path, warnings = render(args.report, args.repo, pr_md=args.pr_md)
     except ReportError as e:
         print("showcase: report not rendered\n" + str(e), file=sys.stderr)
         return 1
     for w in warnings:
         print(f"warning: {w}", file=sys.stderr)
     print(html_path)
-    print(md_path)
+    if md_path:
+        print(md_path)
     return 0
 
 

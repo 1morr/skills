@@ -1,6 +1,6 @@
 ---
 name: showcase
-description: 把一次程式改動展示給沒寫它的人：實跑修改前後兩版讓使用者親手操作對照，並產出自含截圖的 HTML 報告與可貼進 PR 的 Markdown，說明改了什麼、為什麼、做了哪些決策，附註解過的關鍵 diff 與證據（前後截圖、指令輸出、測試結果）。用於要展示、demo、walkthrough、說明一個改動 / 分支 / commit 範圍 / PR，或要看改動前後對照（showcase, before/after）時。
+description: 把一次程式改動展示給沒寫它的人：實跑修改前後兩版讓使用者親手操作對照，並產出自含截圖、可附到 PR 的 HTML 報告，說明改了什麼、為什麼、做了哪些決策，附註解過的關鍵 diff 與證據（前後截圖、指令輸出、測試結果）。用於要展示、demo、walkthrough、說明一個改動 / 分支 / commit 範圍 / PR，或要看改動前後對照（showcase, before/after）時。
 ---
 
 # Showcase
@@ -12,7 +12,7 @@ Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼�
 - **實機預覽**（使用者選了才做）：給眼前的使用者。修改前（base）與修改後（head）兩版同時跑著，網頁開在使用者看得見的瀏覽器視窗、App 裝在模擬器或裝置上，都已登入並停在要比對的畫面，讓使用者自己點、自己比。使用者說測完才收掉。
 - **報告**：給之後的讀者，放在 repo 外的 `<系統暫存目錄>/showcase/<repo 名>/<id>/`（使用者指定位置時用使用者的）。`<id>` 是 `pr-<編號>`（範圍正好是整個 PR 時），否則 head 的短 SHA，否則 `wip`。目錄已存在時不碰它，改用 `<id>-2`、`<id>-3`…… 的新目錄：裡面可能是別人或上一次的報告。
   - `showcase.html`：單一檔案，圖片全部內嵌。拖進 PR 的留言框就能附上（GitHub 接受 `.html`，上限 25 MB；`gh` 不能上傳它）。
-  - `pr.md`：同樣內容但不含圖片，給 PR 描述或留言用。
+  - `pr.md`：只在使用者要貼到 PR 時產出（第 7 步）。同樣內容但不含圖片：PR 上的 HTML 附件只是一個要下載的連結，讀者在 PR 頁面上直接讀到的是這份文字。
 
 報告語言：使用者指定的，或使用者長期指示裡設定的；都沒有就跟 repo 的 PR 描述，再來是 repo 文件。`lang` 設 `zh-Hant` 或 `en` 會有對應標籤，其他值用英文標籤。
 
@@ -119,9 +119,9 @@ python <本 skill 的目錄>/scripts/showcase.py <報告目錄>/report.json
   - 要比對什麼、怎麼操作。
   - 需要登入時，帳號與密碼本身。使用者重新登入或另開視窗時會用到。
   - 「測完跟我說，我會收掉」。
-- **報告**：使用者在場時，用預設瀏覽器打開 `showcase.html`（Windows `start`、macOS `open`、Linux `xdg-open`）。給兩個檔案的路徑，再加三行：達到的證據等級、沒驗證到的、待作者補充的。
+- **報告**：使用者在場時，用預設瀏覽器打開 `showcase.html`（Windows `start`、macOS `open`、Linux `xdg-open`）。給它的路徑，再加三行：達到的證據等級、沒驗證到的、待作者補充的。
 - **跑法**（repo 的指令檔已經夠用時略過）：這次自己找出或問使用者得來、而 repo 的 agent 指令檔裡沒有的跑法（指令、陷阱、出處確認方式），連同打算寫進去的文字，問使用者能不能寫進 repo 的 `AGENTS.md`（repo 只有 `CLAUDE.md` 時寫那裡），照該 repo 改指令檔的規矩寫。使用者同意才寫；不同意就不寫，這個 session 不再問，下次重新找跑法，找不到就問使用者。
 
-使用者要求時才貼到 PR（`gh pr edit --body-file pr.md` 或 `gh pr comment --body-file pr.md`）；附上 `showcase.html` 要在 PR 網頁上拖放。
+使用者要求貼到 PR 時，渲染指令加 `--pr-md` 重跑一次，產出與目前報告一致的 `pr.md`，再用 `gh pr edit --body-file pr.md` 或 `gh pr comment --body-file pr.md` 貼上；接著請使用者在 PR 網頁上把 `showcase.html` 拖進留言框當附件。
 
 使用者說測完後，照 running.md〈收尾〉收掉預覽。

@@ -80,7 +80,13 @@ class RenderTest(unittest.TestCase):
         return self.out / "report.json"
 
     def render(self, **over):
-        return showcase.render(self.report(**over), self.repo)
+        return showcase.render(self.report(**over), self.repo, pr_md=True)
+
+    def test_pr_markdown_only_when_asked(self):
+        html_path, md_path, _ = showcase.render(self.report(), self.repo)
+        self.assertTrue(html_path.exists())
+        self.assertIsNone(md_path)
+        self.assertFalse((self.out / "pr.md").exists())
 
     def test_report_outside_repo_writes_nothing_into_the_repo(self):
         self.render()
