@@ -15,7 +15,6 @@ import datetime as dt
 import fnmatch
 import html
 import json
-import mimetypes
 import re
 import subprocess
 import sys
@@ -30,6 +29,10 @@ LONG_HUNK_LINES = 150
 DEFAULT_CONTEXT = 6
 GAP = "⋯"
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
+VIDEO_TYPES = {".mp4", ".webm"}
+# 不靠 mimetypes：它在 Windows 上會讀登錄檔，結果因機器而異。
+MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+        ".gif": "image/gif", ".svg": "image/svg+xml", ".mp4": "video/mp4", ".webm": "video/webm"}
 
 LABELS = {
     "en": {
@@ -61,8 +64,6 @@ LABELS = {
         "working_tree": "working tree",
         "generated": "Generated",
         "files_count": "{n} files",
-        "full_report": "Full report with screenshots and annotated diff: attached `showcase.html` (download, open in a browser).",
-        "image_in_report": "screenshot in the attached report",
     },
     "zh-Hant": {
         "summary": "摘要",
@@ -93,8 +94,6 @@ LABELS = {
         "working_tree": "工作區",
         "generated": "產生於",
         "files_count": "{n} 個檔案",
-        "full_report": "完整報告（截圖、註解 diff）：見附件 `showcase.html`（下載後用瀏覽器打開）。",
-        "image_in_report": "截圖見附件報告",
     },
 }
 
@@ -255,10 +254,14 @@ def load_text(base_dir: Path, item: dict, key: str, errors: list[str]) -> str | 
 
 
 def data_uri(path: Path) -> str:
-    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    if path.suffix.lower() == ".svg":
-        mime = "image/svg+xml"
-    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+    return f"data:{MIME[path.suffix.lower()]};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+
+
+def media(uri: str, alt: str) -> str:
+    """錄影自動播放並循環，讀者不用按就看得到整段操作。"""
+    if uri.startswith("data:video/"):
+        return f'<video src="{uri}" autoplay loop muted playsinline controls aria-label="{alt}"></video>'
+    return f'<img src="{uri}" alt="{alt}">'
 
 
 def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
@@ -340,8 +343,8 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
                 p = report_dir / item.get(side, "")
                 if not item.get(side) or not p.is_file():
                     errors.append(f"{kind} evidence `{side}` image not found: {p}")
-                elif p.suffix.lower() not in IMAGE_TYPES:
-                    errors.append(f"not an image type ({', '.join(sorted(IMAGE_TYPES))}): {p}")
+                elif p.suffix.lower() not in IMAGE_TYPES | VIDEO_TYPES:
+                    errors.append(f"not an image or video type ({', '.join(sorted(IMAGE_TYPES | VIDEO_TYPES))}): {p}")
                 else:
                     out[side] = data_uri(p)
         elif kind == "output":
@@ -443,7 +446,7 @@ code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.86em
 .level strong{font-size:.95rem}
 figure{margin:1.1rem 0;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:8px}
 figcaption{font-size:.9rem;margin-bottom:.6rem}
-figure img{display:block;max-width:100%;height:auto;border:1px solid var(--line)}
+figure img,figure video{display:block;max-width:100%;height:auto;border:1px solid var(--line)}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pair>div{min-width:0}
 .pair .side-label{font-size:.78rem;color:var(--muted);margin-bottom:.25rem}
@@ -527,10 +530,17 @@ def render_html(model: dict, L: dict) -> str:
     body += "</div>"
     for n, item in enumerate(model["items"], 1):
         cap = f"<figcaption>{inline(item['caption'])}</figcaption>" if item["caption"] else ""
+        alt = html.escape(item["caption"])
         if item["kind"] == "image":
-            body += f'<figure id="ev-{n}">{cap}<img src="{item["after"]}" alt="{html.escape(item["caption"])}"></figure>'
+            body += f'<figure id="ev-{n}">{cap}{media(item["after"], alt)}</figure>'
+        elif item["kind"] == "compare" and "data:video/" in item["before"][:16] + item["after"][:16]:
+            # 兩段錄影的時間軸對不上，滑桿沒有意義，只並排。
+            body += (
+                f'<figure id="ev-{n}">{cap}'
+                f'<div class="pair"><div><div class="side-label">{L["before"]}</div>{media(item["before"], L["before"] + ": " + alt)}</div>'
+                f'<div><div class="side-label">{L["after_label"]}</div>{media(item["after"], L["after_label"] + ": " + alt)}</div></div></figure>'
+            )
         elif item["kind"] == "compare":
-            alt = html.escape(item["caption"])
             body += (
                 f'<figure id="ev-{n}" class="compare" data-mode="pair">{cap}'
                 f'<div class="modes"><button data-mode="pair" aria-pressed="true">{L["side_by_side"]}</button>'
@@ -655,7 +665,8 @@ def render_md(model: dict, L: dict, include_hunks: bool = True) -> str:
     out += [f"### {L['evidence']}", "", level, ""]
     for item in model["items"]:
         if item["kind"] in ("image", "compare"):
-            out.append(f"- {item['caption']} ({L['image_in_report']})")
+            # 文字版沒有圖；caption 寫的是看到的差異，單獨讀也懂。
+            out.append(f"- {item['caption']}")
         else:
             out.append(f"<details><summary>{html.escape(item['caption'])}</summary>\n")
             if item["command"]:
@@ -707,7 +718,6 @@ def render_md(model: dict, L: dict, include_hunks: bool = True) -> str:
     if r.get("unverified"):
         out += [f"### {L['unverified']}", ""] + [f"- {s}" for s in r["unverified"]] + [""]
 
-    out += ["---", "", L["full_report"], ""]
     return "\n".join(out)
 
 
@@ -736,6 +746,9 @@ def render(report_path: Path, repo: Path | None = None,
     if len(md) > MAX_PR_CHARS:
         md = render_md(model, L, include_hunks=False)
         warnings.append("pr.md exceeded the GitHub comment limit; key-change diffs were left to showcase.html")
+    if len(md) > MAX_PR_CHARS:
+        raise ReportError(f"pr.md is {len(md)} characters even without diffs; GitHub allows 65536. "
+                          "Trim the text evidence to the lines that show the result.")
     md_path = report_dir / "pr.md"
     md_path.write_text(md, encoding="utf-8")
     return html_path, md_path, warnings

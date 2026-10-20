@@ -112,6 +112,34 @@ class RenderTest(unittest.TestCase):
         self.assertIn("hi bob", md)
         self.assertIn("```diff", md)
 
+    def test_pr_markdown_stands_alone_without_the_html(self):
+        # PR 上常常只有文字：不能指向不存在的附件，截圖的 caption 要照樣列出
+        _, md_path, _ = self.render()
+        md = md_path.read_text(encoding="utf-8")
+        self.assertNotIn("showcase.html", md)
+        self.assertIn("- Greeting\n", md)
+
+    def test_pr_markdown_over_the_limit_even_without_diffs_is_rejected(self):
+        ev = {"level": "tests", "why_not_higher": "n/a",
+              "items": [{"kind": "output", "caption": "log", "after": "ok\n" * 40000}]}
+        with self.assertRaisesRegex(showcase.ReportError, "even without diffs"):
+            self.render(evidence=ev)
+        # 不要求 pr.md 時同一份報告照樣渲染
+        html_path, _, _ = showcase.render(self.out / "report.json", self.repo)
+        self.assertTrue(html_path.exists())
+
+    def test_recordings_embed_as_looping_video_side_by_side(self):
+        (self.out / "before.webm").write_bytes(b"\x1aE\xdf\xa3fake")
+        (self.out / "after.webm").write_bytes(b"\x1aE\xdf\xa3fake2")
+        ev = {"level": "before-after", "items": [
+            {"kind": "compare", "caption": "Drag", "before": "before.webm", "after": "after.webm"}]}
+        html_path, md_path, _ = self.render(evidence=ev)
+        page = html_path.read_text(encoding="utf-8")
+        self.assertEqual(page.count('<video src="data:video/webm;base64,'), 2)
+        self.assertIn("autoplay loop muted", page)
+        self.assertNotIn('type="range"', page)  # 錄影不給滑桿
+        self.assertIn("- Drag\n", md_path.read_text(encoding="utf-8"))
+
     def test_every_changed_file_needs_a_note(self):
         with self.assertRaisesRegex(showcase.ReportError, "no note in `files`: old.txt"):
             self.render(files={"app.js": "x", "gen/*.g.js": "y"})
