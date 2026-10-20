@@ -1,7 +1,7 @@
 ---
 name: showcase
 description: Show a code change to someone who did not write it, so they can see what an agent changed without asking it or running the code themselves. Runs the code before and after the change, captures evidence (screenshots, screen recordings, command output, test results), and renders a self-contained HTML report, plus text-only Markdown for a PR, explaining what changed, why, and which decisions were made, with annotated key diffs. Use when asked to showcase, demo, walk through, or explain a change, branch, commit range, or PR, to compare before and after, or after finishing a feature. Also triggers on 展示改動、前後對照.
-argument-hint: "[commit | range | PR# | branch] [no-run] [pr] [auto]"
+argument-hint: "[commit | range | PR# | branch] [no-run] [post] [auto]"
 ---
 
 # Showcase
@@ -21,8 +21,8 @@ Showcase 替沒寫這個改動的**讀者**回答四個問題：它做了什麼�
 
 - 範圍：commit、範圍、PR 編號或分支。省略時見第 1 步。
 - `no-run`（「不實跑」）：什麼都不跑。證據停在 `tests` 或 `static`，`why_not_higher` 寫「使用者選擇不實跑」。
-- `pr`（「貼到 PR」）：最後把 `pr.md` 貼成 PR 留言（第 7 步）。
-- `auto`（「不要問我」）：全程不提問、不開瀏覽器、不提議改 repo 的檔案。需要使用者決定的事一律選不動手的那邊，並列進 `unverified`。被其他流程呼叫，或沒有使用者在場時（CI、排程、hook），也照這樣做。
+- `post`（「貼留言」）：最後把 `pr.md` 貼成 PR 留言（第 7 步）。「PR」、「PR #12」這類字只代表範圍，不代表要貼。
+- `auto`（「不要問我」）：全程不提問、不幫使用者打開報告、不提議改 repo 的檔案。需要使用者決定的事一律選不動手的那邊，並列進 `unverified`。擷取照常做：用無頭瀏覽器、模擬器截圖與錄影不需要使用者決定，證據要和預設模式一樣完整。被其他流程呼叫，或沒有使用者在場時（CI、排程、hook），也照這樣做。
 
 預設是：能跑就實跑，證據擷取完馬上收掉。
 
@@ -141,7 +141,7 @@ python <本 skill 的目錄>/scripts/showcase.py <報告目錄>/report.json [--p
 - 沒驗證到的
 - 待作者補充的
 
-**貼到 PR**（有 `pr` 時）：
+**貼到 PR**（有 `post` 時）：
 
 - 用 `gh pr comment <編號> --body-file pr.md` 貼成留言。
 - 不要用 `gh pr edit --body-file`：它會整份蓋掉作者寫的 PR 描述。使用者要求放進描述時，把 `pr.md` 接在原描述後面。
