@@ -2,13 +2,13 @@
 :root {
   --bg: #fdfcf9; --fg: #1d1d1f; --muted: #66625a; --line: #e4e0d6;
   --accent: #b42318; --prereq-bg: #eef4ff; --prereq-line: #4f7bd9;
-  --trap-bg: #fff3ec; --trap-line: #d9672b; --sheet-bg: #ffffff;
+  --trap-bg: #fff3ec; --trap-line: #d9672b; --sheet-bg: #ffffff; --tr-bg: #f4f1ea;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #18181a; --fg: #e8e6e1; --muted: #a29d93; --line: #34322e;
     --accent: #ff7a6b; --prereq-bg: #1c2433; --prereq-line: #6d95e8;
-    --trap-bg: #2d211a; --trap-line: #e28a55; --sheet-bg: #f7f5f0;
+    --trap-bg: #2d211a; --trap-line: #e28a55; --sheet-bg: #f7f5f0; --tr-bg: #232220;
   }
 }
 * { box-sizing: border-box; }
@@ -28,12 +28,12 @@ a { color: var(--accent); }
 figure { margin: 1.2rem 0; }
 figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
-.tr { border-left: 3px solid var(--accent); padding: .1rem 0 .1rem .8rem; margin: .4rem 0; }
+.tr { background: var(--tr-bg); border-radius: 4px; padding: .4rem .8rem; margin: .5rem 0; }
 .tr .en { font-family: Georgia, "Times New Roman", serif; }
 .prereq, .trap { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
-.prereq { background: var(--prereq-bg); border-left: 4px solid var(--prereq-line); }
+.prereq { background: var(--prereq-bg); border: 1px solid color-mix(in srgb, var(--prereq-line) 35%, transparent); }
 .prereq::before { content: "先補"; font-weight: 700; color: var(--prereq-line); margin-right: .5em; }
-.trap { background: var(--trap-bg); border-left: 4px solid var(--trap-line); }
+.trap { background: var(--trap-bg); border: 1px solid color-mix(in srgb, var(--trap-line) 35%, transparent); }
 .trap::before { content: "常見錯誤"; font-weight: 700; color: var(--trap-line); margin-right: .5em; }
 ol.steps { padding-left: 1.4rem; }
 ol.steps li { margin: .5rem 0; }
