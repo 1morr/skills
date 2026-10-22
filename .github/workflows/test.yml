@@ -24,3 +24,5 @@ jobs:
         run: python -m unittest discover -s skills/showcase/tests -v
       - name: ticket-coordinator
         run: bash skills/ticket-coordinator/scripts/selftest.sh
+      - name: tutor
+        run: python -m unittest discover -s skills/tutor/tests -v

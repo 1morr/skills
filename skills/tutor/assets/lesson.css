@@ -1,0 +1,64 @@
+/* tutor 講解頁共用樣式；build.py 會把它內嵌進每一頁 */
+:root {
+  --bg: #fdfcf9; --fg: #1d1d1f; --muted: #66625a; --line: #e4e0d6;
+  --accent: #b42318; --prereq-bg: #eef4ff; --prereq-line: #4f7bd9;
+  --trap-bg: #fff3ec; --trap-line: #d9672b; --sheet-bg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18181a; --fg: #e8e6e1; --muted: #a29d93; --line: #34322e;
+    --accent: #ff7a6b; --prereq-bg: #1c2433; --prereq-line: #6d95e8;
+    --trap-bg: #2d211a; --trap-line: #e28a55; --sheet-bg: #f7f5f0;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0 auto; max-width: 46rem; padding: 2rem 1rem 5rem;
+  background: var(--bg); color: var(--fg);
+  font: 17px/1.75 "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+}
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 .5rem; }
+h2 { font-size: 1.3rem; margin: 3rem 0 .8rem; padding-top: 1rem; border-top: 2px solid var(--line); }
+h3 { font-size: 1.08rem; margin: 2rem 0 .5rem; }
+.num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: .2em; }
+p { margin: .6rem 0; }
+a { color: var(--accent); }
+.lead { color: var(--muted); }
+figure { margin: 1.2rem 0; }
+figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+.tr { border-left: 3px solid var(--accent); padding: .1rem 0 .1rem .8rem; margin: .4rem 0; }
+.tr .en { font-family: Georgia, "Times New Roman", serif; }
+.prereq, .trap { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
+.prereq { background: var(--prereq-bg); border-left: 4px solid var(--prereq-line); }
+.prereq::before { content: "先補"; font-weight: 700; color: var(--prereq-line); margin-right: .5em; }
+.trap { background: var(--trap-bg); border-left: 4px solid var(--trap-line); }
+.trap::before { content: "常見錯誤"; font-weight: 700; color: var(--trap-line); margin-right: .5em; }
+ol.steps { padding-left: 1.4rem; }
+ol.steps li { margin: .5rem 0; }
+ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②③ 時不要再加數字 */
+.src { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 .3em; margin-left: .3em; white-space: nowrap; }
+.calc { overflow-x: auto; padding: .4rem 0; font-family: "Times New Roman", Times, serif; font-size: 1.1rem; }
+.frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; margin: 0 .2em; font-size: .95em; }
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .2em; }
+.frac > span:last-child { padding: 0 .2em; }
+.ans { font-weight: 700; color: var(--accent); }
+.sheet {
+  background: var(--sheet-bg); color: #111; border: 1px solid #bbb; border-radius: 2px;
+  padding: .8rem 1rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  font: 16px/1.5 "Times New Roman", Times, serif; overflow-x: auto;
+}
+.sheet::before { content: "答案紙上寫這樣"; display: block; font: 700 .8rem/1.4 system-ui, sans-serif; color: #8a857b; margin-bottom: .4rem; }
+table { border-collapse: collapse; margin: .8rem 0; font-size: .95rem; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--line); padding: .3rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--line); }
+details { margin: 1rem 0; }
+summary { cursor: pointer; font-weight: 600; }
+.toc { columns: 2; column-gap: 2rem; padding-left: 1.2rem; }
+@media (max-width: 560px) { .toc { columns: 1; } body { font-size: 16px; } }
+@media print {
+  body { max-width: none; background: #fff; color: #000; }
+  h2 { break-before: auto; }
+  figure, .sheet { break-inside: avoid; }
+}
