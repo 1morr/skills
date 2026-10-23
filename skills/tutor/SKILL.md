@@ -1,7 +1,7 @@
 ---
 name: tutor
-description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth. Produces a self-contained HTML guide with the relevant slide regions cropped in and boxed, so the learner never has to flip through the course files, plus (for assignments) an answer sheet written in the teacher's format. Two modes - rush (deadline or exam within about two days; never asks questions or gives exercises) and learn (short lessons with checks and a learning record). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
-argument-hint: "[作業 | topic | 考試] [rush | learn]"
+description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth. Produces a self-contained HTML guide with the relevant slide regions cropped in and boxed, so the learner never has to flip through the course files, plus (for assignments) an answer sheet written in the teacher's format. Two modes - read (one complete page with every answer; never asks questions or gives exercises; for a deadline or exam within about two days, or when the learner just wants to read it through) and learn (short lessons with checks and a learning record). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
+argument-hint: "[作業 | topic | 考試] [read | learn]"
 ---
 
 # Tutor
@@ -12,9 +12,9 @@ argument-hint: "[作業 | topic | 考試] [rush | learn]"
 
 ## 叫用與模式
 
-- `rush`：交件或考試在兩天內，或使用者說「趕」「明天交」「今晚要考」。**全程不提問、不出練習。**範圍不確定時自己選最可能的，寫在頁首「這頁假設了什麼」。
-- `learn`：時間充足。先診斷，再一次只教一小課，每課有回想題，記學習紀錄。
-- 沒指定時：查 repo 裡的日程表或評核說明找截止日；兩天內選 `rush`，否則 `learn`。找不到日期就選 `rush`，因為使用者通常是要交了才來問。開頭說一句選了哪個模式、為什麼。
+- `read`（一次讀完）：一整頁，每題附完整做法和答案。**全程不提問、不出練習。**範圍不確定時自己選最可能的，寫在頁首「這頁假設了什麼」。適用於交件或考試在兩天內，或使用者說「趕」「明天交」「今晚要考」「不要問我」「直接給我看」。
+- `learn`（分課學）：時間充足、想自己練。先診斷，再一次只教一小課，每課有回想題，記學習紀錄。
+- 沒指定時：先看使用者有沒有說不想被問，有就選 `read`。再查 repo 裡的日程表或評核說明找截止日：兩天內選 `read`，否則選 `learn`。找不到日期就選 `read`，因為使用者通常是要交了才來問。開頭說一句選了哪個模式、為什麼。
 
 ## 1. 找材料，找出「怎樣才算答對」
 
@@ -28,7 +28,7 @@ argument-hint: "[作業 | topic | 考試] [rush | learn]"
 
 列一張表：每一題（考試則是每個考點）→ 要用到的概念 → 老師講義第幾頁。**只有地圖上的東西會寫進頁面。**不重寫整份課件，也不寫「完整版」。使用者要過的是這份作業或這次考試，不是一本教科書。
 
-`rush` 時依分數比重或出題機率排序；`learn` 時依前置關係排序，一課只拿一兩個點。
+`read` 時依分數比重或出題機率排序；`learn` 時依前置關係排序，一課只拿一兩個點。
 
 ## 3. 前置知識：在用到的地方才補
 
@@ -68,7 +68,7 @@ $CROP cut   講義.pdf 4 out.png --clip 70,80,560,430 --box 90,250,540,280 [--ma
 
 每張圖都要放在 `<figure>` 裡，`<figcaption>` 寫出處（檔名與 `p.頁碼`）。
 
-頁面寫成原始 HTML，`<body data-mode="rush">` 或 `"learn"`，圖片用相對路徑。再用 `scripts/build.py` 組成單一檔案：
+頁面寫成原始 HTML，`<body data-mode="read">` 或 `"learn"`，圖片用相對路徑。再用 `scripts/build.py` 組成單一檔案：
 
 ```bash
 python <skill 目錄>/scripts/build.py guide-src.html -o guide.html
@@ -79,14 +79,14 @@ build 會內嵌圖片、加上共用樣式、替 `<h2>` / `<h3>` 編號（§1、
 - 每張圖都在 `<figure>` 裡，而且 figcaption 有頁碼。
 - 不引用外部資源（離線要能開）。
 - 每個 `<h2>` 段落的文字量和整頁總量有上限。figure、表格、公式、`.sheet` 不算。超過時，代表你在寫參考書，不是在教：砍掉地圖外的東西，或拆成兩課。
-- `rush` 不能有練習或輸入框；`learn` 至少要有一題 `<details class="check">` 回想題。
+- `read` 不能有練習或輸入框；`learn` 至少要有一題 `<details class="check">` 回想題。
 
 ## 5. 作業：答案紙與講解分開
 
 - 答案紙是一份要交的檔案，照老師的 Suggested Answers 格式寫：英文、簡潔，句型照講義。用 HTML 寫，再用 Chrome headless 印成 PDF（`--print-to-pdf`）。
 - 所有數字都由一支計算腳本（`calc.py`）算出來，不手打。答案紙寫成 `answer-tpl.html`，講解頁寫成 `guide-tpl.html`，數字用 `{{名稱}}` 佔位，由 `calc.py` 填入。答案紙每一題包在 `<div class="part" data-part="a">…</div><!--/part-->` 裡；講解頁寫 `{{sheet:a}}`，`calc.py` 會把答案紙那一段原樣放進來。這樣兩邊不會對不上。
 - 題目本身有給、也能自己算出來的數字（例如表上已有的 MSE、F），在 `calc.py` 裡用 assert 對一次，對不上表示抄錯題。
-- `rush`：講解頁每題直接附完整做法和答案。
+- `read`：講解頁每題直接附完整做法和答案。
 - `learn`：先教概念，每題先讓使用者自己做；`.sheet` 放在 `<details>` 裡，做完再打開對答案。
 
 ## 6. 驗證

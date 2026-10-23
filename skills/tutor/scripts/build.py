@@ -16,7 +16,7 @@ from pathlib import Path
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 
 # (每個 h2 段落上限, 整頁上限)，單位見 text_units
-LIMITS = {"rush": (900, 12000), "learn": (600, 3000)}
+LIMITS = {"read": (900, 12000), "learn": (600, 3000)}
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
@@ -65,12 +65,12 @@ class Lint(HTMLParser):
         if tag == "img" and not self.figures:
             self.problems.append(f"圖片 {a.get('src', '')!r} 不在 <figure> 裡：每張圖都要有寫出處的 figcaption")
         if tag in ("input", "textarea", "select"):
-            if self.mode == "rush":
-                self.problems.append(f"rush 模式不能有 <{tag}>：趕時間時不讓使用者做練習")
+            if self.mode == "read":
+                self.problems.append(f"read 模式不能有 <{tag}>：一次讀完的頁面不出練習")
         if tag == "details" and "check" in cls:
             self.checks += 1
-            if self.mode == "rush":
-                self.problems.append("rush 模式不能有 <details class=\"check\"> 回想題")
+            if self.mode == "read":
+                self.problems.append("read 模式不能有 <details class=\"check\"> 回想題")
         if tag == "figure":
             self.figures.append(["", False])
         if tag == "figcaption" and self.figures:
@@ -123,7 +123,7 @@ def lint(src: str) -> list:
     p.close()
     problems = list(p.problems)
     if p.mode not in LIMITS:
-        problems.insert(0, f'<body> 要有 data-mode="rush" 或 "learn"（現在是 {p.mode!r}）')
+        problems.insert(0, f'<body> 要有 data-mode="read" 或 "learn"（現在是 {p.mode!r}）')
         return problems
     per, total = LIMITS[p.mode]
     for title, n in p.sections:

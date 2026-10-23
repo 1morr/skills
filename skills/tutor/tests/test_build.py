@@ -23,7 +23,7 @@ FIG = '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcap
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
 
 
-def page(body, mode="rush"):
+def page(body, mode="read"):
     return f'<!doctype html><html><head><title>x</title></head><body data-mode="{mode}">{body}</body></html>'
 
 
@@ -36,7 +36,7 @@ class ModeRule(unittest.TestCase):
         self.assertFalse(ok("<html><body><h2>一</h2><p>短</p></body></html>"))
 
     def test_both_modes_pass(self):
-        self.assertTrue(ok(page("<h2>一</h2><p>短</p>", "rush")))
+        self.assertTrue(ok(page("<h2>一</h2><p>短</p>", "read")))
         self.assertTrue(ok(page("<h2>一</h2><p>短</p>" + CHECK, "learn")))
 
 
@@ -70,7 +70,7 @@ class RemoteRule(unittest.TestCase):
 
 
 class LengthRule(unittest.TestCase):
-    per, total = build.LIMITS["rush"]
+    per, total = build.LIMITS["read"]
 
     def test_long_section_fails(self):
         self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * (self.per + 1) + "</p>")))
@@ -100,14 +100,14 @@ class LengthRule(unittest.TestCase):
 
 
 class ExerciseRule(unittest.TestCase):
-    def test_rush_with_check_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2>" + CHECK, "rush")))
+    def test_read_with_check_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2>" + CHECK, "read")))
 
-    def test_rush_with_input_fails(self):
-        self.assertFalse(ok(page('<h2>一</h2><input type="text">', "rush")))
+    def test_read_with_input_fails(self):
+        self.assertFalse(ok(page('<h2>一</h2><input type="text">', "read")))
 
-    def test_rush_with_plain_details_passes(self):
-        self.assertTrue(ok(page("<h2>一</h2><details><summary>延伸</summary><p>可略過</p></details>", "rush")))
+    def test_read_with_plain_details_passes(self):
+        self.assertTrue(ok(page("<h2>一</h2><details><summary>延伸</summary><p>可略過</p></details>", "read")))
 
     def test_learn_without_check_fails(self):
         self.assertFalse(ok(page("<h2>一</h2><p>短</p>", "learn")))
