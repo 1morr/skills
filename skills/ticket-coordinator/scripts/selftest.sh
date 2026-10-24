@@ -32,6 +32,11 @@ ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.versio
 touch "$X/a"; old "$X/a"; a=$(age "$X/a"); [ "$a" -ge 299 ] && [ "$a" -le 330 ]; ok "age of a 5-minute-old file" $? 0
 touch "$X/a"; [ "$(age "$X/a")" -le 5 ]; ok "age of a fresh file" $? 0
 
+# ---- terminals_in.py（close-ticket.sh 只關這個 worktree 的終端）
+TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
+ok "terminals: exact worktree only"     "$(echo "$TL" | W=/w/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_a term_c "
+ok "terminals: sibling with same prefix" "$(echo "$TL" | W=/w/t07b "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_b "
+
 # ---- run-check.sh
 export CRASH_LOG="$X/crash.tsv"; : > "$CRASH_LOG"
 flaky() { echo 0 > "$X/n"; cat > "$X/cmd.sh" <<EOF
