@@ -41,7 +41,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 2. **掛等待**：把 worktree、handle、session id 寫進 ledger，用 Bash `run_in_background` 跑
    `bash <S>/waitbg.sh <handle> <jsonl 路徑>`，然後結束回合等通知。不輪詢。
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
-   不夠就 `python <S>/scr.py <handle> 40`。判斷情況：
+   不夠就 `python3 <S>/scr.py <handle> 40`。判斷情況：
    - **選項題**：選標 `(Recommended)` 的。沒有推薦就自己查：票、票指定的章節、名詞表、決定紀錄、程式碼，
      照文件既有的決定回答，附一句理由；選項都不對就用「Type something」寫自訂答案。文件互相矛盾時選最貼近
      需求文件的，記進 ledger 的判斷紀錄。

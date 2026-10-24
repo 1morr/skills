@@ -8,9 +8,16 @@
   `launch.sh` 因此多等 15 秒，送出後沒展開、畫面上又看不到票路徑，就補送，最多三次。
 - 仍然印 `expanded: NO`：先讀畫面。停在空輸入框，就在同一個終端補送一次，不必關掉重開。
 
+## 跨平台
+
+- 腳本 source `py.sh` 選 Python：先試 `python3` 再試 `python`，都實際跑一次（macOS 沒有 `python`，Windows 的
+  `python3` 可能是 Microsoft Store 的空殼）。你自己手動叫 `scr.py` / `state.py` 時同理，Windows 上沒有 `python3` 就用 `python`。
+- 腳本要在 macOS 內建的 bash 3.2 跑：變數後面緊貼中文要寫 `${var}`（3.2 會把中文吃進變數名，`set -u` 下直接退出）；
+  不用 GNU 專屬的 `stat -c`、`touch -d`、`sed -i` 等，檔案時間交給 `py.sh` 的 `age`。改完在 macOS 上跑 `selftest.sh`。
+
 ## 讀畫面
 
-- `python <S>/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端
+- `python3 <S>/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端
   還在，不代表子 session 在忙。
 - 畫面停在捲動模式（出現 `Jump to bottom`、看不到 spinner）：送 Ctrl+End
   `orca terminal send --terminal <h> --text $'\033[1;5F' --json`。
@@ -19,7 +26,7 @@
 ## 等待
 
 - 以 transcript 為準，不以畫面為準：終端停在捲動模式時畫面不會更新，曾把還在跑的票誤判成做完。
-  `python <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy` / `waiting-bg`、
+  `python3 <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy` / `waiting-bg`、
   `asking`（停在 AskUserQuestion 等你）、`unknown`（額度、API 錯誤、被中斷，讀畫面判斷）。
 - `waitbg.sh` 每 30 秒問一次 `state.py`，`done` 而畫面上還有 shell / monitor 計數時繼續等（Monitor 認不出來）；
   `waiting-bg` 半小時沒動靜、畫面也沒有在跑的東西時以 `state=stalled` 返回，多半是它停了背景工作卻沒留紀錄。

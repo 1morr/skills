@@ -1,4 +1,4 @@
-# 用法：python state.py <子 session 的 jsonl 路徑>  —— 從 transcript 判斷子 session 的狀態，印一個字並以 exit code 回報
+# 用法：python3 state.py <子 session 的 jsonl 路徑>  —— 從 transcript 判斷子 session 的狀態，印一個字並以 exit code 回報
 #   0 done     回合結束（最後是 turn_duration），而且沒有還沒回來的背景工作
 #   1 busy     60 秒內有寫入、工具還在跑，或回合結束但在等自己的背景 shell / 子代理（印 waiting-bg）
 #   2 asking   停在 AskUserQuestion，等協調者回答

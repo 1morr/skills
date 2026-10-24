@@ -23,12 +23,12 @@ else
   bad+=("找不到票檔 $TF")
 fi
 for f in ${REQUIRE:-}; do
-  git -C "$R" diff --quiet "$B...$BR" -- "$f" && bad+=("$BR 沒有改到 $f（專案完成標準要求）")
+  git -C "$R" diff --quiet "$B...$BR" -- "$f" && bad+=("${BR} 沒有改到 ${f}（專案完成標準要求）")  # 加大括號：bash 3.2（macOS）會把緊接的中文吃進變數名
 done
 [ "$(git -C "$R" rev-parse --abbrev-ref HEAD)" = "$B" ] || bad+=("主目錄不在 $B 上")
 [ -n "$(git -C "$R" status --short --untracked-files=no)" ] && bad+=("主目錄有未提交的追蹤檔改動，可能是別的 session 在用；先跑 preflight.sh 查清楚")
 if [ ${#bad[@]} -gt 0 ]; then printf 'NOT READY: %s\n' "${bad[@]}"; exit 1; fi
-echo "checks ok: $(echo "$commits" | wc -l) commit(s) on $BR"
+echo "checks ok: $(echo "$commits" | wc -l | tr -d ' ') commit(s) on $BR"
 if git -C "$R" merge --no-ff -m "$MSG" "$BR"; then
   git -C "$R" log --oneline -1
 else

@@ -1,7 +1,8 @@
 # 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
-D="$(cd "$(dirname "$0")" && pwd)"; X=$(mktemp -d); fail=0
+D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
-old() { touch -d '-5 minutes' "$1"; }
+# GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
+old() { "$PY" -c 'import os, sys, time; t = time.time() - 300; os.utime(sys.argv[1], (t, t))' "$1"; }
 
 # ---- state.py
 A='{"type":"assistant","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"hi"}]}}'
@@ -11,7 +12,7 @@ AG='{"type":"user","message":{"content":[{"type":"tool_result","content":[{"type
 NOTE() { echo "{\"type\":\"user\",\"message\":{\"content\":\"<task-notification>\\n<task-id>$1</task-id>\\n<status>completed</status>\\n</task-notification>\"}}"; }
 ASK='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"AskUserQuestion","input":{}}]}}'
 TOOL='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"Bash","input":{}}]}}'
-st() { printf '%s\n' "$@" > "$X/s.jsonl"; old "$X/s.jsonl"; python "$D/state.py" "$X/s.jsonl"; }
+st() { printf '%s\n' "$@" > "$X/s.jsonl"; old "$X/s.jsonl"; "$PY" "$D/state.py" "$X/s.jsonl"; }
 ok "state done"                      "$(st "$A" "$TD")" done
 ok "state ignores junk lines"        "$(st "$A" 'not json' '' "$TD")" done
 ok "state waiting on bg shell"       "$(st "$BGL" "$A" "$TD")" waiting-bg
@@ -24,7 +25,12 @@ ok "state asking"                    "$(st "$A" "$ASK")" asking
 ok "state tool running"              "$(st "$A" "$TOOL")" busy
 ok "state unknown (no turn end)"     "$(st "$A")" unknown
 printf '%s\n' "$A" "$TD" > "$X/s.jsonl"
-ok "state recent write is busy"      "$(python "$D/state.py" "$X/s.jsonl")" busy
+ok "state recent write is busy"      "$("$PY" "$D/state.py" "$X/s.jsonl")" busy
+
+# ---- py.sh
+ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.version_info[0])')" 3
+touch "$X/a"; old "$X/a"; a=$(age "$X/a"); [ "$a" -ge 299 ] && [ "$a" -le 330 ]; ok "age of a 5-minute-old file" $? 0
+touch "$X/a"; [ "$(age "$X/a")" -le 5 ]; ok "age of a fresh file" $? 0
 
 # ---- run-check.sh
 export CRASH_LOG="$X/crash.tsv"; : > "$CRASH_LOG"
@@ -36,14 +42,14 @@ EOF
 }
 flaky 1 'Process exited. Exit code: 3221225501' 1
 bash "$D/run-check.sh" bash "$X/cmd.sh" > "$X/out"; rc=$?
-ok "crash in output retried and passes" "$rc/$(cat "$X/n")/$(wc -l < "$CRASH_LOG")" 0/2/1
+ok "crash in output retried and passes" "$rc/$(cat "$X/n")/$(wc -l < "$CRASH_LOG" | tr -d ' ')" 0/2/1
 grep -q CRASH-RETRY "$X/out"; ok "crash retry announced" $? 0
 flaky 1 '' 139
 bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "exit 139 retried" "$?/$(cat "$X/n")" 0/2
 flaky 9 'AssertionError: expected 3 got 4' 1
-bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "ordinary failure not retried" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG")" 1/1/2
+bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "ordinary failure not retried" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG" | tr -d ' ')" 1/1/2
 flaky 9 'eslint 0xC0000005' 1
-bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "crash twice stays red" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG")" 1/2/4
+bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "crash twice stays red" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG" | tr -d ' ')" 1/2/4
 
 # ---- merge-ticket.sh
 R="$X/repo"; W="$X/wt"; git init -q -b main "$R"; cd "$R"
