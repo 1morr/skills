@@ -48,6 +48,12 @@
 - 自訂答案：先用 ↓ 移到 `Type something.`，送出整段文字（不加 `--enter`），讀畫面確認整句都在，再送 Enter。
 - 代答之後把「題目 → 選項 → 理由」寫進 ledger。
 
+## Heads up
+
+- Claude Code 會在子 session 畫面底部放一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。摘要只有一句，完整內容（原因、推測的後果、建議）要展開才看得到。
+- 展開：輸入框是空的時候送 `1`（不加 `--enter`），再 `scr.py <handle> 40` 讀。展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `1` 收起。看到的已經是後者，代表有人展開過，直接讀畫面上的內容；不要再按 `1`，那會把它收掉。
+- 子 session 停在 AskUserQuestion 時不要按，數字鍵會被當成選項。
+
 ## 額度
 
 - 你和子 session 共用同一份額度。子 session 停在 `usage limit` / `continuing automatically at HH:MM` 時，它也算
