@@ -14,6 +14,7 @@
   `python3` 可能是 Microsoft Store 的空殼）。你自己手動叫 `scr.py` / `state.py` 時同理，Windows 上沒有 `python3` 就用 `python`。
 - 腳本要在 macOS 內建的 bash 3.2 跑：變數後面緊貼中文要寫 `${var}`（3.2 會把中文吃進變數名，`set -u` 下直接退出）；
   不用 GNU 專屬的 `stat -c`、`touch -d`、`sed -i` 等，檔案時間交給 `py.sh` 的 `age`。改完在 macOS 上跑 `selftest.sh`。
+- 收票只關 worktree 路徑完全相同的終端（`terminals_in.py`）：比對前統一斜線、Windows 磁碟代號不分大小寫，`t07` 不會比中 `t07b`。
 
 ## 讀畫面
 

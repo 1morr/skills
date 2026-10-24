@@ -36,6 +36,8 @@ touch "$X/a"; [ "$(age "$X/a")" -le 5 ]; ok "age of a fresh file" $? 0
 TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
 ok "terminals: exact worktree only"     "$(echo "$TL" | W=/w/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_a term_c "
 ok "terminals: sibling with same prefix" "$(echo "$TL" | W=/w/t07b "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_b "
+TW='{"result":{"terminals":[{"handle":"term_w","worktreePath":"c:\\ws\\t07"},{"handle":"term_x","worktreePath":"C:\\ws\\t07b"}]}}'
+ok "terminals: windows path, drive case" "$(echo "$TW" | W=C:/ws/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_w "
 
 # ---- run-check.sh
 export CRASH_LOG="$X/crash.tsv"; : > "$CRASH_LOG"

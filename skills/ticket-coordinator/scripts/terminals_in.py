@@ -2,8 +2,13 @@
 import json, os, sys
 
 
+def norm(p):
+    # 斜線統一；Windows 的磁碟代號不分大小寫（Orca 可能回 c: 或 C:）
+    p = os.path.normpath(p.replace("\\", "/")).replace("\\", "/")
+    return p[0].lower() + p[1:] if len(p) > 1 and p[1] == ":" else p
+
+
 def handles(listing, worktree):
-    norm = lambda p: os.path.normpath(p.replace("\\", "/"))
     return [t["handle"] for t in listing["result"]["terminals"] if norm(t.get("worktreePath") or "") == norm(worktree)]
 
 
