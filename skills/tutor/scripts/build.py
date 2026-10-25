@@ -20,11 +20,13 @@ LIMITS = {"read": (1500, 20000), "learn": (1000, 4000)}
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
-# 這些元素裡的字不算散文：圖、表、公式、程式碼、答案紙樣本
+# 這些元素裡的字不算散文：圖、表、公式、程式碼、答案紙樣本、課件譯文（長短由截圖決定）
 SKIP_TAGS = {"figure", "table", "pre", "code", "style", "script", "svg", "math", "title"}
-SKIP_CLASSES = {"sheet"}
+SKIP_CLASSES = {"sheet", "tr"}
 # 有這些 class 的段落在教一個算法，就要講為什麼、交代每個數字從哪來
 METHOD_CLASSES = {"calc", "sheet"}
+# 「數字從哪來」表裡，在任何材料上都看不到、所以不必附圖的數字
+NO_FIGURE_FROM = {"calc", "convention", "constant"}
 
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
@@ -46,15 +48,20 @@ class Lint(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.problems = []
         self.mode = None
-        self.stack = []  # [(tag, skip)]
-        self.sections = []  # [{"title", "units", "method", "why", "origin"}]
+        self.stack = []  # [(tag, skip, classes)]
+        self.prev = [set()]  # prev[d]：stack 第 d 層裡最後一個結束的子元素的 class
+        self.sections = []  # [{"title", "units", "method", "why", "origin", "figs", "rows"}]
+        self.row = None  # 正在讀的「數字從哪來」表格列
         self.heading = None  # 正在讀的 h2 標題
         self.prelude = 0  # 第一個 h2 之前的字數
         self.figures = []  # 每個開著的 figure：[figcaption 文字, 是否在 figcaption 內]
         self.checks = 0
 
     def skipping(self) -> bool:
-        return any(skip for _, skip in self.stack)
+        return any(skip for _, skip, _ in self.stack)
+
+    def in_origin(self) -> bool:
+        return any(t == "table" and "origin" in c for t, _, c in self.stack)
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -75,18 +82,35 @@ class Lint(HTMLParser):
                 self.problems.append("read 模式不能有 <details class=\"check\"> 回想題")
         if tag == "figure":
             self.figures.append(["", False])
+            if a.get("data-tr") != "none" and "tr" not in self.prev[len(self.stack)]:
+                self.problems.append(f"圖片前面沒有譯文（figure {a.get('id') or ''}）：先放 class=\"tr\" 的譯文，再放原圖；"
+                                     '圖上沒有要翻的字才寫 data-tr="none"')
         if tag == "figcaption" and self.figures:
             self.figures[-1][1] = True
         if tag == "h2":
             self.heading = ""
-            self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False})
+            self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
+                                  "figs": set(), "rows": []})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
             sec["origin"] |= "origin" in cls
-        if tag not in VOID:
-            self.stack.append((tag, tag in SKIP_TAGS or bool(cls & SKIP_CLASSES)))
+            if tag == "figure" and a.get("id"):
+                sec["figs"].add(a["id"])
+            if tag == "tr" and self.in_origin():
+                self.row = {"text": "", "from": a.get("data-from"), "links": [], "cells": 0}
+                sec["rows"].append(self.row)
+            if self.row is not None:
+                if tag == "td":
+                    self.row["cells"] += 1
+                if tag == "a" and (a.get("href") or "").startswith("#"):
+                    self.row["links"].append(a["href"][1:])
+        if tag in VOID:
+            self.prev[len(self.stack)] = cls
+        else:
+            self.stack.append((tag, tag in SKIP_TAGS or bool(cls & SKIP_CLASSES), cls))
+            self.prev.append(set())
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -97,8 +121,13 @@ class Lint(HTMLParser):
         # 容許省略結束標籤：往回找到同名的那層再收
         for i in range(len(self.stack) - 1, -1, -1):
             if self.stack[i][0] == tag:
+                cls = self.stack[i][2]
                 del self.stack[i:]
+                del self.prev[i + 1:]
+                self.prev[i] = cls
                 break
+        if tag == "tr":
+            self.row = None
         if tag == "figcaption" and self.figures:
             self.figures[-1][1] = False
         if tag == "figure" and self.figures:
@@ -110,6 +139,8 @@ class Lint(HTMLParser):
             self.heading = None
 
     def handle_data(self, data):
+        if self.row is not None:
+            self.row["text"] += data
         for fig in self.figures:
             if fig[1]:
                 fig[0] += data
@@ -141,6 +172,16 @@ def lint(src: str) -> list:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這個方法在回答什麼、公式為什麼長這樣')
         if sec["method"] and not sec["origin"]:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
+        for row in sec["rows"]:
+            if not row["cells"]:  # 表頭
+                continue
+            what = " ".join(row["text"].split())[:30]
+            missing = [x for x in row["links"] if x not in sec["figs"]]
+            if missing:
+                problems.append(f"§「{title}」數字從哪來的「{what}」連到 #{missing[0]}，這一段沒有這個 id 的 figure")
+            elif not row["links"] and row["from"] not in NO_FIGURE_FROM:
+                problems.append(f"§「{title}」數字從哪來的「{what}」沒有附圖：連到這一段圈出它的 figure（<a href=\"#id\">），"
+                                '材料上看不到的數字才寫 data-from="calc|convention|constant"')
     whole = p.prelude + sum(sec["units"] for sec in p.sections)
     if whole > total:
         problems.append(f"整頁 {whole} 字，{p.mode} 模式上限 {total}：這是在寫參考書，不是在教")

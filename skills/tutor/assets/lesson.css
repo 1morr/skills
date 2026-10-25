@@ -32,6 +32,10 @@ figure img { display: block; max-width: 100%; height: auto; border: 1px solid va
 figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
 .tr { background: var(--tr-bg); border-radius: 4px; padding: .4rem .8rem; margin: .5rem 0; }
 .tr .en { font-family: Georgia, "Times New Roman", serif; }
+div.tr { padding: .6rem 1rem; }
+div.tr::before { content: "課件譯文"; display: block; font-size: .8rem; font-weight: 700; color: var(--muted); }
+div.tr p { margin: .3rem 0; }
+.tr strong { color: var(--accent); }
 .prereq, .trap { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
 .prereq { background: var(--prereq-bg); border: 1px solid color-mix(in srgb, var(--prereq-line) 35%, transparent); }
 .prereq::before { content: "先補"; font-weight: 700; color: var(--prereq-line); margin-right: .5em; }

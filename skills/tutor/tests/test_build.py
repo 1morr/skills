@@ -19,10 +19,12 @@ spec.loader.exec_module(build)
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 )
-FIG = '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
+TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p></div>'
+FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
 WHY = '<div class="why"><p>F 是訊號除以雜訊</p></div>'
-ORIGIN = '<table class="origin"><tr><td>α = 0.05</td><td>慣例</td></tr></table>'
+ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
+ANOVA = TR + '<figure id="anova"><img src="a.png"><figcaption>Minitab p.3</figcaption></figure>'
 
 
 def page(body, mode="read"):
@@ -55,7 +57,7 @@ class FigureRule(unittest.TestCase):
     def test_caption_formatting_variants_pass(self):
         for cap in ("Classnote p.4", "Classnote p. 4", "課本 pp.315", "<b>講義</b> p.12（紅框）"):
             with self.subTest(cap=cap):
-                src = page(f'<h2>一</h2><FIGURE class="x">\n  <img alt="" src="a.png" />\n'
+                src = page(f'<h2>一</h2>{TR}<FIGURE class="x">\n  <img alt="" src="a.png" />\n'
                            f'<figcaption>{cap}</figcaption></FIGURE>')
                 self.assertTrue(ok(src), build.lint(src))
 
@@ -94,8 +96,12 @@ class LengthRule(unittest.TestCase):
         big = "字" * (self.per * 2)
         body = (f'<h2>一</h2>{WHY}{ORIGIN}<div class="sheet"><p>{big}</p></div>'
                 f"<table><tr><td>{big}</td></tr></table>"
-                f'<figure><img src="a.png"><figcaption>p.2 {big}</figcaption></figure>')
+                f'{TR}<figure><img src="a.png"><figcaption>p.2 {big}</figcaption></figure>')
         self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+    def test_translation_not_counted(self):
+        big = "字" * (self.per * 2)
+        self.assertTrue(ok(page(f'<h2>一</h2><div class="tr"><p>{big}</p></div>' + FIG.removeprefix(TR))))
 
     def test_unclosed_paragraphs_still_counted(self):
         self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * self.per + "<p>多")))
@@ -121,12 +127,79 @@ class MethodRule(unittest.TestCase):
             f'<h2>一</h2>{WHY}{ORIGIN}<div class="calc">F</div>',
             f'<h2>一</h2><div class="calc">F</div>{ORIGIN}{WHY}',
             '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>為什麼</p></SECTION>\n'
-            '<div><table data-x="1" class="origin small"><tr><td>3.48</td></tr></table></div>'
+            '<div><table data-x="1" class="origin small"><tr data-from="convention"><td>0.05</td></tr></table></div>'
             '<div class="sheet big">F = 29.74</div>',
         ]
         for body in variants:
             with self.subTest(body=body[:40]):
                 self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+
+class TranslationRule(unittest.TestCase):
+    """每張圖前面緊接著譯文。"""
+
+    def test_figure_without_translation_fails(self):
+        self.assertFalse(ok(page('<h2>一</h2><figure><img src="a.png"><figcaption>p.4</figcaption></figure>')))
+
+    def test_translation_after_figure_fails(self):
+        self.assertFalse(ok(page('<h2>一</h2><figure><img src="a.png"><figcaption>p.4</figcaption></figure>' + TR)))
+
+    def test_translation_separated_by_paragraph_fails(self):
+        self.assertFalse(ok(page(f'<h2>一</h2>{TR}<p>先看下面</p><figure><img src="a.png">'
+                                 '<figcaption>p.4</figcaption></figure>')))
+
+    def test_translation_inside_previous_sibling_fails(self):
+        self.assertFalse(ok(page(f'<h2>一</h2><div>{TR}<p>別的</p></div><figure><img src="a.png">'
+                                 '<figcaption>p.4</figcaption></figure>')))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            '<h2>一</h2><P CLASS="x tr">譯文</P>\n  <!-- 註解 -->\n<figure><img src="a.png"><figcaption>p.4</figcaption></figure>',
+            '<h2>一</h2><div class="why"><div class="tr">譯</div><figure class="w"><img src="a.png">'
+            '<figcaption>p.4</figcaption></figure></div>',
+            '<h2>一</h2><figure data-tr="none"><img src="a.png"><figcaption>殘差圖 p.5</figcaption></figure>',
+        ]
+        for body in variants:
+            with self.subTest(body=body[:40]):
+                self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+
+class OriginFigureRule(unittest.TestCase):
+    """「數字從哪來」的每一列，要嘛連到這一段圈出它的圖，要嘛說明材料上看不到。"""
+
+    def body(self, row, fig=ANOVA, between=""):
+        return page(f'<h2>一</h2>{WHY}{fig}{between}<div class="calc">R²</div>'
+                    f'<table class="origin"><tr><th>值</th><th>從哪來</th></tr>{row}</table>')
+
+    def test_row_without_figure_fails(self):
+        self.assertFalse(ok(self.body('<tr><td>10556.1</td><td>Minitab SS</td></tr>')))
+
+    def test_link_to_missing_figure_fails(self):
+        self.assertFalse(ok(self.body('<tr><td>10556.1</td><td><a href="#coef">圖</a></td></tr>')))
+
+    def test_link_to_figure_in_other_section_fails(self):
+        src = page(f'<h2>零</h2>{ANOVA}<h2>一</h2>{WHY}<div class="calc">R²</div>'
+                   '<table class="origin"><tr><td>10556.1</td><td><a href="#anova">圖</a></td></tr></table>')
+        self.assertFalse(ok(src))
+
+    def test_unknown_from_fails(self):
+        self.assertFalse(ok(self.body('<tr data-from="minitab"><td>10556.1</td></tr>')))
+
+    def test_formatting_variants_pass(self):
+        rows = [
+            '<tr><td>10556.1</td><td>Minitab ANOVA 的 SS（<a href="#anova">圖</a>）</td></tr>',
+            '<TR class="x"><td><a class="y" href="#anova">10556.1</a></td></TR>',
+            '<tr data-from="calc"><td>0.9225</td><td>上一步算的</td></tr>',
+            '<tr data-from="constant"><td>1</td><td>截距</td></tr>',
+        ]
+        for row in rows:
+            with self.subTest(row=row[:40]):
+                self.assertTrue(ok(self.body(row)), build.lint(self.body(row)))
+
+    def test_figure_after_table_passes(self):
+        src = page(f'<h2>一</h2>{WHY}<div class="calc">R²</div>'
+                   '<table class="origin"><tr><td>10556.1</td><td><a href="#anova">圖</a></td></tr></table>' + ANOVA)
+        self.assertTrue(ok(src), build.lint(src))
 
 
 class ExerciseRule(unittest.TestCase):
