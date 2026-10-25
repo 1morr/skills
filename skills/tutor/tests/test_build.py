@@ -21,6 +21,8 @@ PNG = base64.b64decode(
 )
 FIG = '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
+WHY = '<div class="why"><p>F 是訊號除以雜訊</p></div>'
+ORIGIN = '<table class="origin"><tr><td>α = 0.05</td><td>慣例</td></tr></table>'
 
 
 def page(body, mode="read"):
@@ -90,13 +92,41 @@ class LengthRule(unittest.TestCase):
 
     def test_sheet_table_figure_not_counted(self):
         big = "字" * (self.per * 2)
-        body = (f'<h2>一</h2><div class="sheet"><p>{big}</p></div>'
+        body = (f'<h2>一</h2>{WHY}{ORIGIN}<div class="sheet"><p>{big}</p></div>'
                 f"<table><tr><td>{big}</td></tr></table>"
                 f'<figure><img src="a.png"><figcaption>p.2 {big}</figcaption></figure>')
         self.assertTrue(ok(page(body)), build.lint(page(body)))
 
     def test_unclosed_paragraphs_still_counted(self):
         self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * self.per + "<p>多")))
+
+
+class MethodRule(unittest.TestCase):
+    """有 .calc 或 .sheet 的段落要有 .why 和 .origin。"""
+
+    def test_calc_without_why_fails(self):
+        self.assertFalse(ok(page(f'<h2>一</h2>{ORIGIN}<div class="calc">F = 29.74</div>')))
+
+    def test_sheet_without_origin_fails(self):
+        self.assertFalse(ok(page(f'<h2>一</h2>{WHY}<div class="sheet">α = 0.05</div>')))
+
+    def test_blocks_in_another_section_do_not_count(self):
+        self.assertFalse(ok(page(f'<h2>一</h2>{WHY}{ORIGIN}<h2>二</h2><div class="calc">F</div>')))
+
+    def test_section_without_method_needs_nothing(self):
+        self.assertTrue(ok(page("<h2>一</h2><p>Topic 3 在做什麼</p>")))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            f'<h2>一</h2>{WHY}{ORIGIN}<div class="calc">F</div>',
+            f'<h2>一</h2><div class="calc">F</div>{ORIGIN}{WHY}',
+            '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>為什麼</p></SECTION>\n'
+            '<div><table data-x="1" class="origin small"><tr><td>3.48</td></tr></table></div>'
+            '<div class="sheet big">F = 29.74</div>',
+        ]
+        for body in variants:
+            with self.subTest(body=body[:40]):
+                self.assertTrue(ok(page(body)), build.lint(page(body)))
 
 
 class ExerciseRule(unittest.TestCase):

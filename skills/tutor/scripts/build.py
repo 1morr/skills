@@ -16,13 +16,15 @@ from pathlib import Path
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 
 # (每個 h2 段落上限, 整頁上限)，單位見 text_units
-LIMITS = {"read": (900, 12000), "learn": (600, 3000)}
+LIMITS = {"read": (1500, 20000), "learn": (1000, 4000)}
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
 # 這些元素裡的字不算散文：圖、表、公式、程式碼、答案紙樣本
 SKIP_TAGS = {"figure", "table", "pre", "code", "style", "script", "svg", "math", "title"}
 SKIP_CLASSES = {"sheet"}
+# 有這些 class 的段落在教一個算法，就要講為什麼、交代每個數字從哪來
+METHOD_CLASSES = {"calc", "sheet"}
 
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
@@ -45,7 +47,7 @@ class Lint(HTMLParser):
         self.problems = []
         self.mode = None
         self.stack = []  # [(tag, skip)]
-        self.sections = []  # [[標題, 字數]]
+        self.sections = []  # [{"title", "units", "method", "why", "origin"}]
         self.heading = None  # 正在讀的 h2 標題
         self.prelude = 0  # 第一個 h2 之前的字數
         self.figures = []  # 每個開著的 figure：[figcaption 文字, 是否在 figcaption 內]
@@ -77,7 +79,12 @@ class Lint(HTMLParser):
             self.figures[-1][1] = True
         if tag == "h2":
             self.heading = ""
-            self.sections.append(["", 0])
+            self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False})
+        if self.sections:
+            sec = self.sections[-1]
+            sec["method"] |= bool(cls & METHOD_CLASSES)
+            sec["why"] |= "why" in cls
+            sec["origin"] |= "origin" in cls
         if tag not in VOID:
             self.stack.append((tag, tag in SKIP_TAGS or bool(cls & SKIP_CLASSES)))
 
@@ -99,7 +106,7 @@ class Lint(HTMLParser):
             if not PAGE_REF.search(caption):
                 self.problems.append(f"figure 的出處沒有頁碼（figcaption：{caption.strip()[:40]!r}）：要寫檔名和 p.頁碼")
         if tag == "h2" and self.heading is not None:
-            self.sections[-1][0] = self.heading.strip()
+            self.sections[-1]["title"] = self.heading.strip()
             self.heading = None
 
     def handle_data(self, data):
@@ -112,7 +119,7 @@ class Lint(HTMLParser):
             return
         n = text_units(data)
         if self.sections:
-            self.sections[-1][1] += n
+            self.sections[-1]["units"] += n
         else:
             self.prelude += n
 
@@ -126,10 +133,15 @@ def lint(src: str) -> list:
         problems.insert(0, f'<body> 要有 data-mode="read" 或 "learn"（現在是 {p.mode!r}）')
         return problems
     per, total = LIMITS[p.mode]
-    for title, n in p.sections:
+    for sec in p.sections:
+        title, n = sec["title"][:30], sec["units"]
         if n > per:
-            problems.append(f"§「{title[:30]}」有 {n} 字，{p.mode} 模式每段上限 {per}：砍掉地圖外的東西，或拆段")
-    whole = p.prelude + sum(n for _, n in p.sections)
+            problems.append(f"§「{title}」有 {n} 字，{p.mode} 模式每段上限 {per}：砍掉地圖外的東西，或拆段")
+        if sec["method"] and not sec["why"]:
+            problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這個方法在回答什麼、公式為什麼長這樣')
+        if sec["method"] and not sec["origin"]:
+            problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
+    whole = p.prelude + sum(sec["units"] for sec in p.sections)
     if whole > total:
         problems.append(f"整頁 {whole} 字，{p.mode} 模式上限 {total}：這是在寫參考書，不是在教")
     if p.mode == "learn" and p.checks == 0:

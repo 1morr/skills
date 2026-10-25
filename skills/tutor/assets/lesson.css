@@ -3,12 +3,14 @@
   --bg: #fdfcf9; --fg: #1d1d1f; --muted: #66625a; --line: #e4e0d6;
   --accent: #b42318; --prereq-bg: #eef4ff; --prereq-line: #4f7bd9;
   --trap-bg: #fff3ec; --trap-line: #d9672b; --sheet-bg: #ffffff; --tr-bg: #f4f1ea;
+  --why-bg: #eef7f0; --why-line: #2f8a4c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #18181a; --fg: #e8e6e1; --muted: #a29d93; --line: #34322e;
     --accent: #ff7a6b; --prereq-bg: #1c2433; --prereq-line: #6d95e8;
     --trap-bg: #2d211a; --trap-line: #e28a55; --sheet-bg: #f7f5f0; --tr-bg: #232220;
+    --why-bg: #1a2a20; --why-line: #5cc07e;
   }
 }
 * { box-sizing: border-box; }
@@ -35,6 +37,10 @@ figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
 .prereq::before { content: "先補"; font-weight: 700; color: var(--prereq-line); margin-right: .5em; }
 .trap { background: var(--trap-bg); border: 1px solid color-mix(in srgb, var(--trap-line) 35%, transparent); }
 .trap::before { content: "常見錯誤"; font-weight: 700; color: var(--trap-line); margin-right: .5em; }
+.why { background: var(--why-bg); border: 1px solid color-mix(in srgb, var(--why-line) 35%, transparent); border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
+.why::before { content: "為什麼"; display: block; font-weight: 700; color: var(--why-line); }
+.why > :first-child { margin-top: .2rem; }
+table.origin caption { caption-side: top; text-align: left; font-weight: 700; padding-bottom: .3rem; }
 ol.steps { padding-left: 1.4rem; }
 ol.steps li { margin: .5rem 0; }
 ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②③ 時不要再加數字 */
