@@ -15,8 +15,9 @@ from pathlib import Path
 
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 
-# (每個 h2 段落上限, 整頁上限)，單位見 text_units
-LIMITS = {"read": (1500, 20000), "learn": (1000, 4000)}
+MODES = {"read", "learn"}
+# 每個 h2 段落的字數上限，單位見 text_units。整頁不設上限：課件導讀要教完宣告的每一頁，由頁數覆蓋把關
+PER_SECTION = 2000
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
@@ -31,6 +32,8 @@ NO_FIGURE_FROM = {"calc", "convention", "constant"}
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
 PAGE_REF = re.compile(r"\bp{1,2}\.\s*\d+")
+# data-pages 的一項：「檔名 p.3」或「檔名 p.1-8」
+PAGES_ITEM = re.compile(r"^(.+?)\s+p\.\s*(\d+)(?:\s*-\s*(\d+))?$")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 
 
@@ -48,17 +51,21 @@ class Lint(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.problems = []
         self.mode = None
+        self.pages = None  # <body data-pages>：課件導讀要涵蓋的頁
+        self.page_captions = []  # 每張 figure.page 的 figcaption
         self.stack = []  # [(tag, skip, classes)]
         self.prev = [set()]  # prev[d]：stack 第 d 層裡最後一個結束的子元素的 class
         self.sections = []  # [{"title", "units", "method", "why", "origin", "figs", "rows"}]
         self.row = None  # 正在讀的「數字從哪來」表格列
         self.heading = None  # 正在讀的 h2 標題
         self.prelude = 0  # 第一個 h2 之前的字數
-        self.figures = []  # 每個開著的 figure：[figcaption 文字, 是否在 figcaption 內]
-        self.checks = 0
+        self.figures = []  # 每個開著的 figure：[figcaption 文字, 是否在 figcaption 內, 是否整頁圖]
 
     def skipping(self) -> bool:
         return any(skip for _, skip, _ in self.stack)
+
+    def inside(self, tag) -> bool:
+        return any(t == tag for t, _, _ in self.stack)
 
     def in_origin(self) -> bool:
         return any(t == "table" and "origin" in c for t, _, c in self.stack)
@@ -68,21 +75,22 @@ class Lint(HTMLParser):
         cls = classes(attrs)
         if tag == "body":
             self.mode = a.get("data-mode")
+            self.pages = a.get("data-pages")
         for key in ("src", "href"):
             if tag in ("img", "script", "link", "source") and a.get(key) and REMOTE.match(a[key]):
                 self.problems.append(f"外部資源 <{tag} {key}={a[key]!r}>：頁面要能離線打開，請改成本機檔案")
         if tag == "img" and not self.figures:
             self.problems.append(f"圖片 {a.get('src', '')!r} 不在 <figure> 裡：每張圖都要有寫出處的 figcaption")
-        if tag in ("input", "textarea", "select"):
-            if self.mode == "read":
-                self.problems.append(f"read 模式不能有 <{tag}>：一次讀完的頁面不出練習")
-        if tag == "details" and "check" in cls:
-            self.checks += 1
-            if self.mode == "read":
-                self.problems.append("read 模式不能有 <details class=\"check\"> 回想題")
+        if tag in ("input", "textarea", "select") or (tag == "details" and "check" in cls):
+            self.problems.append(f"頁面不能有練習（<{tag}>）：read 不出練習，learn 的練習在對話裡做")
+        if "sheet" in cls and self.mode == "learn" and not self.inside("details"):
+            self.problems.append("learn 模式的答案紙要收在 <details> 裡：使用者要先在對話裡自己做")
+        sec = self.sections[-1] if self.sections else None
         if tag == "figure":
-            self.figures.append(["", False])
-            if a.get("data-tr") != "none" and "tr" not in self.prev[len(self.stack)]:
+            self.figures.append(["", False, "page" in cls])
+            # 同一段已經放過整頁圖和整頁譯文，之後截這頁的小塊不用再翻
+            translated = sec is not None and sec["page"]
+            if a.get("data-tr") != "none" and not translated and "tr" not in self.prev[len(self.stack)]:
                 self.problems.append(f"圖片前面沒有譯文（figure {a.get('id') or ''}）：先放 class=\"tr\" 的譯文，再放原圖；"
                                      '圖上沒有要翻的字才寫 data-tr="none"')
         if tag == "figcaption" and self.figures:
@@ -90,12 +98,13 @@ class Lint(HTMLParser):
         if tag == "h2":
             self.heading = ""
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
-                                  "figs": set(), "rows": []})
+                                  "page": False, "figs": set(), "rows": []})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
             sec["origin"] |= "origin" in cls
+            sec["page"] |= tag == "figure" and "page" in cls
             if tag == "figure" and a.get("id"):
                 sec["figs"].add(a["id"])
             if tag == "tr" and self.in_origin():
@@ -131,7 +140,9 @@ class Lint(HTMLParser):
         if tag == "figcaption" and self.figures:
             self.figures[-1][1] = False
         if tag == "figure" and self.figures:
-            caption, _ = self.figures.pop()
+            caption, _, whole = self.figures.pop()
+            if whole:
+                self.page_captions.append(caption)
             if not PAGE_REF.search(caption):
                 self.problems.append(f"figure 的出處沒有頁碼（figcaption：{caption.strip()[:40]!r}）：要寫檔名和 p.頁碼")
         if tag == "h2" and self.heading is not None:
@@ -160,15 +171,17 @@ def lint(src: str) -> list:
     p.feed(src)
     p.close()
     problems = list(p.problems)
-    if p.mode not in LIMITS:
+    if p.mode not in MODES:
         problems.insert(0, f'<body> 要有 data-mode="read" 或 "learn"（現在是 {p.mode!r}）')
         return problems
-    per, total = LIMITS[p.mode]
+    problems += coverage(p.pages, p.page_captions)
     for sec in p.sections:
         title, n = sec["title"][:30], sec["units"]
-        if n > per:
-            problems.append(f"§「{title}」有 {n} 字，{p.mode} 模式每段上限 {per}：砍掉地圖外的東西，或拆段")
-        if sec["method"] and not sec["why"]:
+        if n > PER_SECTION:
+            problems.append(f"§「{title}」有 {n} 字，每段上限 {PER_SECTION}：拆成幾段，或刪掉不是在教這頁的東西")
+        if sec["page"] and not sec["why"]:
+            problems.append(f'§「{title}」是課件導讀頁，卻沒有 class="why" 的區塊：要講這頁的東西為什麼這樣、什麼意思')
+        elif sec["method"] and not sec["why"]:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這個方法在回答什麼、公式為什麼長這樣')
         if sec["method"] and not sec["origin"]:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
@@ -182,11 +195,24 @@ def lint(src: str) -> list:
             elif not row["links"] and row["from"] not in NO_FIGURE_FROM:
                 problems.append(f"§「{title}」數字從哪來的「{what}」沒有附圖：連到這一段圈出它的 figure（<a href=\"#id\">），"
                                 '材料上看不到的數字才寫 data-from="calc|convention|constant"')
-    whole = p.prelude + sum(sec["units"] for sec in p.sections)
-    if whole > total:
-        problems.append(f"整頁 {whole} 字，{p.mode} 模式上限 {total}：這是在寫參考書，不是在教")
-    if p.mode == "learn" and p.checks == 0:
-        problems.append('learn 模式至少要有一題 <details class="check"> 回想題')
+    return problems
+
+
+def coverage(pages, captions) -> list:
+    """data-pages 宣告的每一頁，都要有一張 figcaption 寫著那個檔名和頁碼的 figure.page。"""
+    if not (pages or "").strip():
+        return ['<body> 要有 data-pages，宣告課件導讀涵蓋哪些頁，例如 "Classnote Topic 3 p.1-8; Topic 4 Summary p.1-10"']
+    problems = []
+    for item in filter(None, (x.strip() for x in pages.split(";"))):
+        m = PAGES_ITEM.match(item)
+        if not m:
+            problems.append(f"data-pages 的「{item}」看不懂：要寫成「檔名 p.3」或「檔名 p.1-8」，多份用 ; 分開")
+            continue
+        name, first = m.group(1), int(m.group(2))
+        for n in range(first, int(m.group(3) or first) + 1):
+            page = re.compile(rf"\bp\.\s*{n}(?!\d)")
+            if not any(name in c and page.search(c) for c in captions):
+                problems.append(f'課件導讀少了「{name} p.{n}」：要有一張 figcaption 寫著它的 <figure class="page"> 整頁圖')
     return problems
 
 

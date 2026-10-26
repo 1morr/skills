@@ -3,7 +3,9 @@
     CROP="uv run --no-project --with pymupdf --with pillow python crop.py"
     $CROP find <pdf> <頁> <文字>                 找文字的位置（掃描檔沒有文字層，找不到）
     $CROP grid <pdf> <頁> <out.png> [--rotate N]  整頁畫上格線，用來看圖讀座標
-    $CROP cut  <pdf> <頁> <out.png> --clip x0,y0,x1,y1 [--box ...] [--mark ...] [--rotate N] [--dpi N]
+    $CROP cut  <pdf> <頁> <out.png> [--clip x0,y0,x1,y1] [--box ...] [--mark ...] [--rotate N] [--dpi N]
+
+不給 --clip 就截整頁（課件導讀的整頁圖）。
 
 頁碼從 1 起算。座標單位是 PDF point（1/72 吋），原點在左上；有 --rotate 時，
 座標是轉正之後那一頁的座標（先用 grid 加同樣的 --rotate 看）。
@@ -69,7 +71,6 @@ def grid(a):
 def cut(a):
     s = a.dpi / 72
     im = render(a.pdf, a.page, a.dpi, a.rotate).convert("RGBA")
-    x0, y0, x1, y1 = a.clip
     over = Image.new("RGBA", im.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(over)
     for r in a.mark:
@@ -78,7 +79,8 @@ def cut(a):
     for r in a.box:
         d.rectangle([v * s for v in r], outline=RED, width=width)
     im = Image.alpha_composite(im, over).convert("RGB")
-    im = im.crop((round(x0 * s), round(y0 * s), round(x1 * s), round(y1 * s)))
+    if a.clip:
+        im = im.crop(tuple(round(v * s) for v in a.clip))
     # 課件多半是黑白字：縮成小調色盤，檔案小很多，字和標色都還清楚
     im.quantize(colors=64).save(a.out, optimize=True)
     print(f"{a.out} {im.size[0]}x{im.size[1]}px")
@@ -96,7 +98,7 @@ def main(argv=None):
         if name != "find":
             p.add_argument("--rotate", type=int, default=0, help="順時針轉幾度（橫放的表用 90）")
         if name == "cut":
-            p.add_argument("--clip", type=rect, required=True, help="要截的範圍")
+            p.add_argument("--clip", type=rect, help="要截的範圍；不給就截整頁")
             p.add_argument("--box", type=rect, action="append", default=[], help="紅框，可重複")
             p.add_argument("--mark", type=rect, action="append", default=[], help="淡黃標色，可重複")
             p.add_argument("--dpi", type=int, default=200)

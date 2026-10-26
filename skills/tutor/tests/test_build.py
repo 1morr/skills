@@ -22,13 +22,16 @@ PNG = base64.b64decode(
 TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p></div>'
 FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
+COVER = TR + '<figure class="page"><img src="a.png"><figcaption>Cover p.1</figcaption></figure>'
 WHY = '<div class="why"><p>F 是訊號除以雜訊</p></div>'
 ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
 ANOVA = TR + '<figure id="anova"><img src="a.png"><figcaption>Minitab p.3</figcaption></figure>'
 
 
-def page(body, mode="read"):
-    return f'<!doctype html><html><head><title>x</title></head><body data-mode="{mode}">{body}</body></html>'
+def page(body, mode="read", pages="Cover p.1", cover=COVER):
+    """整頁 HTML。預設在第一個 h2 之前放一張整頁圖，滿足頁數覆蓋，讓其他規則的測試只管自己那條。"""
+    return (f'<!doctype html><html><head><title>x</title></head>'
+            f'<body data-mode="{mode}" data-pages="{pages}">{cover}{body}</body></html>')
 
 
 def ok(src):
@@ -41,7 +44,7 @@ class ModeRule(unittest.TestCase):
 
     def test_both_modes_pass(self):
         self.assertTrue(ok(page("<h2>一</h2><p>短</p>", "read")))
-        self.assertTrue(ok(page("<h2>一</h2><p>短</p>" + CHECK, "learn")))
+        self.assertTrue(ok(page("<h2>一</h2><p>短</p>", "learn")))
 
 
 class FigureRule(unittest.TestCase):
@@ -74,7 +77,7 @@ class RemoteRule(unittest.TestCase):
 
 
 class LengthRule(unittest.TestCase):
-    per, total = build.LIMITS["read"]
+    per = build.PER_SECTION
 
     def test_long_section_fails(self):
         self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * (self.per + 1) + "</p>")))
@@ -83,10 +86,9 @@ class LengthRule(unittest.TestCase):
         half = "字" * (self.per // 2 + 1)
         self.assertTrue(ok(page(f"<h2>一</h2><p>{half}</p><h2>二</h2><p>{half}</p>")))
 
-    def test_whole_page_limit_fails(self):
-        n = self.total // self.per + 1
-        body = "".join(f"<h2>{i}</h2><p>{'字' * self.per}</p>" for i in range(n))
-        self.assertFalse(ok(page(body)))
+    def test_no_whole_page_limit(self):
+        body = "".join(f"<h2>{i}</h2><p>{'字' * (self.per - 5)}</p>" for i in range(30))
+        self.assertTrue(ok(page(body)), build.lint(page(body))[:2])
 
     def test_english_counts_words_not_letters(self):
         words = " ".join(["regression"] * (self.per - 5))
@@ -202,18 +204,99 @@ class OriginFigureRule(unittest.TestCase):
         self.assertTrue(ok(src), build.lint(src))
 
 
+class CoverageRule(unittest.TestCase):
+    """data-pages 宣告的每一頁都要有一張 figure.page 整頁圖。"""
+
+    def whole(self, name, n, cls="page"):
+        return f'<h2>{name} p.{n}</h2>{TR}<figure class="{cls}"><img src="a.png"><figcaption>{name} p.{n}</figcaption></figure>{WHY}'
+
+    def test_missing_declaration_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2>", pages="")))
+
+    def test_missing_page_fails(self):
+        body = self.whole("Topic 3", 1) + self.whole("Topic 3", 3)
+        self.assertFalse(ok(page(body, pages="Topic 3 p.1-3", cover="")))
+
+    def test_p10_does_not_cover_p1(self):
+        self.assertFalse(ok(page(self.whole("Topic 4", 10), pages="Topic 4 p.1", cover="")))
+
+    def test_other_file_same_page_does_not_count(self):
+        self.assertFalse(ok(page(self.whole("Topic 3 Eg", 1), pages="Topic 4 p.1", cover="")))
+
+    def test_crop_is_not_a_whole_page(self):
+        self.assertFalse(ok(page(self.whole("Topic 3", 1, cls="crop"), pages="Topic 3 p.1", cover="")))
+
+    def test_unparsable_item_fails(self):
+        self.assertFalse(ok(page(self.whole("Topic 3", 1), pages="Topic 3 第一頁", cover="")))
+
+    def test_formatting_variants_pass(self):
+        body = (self.whole("Classnote Topic 3", 1) + self.whole("Classnote Topic 3", 2, cls="wide page")
+                + f'<h2>x</h2>{TR}<FIGURE CLASS="page"><img src="a.png"><figcaption>2023 Topic 4 Summary p. 10（整頁）'
+                  f'</figcaption></FIGURE>{WHY}')
+        for pages in ("Classnote Topic 3 p.1-2; Topic 4 Summary p.10",
+                      " Classnote Topic 3 p. 1 - 2 ;Topic 4 Summary p.10; ",
+                      "Topic 4 Summary p.10; Classnote Topic 3 p.1; Classnote Topic 3 p.2"):
+            with self.subTest(pages=pages):
+                src = page(body, pages=pages, cover="")
+                self.assertTrue(ok(src), build.lint(src))
+
+
+class PageSectionRule(unittest.TestCase):
+    """課件導讀頁：整頁圖前要有整頁譯文，之後同段的小截圖不用再翻，而且要講為什麼。"""
+
+    PAGE = TR + '<figure class="page"><img src="a.png"><figcaption>Topic 3 p.5</figcaption></figure>'
+    CROP = '<h3>R²</h3><figure><img src="a.png"><figcaption>Topic 3 p.5（R² 那塊）</figcaption></figure>'
+
+    def test_crop_after_page_needs_no_translation(self):
+        src = page(f"<h2>p.5</h2>{self.PAGE}{WHY}{self.CROP}")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_page_figure_itself_needs_translation(self):
+        self.assertFalse(ok(page(f"<h2>p.5</h2>{self.PAGE.removeprefix(TR)}{WHY}{self.CROP}")))
+
+    def test_crop_before_page_needs_translation(self):
+        self.assertFalse(ok(page(f"<h2>p.5</h2>{self.CROP}{self.PAGE}{WHY}")))
+
+    def test_crop_in_next_section_needs_translation(self):
+        self.assertFalse(ok(page(f"<h2>p.5</h2>{self.PAGE}{WHY}<h2>例題</h2>{self.CROP}")))
+
+    def test_page_section_without_why_fails(self):
+        self.assertFalse(ok(page(f"<h2>p.5</h2>{self.PAGE}{self.CROP}")))
+
+
 class ExerciseRule(unittest.TestCase):
-    def test_read_with_check_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2>" + CHECK, "read")))
+    def test_check_fails_in_both_modes(self):
+        for mode in ("read", "learn"):
+            with self.subTest(mode=mode):
+                self.assertFalse(ok(page("<h2>一</h2>" + CHECK, mode)))
 
-    def test_read_with_input_fails(self):
-        self.assertFalse(ok(page('<h2>一</h2><input type="text">', "read")))
+    def test_input_fails(self):
+        self.assertFalse(ok(page('<h2>一</h2><input type="text">', "learn")))
 
-    def test_read_with_plain_details_passes(self):
+    def test_plain_details_passes(self):
         self.assertTrue(ok(page("<h2>一</h2><details><summary>延伸</summary><p>可略過</p></details>", "read")))
 
-    def test_learn_without_check_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2><p>短</p>", "learn")))
+
+class LearnSheetRule(unittest.TestCase):
+    """learn 的答案紙要摺起來，使用者先在對話裡做。"""
+
+    SHEET = '<div class="sheet">F = 29.74</div>'
+
+    def body(self, sheet):
+        return f"<h2>一</h2>{WHY}{ORIGIN}{sheet}"
+
+    def test_open_sheet_fails_in_learn(self):
+        self.assertFalse(ok(page(self.body(self.SHEET), "learn")))
+
+    def test_open_sheet_passes_in_read(self):
+        self.assertTrue(ok(page(self.body(self.SHEET), "read")))
+
+    def test_folded_sheet_passes_in_learn(self):
+        for folded in (f"<details><summary>做完再打開</summary>{self.SHEET}</details>",
+                       f'<DETAILS class="x"><summary>答案</summary><div>{self.SHEET}</div></DETAILS>'):
+            with self.subTest(folded=folded[:30]):
+                src = page(self.body(folded), "learn")
+                self.assertTrue(ok(src), build.lint(src))
 
 
 class Output(unittest.TestCase):
