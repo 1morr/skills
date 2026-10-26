@@ -1,6 +1,6 @@
 ---
 name: tutor
-description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth. Produces a self-contained HTML guide that first walks through the teacher's courseware page by page in its own order (each page shown whole with a full translation, then explained block by block with that block cropped in), then works the teacher's examples or the assignment questions, so the learner never has to open the course files; assignments also get an answer sheet in the teacher's format. Two modes - read (the guide with every answer; never asks questions; for a deadline or exam within about two days, or when the learner just wants to read it through) and learn (the same guide as a textbook, then in the chat - check understanding, work the examples together with the learner giving each answer, then practice on textbook or past problems, or new ones generated in the format of the course's quizzes and assignments, and keep a learning record). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
+description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth. Produces a self-contained HTML guide that first walks through the teacher's courseware page by page in its own order (each page shown whole with a full translation, then explained block by block with that block cropped in), then works the teacher's examples, then the topic's assignments, so the learner never has to open the course files; an assignment not yet handed in also gets an answer sheet in the teacher's format. Two modes - read (the guide with every answer; never asks questions; for a deadline or exam within about two days, or when the learner just wants to read it through) and learn (the same guide as a textbook, then in the chat - check understanding, work the examples together with the learner giving each answer, then practice on textbook or past problems, or new ones generated in the format of the course's quizzes and assignments, and keep a learning record). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
 argument-hint: "[作業 | topic | 考試] [read | learn]"
 ---
 
@@ -27,9 +27,11 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 
 ## 2. 範圍：整份課件，照課件順序
 
-- topic、考試：這個 topic 的**全部**課件頁。先講義（Classnote、Summary），再例題檔（例題、軟體輸出），各自照頁碼順序。
+- topic、考試：這個 topic 的**全部**課件頁。先講義（Classnote、Summary），再例題檔（例題、軟體輸出），各自照頁碼順序。最後是**這個 topic 的作業**：作業比例題重要，因為要交、要算分，而且期末考的題型通常和作業差不多。
+  - 哪些作業屬於這個 topic：看作業標題寫的 topic 或章節（例如 Assignment 3A 對 Topic 3）、題目用到的方法出自哪幾頁課件、課程大綱的週次表。In-Class Exercise 也算。
+  - 每份作業的狀態從日程表、評核資料夾的 README、有沒有老師答案判斷：還沒交、已交、還沒發佈。
 - 作業：只挑作業用得到的講義頁，但一樣是整頁、照課件順序，後面接作業題。
-- 頁首放一張範圍表：課件頁 → 這頁講什麼 → 哪一題用到、考不考。不考的頁一樣教，標一句「不會直接考」。
+- 頁首放一張範圍表：課件頁 → 這頁講什麼 → 哪一題、哪份作業用到、考不考。不考的頁一樣教，標一句「不會直接考」。範圍表下面列這個 topic 的作業和狀態、截止日。趕時間時，告訴讀者先讀作業用到的那幾頁。
 - 範圍寫進 `<body data-pages="...">`，例如 `"Classnote Topic 3 p.1-8; Classnote Topic 3 Eg Minitab p.1-5"`。名稱要和 figcaption 裡寫的一樣，build 會檢查每一頁都有整頁圖。
 
 ## 3. 前置知識：在用到的地方才補
@@ -53,12 +55,19 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
    - 課件上有門檻或常數（例如 |*r*| ≥ 0.7、DW 1.5–2.5）時，用「數字從哪來」表交代（格式見下面第 5 步）。
    - 舉例時用老師例題的數字，並說「第二部分 §N 會完整做」。
 
-### 第二部分：例題（作業則是作業題）
+### 第二部分：例題；第三部分：作業
 
-每題一個 `<h2>`：
+例題和作業題用同一個骨架，每題一個 `<h2>`。作業依狀態處理：
+
+- 還沒交：照 §5 做答案紙，講解頁每題放「答案紙上寫這樣」。
+- 已交、老師答案出了：照老師答案講，答案紙那一步截老師答案（前面放譯文），不另外寫。
+- 已交、老師答案還沒出：照講義格式寫，標明「老師答案還沒出，出了要對一次」。
+- 還沒發佈：不寫段落，在範圍表下面寫一句「Assignment N 還沒發佈，發佈後叫 `/tutor Assignment N`」。
+
+每題的骨架：
 
 1. **一句話**：這題要你做什麼，用白話講。
-2. **為什麼**（`.why`）：這題在問什麼現實問題，要用到第一部分哪幾頁（連到那幾個 §）。概念已經在第一部分講過，不再重講。
+2. **為什麼**（`.why`）：這題在問什麼現實問題，要用到第一部分哪幾頁（連到那幾個 §）。概念已經在第一部分講過，不再重講。作業題再加一句：和第二部分哪一題同類、哪裡不一樣。
 3. **題目和軟體輸出**：例題檔在範圍內時放整頁（前面放整頁譯文）；不在範圍內時截需要的部分，前面放那一塊的譯文。Minitab 的欄名列名（Source、DF、SS…）、統計表的列和欄也要翻。
 4. **套到這題**：一步一步算。用到的數字在材料上看得到時（題目、軟體輸出、統計表、講義），就在這一段放那份材料的截圖，紅框圈出那幾個數字，查表用 `--mark` 標出列與欄。前一段放過同一張也要再放：讀者不該往上翻找數字。
 5. **數字從哪來**（`<table class="origin">`，`<caption>數字從哪來</caption>`）：這段用到的每個數字一列，欄位是「值｜從哪來｜固定嗎？換一題怎麼找」。材料上看得到的數字，「從哪來」那格用 `<a href="#圖的id">` 連到這一段圈出它的那張圖；看不到的，在 `<tr>` 寫 `data-from`：`calc`（算出來的）、`convention`（材料上沒寫的慣例）、`constant`（公式裡的常數）。各種來源要交代的不同：
@@ -73,7 +82,7 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 6. **答案紙上寫這樣**：放在 `<div class="sheet">` 裡，內容和答案紙上的那段一模一樣。
 7. **常見錯誤**（有才寫）。
 
-`learn` 時第 4–6 步整個收進 `<details><summary>做完再打開</summary>…</details>`：使用者要先在對話裡自己做。
+`learn` 時例題和還沒交的作業，第 4–6 步整個收進 `<details><summary>做完再打開</summary>…</details>`：使用者要先在對話裡自己做。
 
 ### 寫作規則
 
@@ -125,7 +134,7 @@ build 會內嵌圖片、加上共用樣式、替 `<h2>` / `<h3>` 編號（§1、
 
 ## 6. learn：在對話裡帶著做
 
-導讀頁做好之後，一次帶一個單元（課件一兩頁，加上用到它的例題），照「我示範 → 一起做 → 你自己做」的順序：
+導讀頁做好之後，一次帶一個單元（課件一兩頁，加上用到它的例題和作業題），照「我示範 → 一起做 → 你自己做」的順序。有截止日快到的作業時，先帶那份作業用到的單元：
 
 0. **開始前**讀課程資料夾的 `學習紀錄.md`。第一次學這科時，先出 3–5 題前置知識診斷（能直接答的選擇題），依答案決定要在對話裡先補什麼。上次錯過的地方，先出一題同類的。
 1. **讀懂**：請使用者讀導讀頁的 §x–§y，說大約要讀多久。讀完問一兩題確認，問「為什麼」和「這個數字怎麼讀」，不問背定義。答錯就換個講法再講，指回對應的 §。
@@ -133,12 +142,13 @@ build 會內嵌圖片、加上共用樣式、替 `<h2>` / `<h3>` 編號（§1、
    - 答對：簡短確認，說一句為什麼對。
    - 答錯：先給提示（指到哪張圖、哪個 §），第二次再錯才講答案和原因。
    - 不要一次把所有步驟列出來。最後請使用者寫出答案紙那一段，再對照老師的格式改。
-3. **自己做**：同類題，依序找課本章末題、In-class Exercise、過去的測驗和作業；用過的跳過。都沒有就自己出：
+3. **做作業**：這個單元有用到的作業題，由使用者自己做，一小題做完再看下一小題。卡住時給提示，規則和「一起做」一樣。還沒交的作業，用使用者改對的答案組成答案紙（§5），交之前再完整對一次。已交的作業照老師答案批改。
+4. **自己做**：同類題，依序找課本章末題、In-class Exercise、過去的測驗；用過的跳過。都沒有就自己出：
    - 形式照該科的測驗，沒有測驗樣本就照作業：同樣的題型、資料給法、小題結構、答題句型。
    - 數字用腳本產生並算好答案；需要軟體輸出時，用腳本算出輸出表的數字，排成老師材料的樣式。
    - 題目和答案分兩個檔，放在導讀頁原始檔旁的 `practice/`；給使用者題目檔，答案檔留著批改用。
    - 使用者整題做完再批改：逐小題對答案，照老師評分會看的點（步驟、結論句）指出錯在哪。
-4. **記錄**：在 `學習紀錄.md` 寫下教到哪、哪一步錯、錯了幾次、下次先複習什麼。
+5. **記錄**：在 `學習紀錄.md` 寫下教到哪、哪一步錯、錯了幾次、作業做到哪、下次先複習什麼。
 
 對話規則：
 
