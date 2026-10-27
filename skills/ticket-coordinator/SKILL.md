@@ -19,7 +19,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 1. 載入 `orca-cli` skill，`orca status --json` 確認 Orca 在跑。
 2. 讀專案的 CLAUDE.md / AGENTS.md，找出：票放在哪、狀態欄位怎麼寫、每張票的指令（例如 `/implement <票路徑>`）、
    **完成標準**、session 要更新的紀錄檔（progress、決定紀錄）。
-3. 排隊列：參數給了順序就照它，沒給就照檔名。逐張核對 `Blocked by`：擋它的票要排在它前面，衝突先問使用者。
+3. 排隊列：參數給了順序就照它，沒給就照檔名。逐張核對 `Blocked by`，再讀驗收條件：要用到別張票產出的東西
+   （另一張票的頁面、端點、資料表）也算擋，即使 `Blocked by` 沒寫。擋它的票要排在它前面，衝突先問使用者。
    已經 done 的跳過。
 4. 開工時問使用者一次（AskUserQuestion），文件查得到的不問：
    - 隊列與順序（參數已給就只確認衝突）
@@ -37,11 +38,19 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    `bash <S>/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`：從主分支開 orca worktree，再呼叫
    `launch.sh` 在裡面開子 session。它印出 `worktree=`、`handle=`、`jsonl=`（檔名去掉 `.jsonl` 是 session id），
    並確認 skill 真的展開；印 `expanded: NO` 就中斷、關掉、查原因再重開，同一張票連兩次沒展開算卡住。
-   互不相擋的票可以同時開幾張；同一區程式碼的票排先後，否則合併時會撞。
+   互不相擋的票可以同時開幾張。會撞的排先後：改同一區程式碼、同一張登記表或閘門測試、都新增資料庫 migration
+   （合起來會有兩個 head）的票。
 2. **掛等待**：把 worktree、handle、session id 寫進 ledger，用 Bash `run_in_background` 跑
    `bash <S>/waitbg.sh <handle> <jsonl 路徑>`，然後結束回合等通知。不輪詢。
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
-   不夠就 `python3 <S>/scr.py <handle> 40`。判斷情況：
+   不夠就 `python3 <S>/scr.py <handle> 40`。
+
+   每次讀畫面都看底部有沒有 `✦ Heads up`（Claude Code 給在場的人的風險提醒）。它只在畫面上，子 session 的
+   transcript 裡沒有，所以子 session 不知道它。展開讀完整內容（按鍵見 TUI.md「Heads up」），對票、文件或程式碼查證
+   一次：屬實又該修的，把內容轉述給**同一個 session** 叫它修完再驗收；不屬實或不修的寫進 ledger 的「待使用者看」
+   並附理由。
+
+   再判斷情況：
    - **選項題**：選標 `(Recommended)` 的。沒有推薦就自己查：票、票指定的章節、名詞表、決定紀錄、程式碼，
      照文件既有的決定回答，附一句理由；選項都不對就用「Type something」寫自訂答案。文件互相矛盾時選最貼近
      需求文件的，記進 ledger 的判斷紀錄。
@@ -53,23 +62,27 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    - **停了但沒做完**：先看它是不是在等自己的背景工作（子代理、背景指令、並行審查），是就重新掛等待；
      真的停了才送「繼續完成這張票剩下的步驟，直到完成標準全部成立」。
    - **修不綠或原地打轉**：叫它用 diagnosing 類 skill 找根因，你讀程式碼與測試輸出給方向。
-   - **說做完了**：先看畫面上有沒有 Claude Code 的 `✦ Heads up` 旁註（提醒在場的人注意的風險，子 session 不會自己處理）。有就展開讀完整內容（按鍵見 TUI.md「Heads up」），判斷要不要修：要修的叫**同一個 session** 修完再驗收，不修的寫進 ledger 的「待使用者看」並附理由。然後進第 4 步。
+   - **說做完了**：Heads up 處理完，進第 4 步。
 4. **驗收與合併**，全部成立才算完成；缺一項就在同一個 session 叫它補，你不動手改產品程式：
    - a–c、e 交給腳本：先 `bash <S>/preflight.sh <repo>`，再
      `REQUIRE="<完成標準要求的檔>" bash <S>/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。
      它檢查票的 Status 是 done、沒有未勾的驗收條件、分支上有新 commit、worktree 乾淨、每個 commit 標題 ≤72 字元
      且是 Conventional Commits、`REQUIRE` 的檔都動到、主目錄乾淨，全部成立才 `merge --no-ff`。印 `NOT READY`
      就把那幾行原樣轉給子 session 叫它補（標題太長叫它自己改寫並建備份分支）。`CONFLICT`：紀錄檔類的衝突你解；
-     程式碼衝突 `git merge --abort`，叫子 session 在它的分支先 merge 主分支、跑完檢查再交回來。
+     程式碼衝突 `git merge --abort`，照下一條叫子 session 跟上主分支。
+   - **跟上主分支**：這張票開出後主分支多了程式碼（並行的票先合併了），合併前叫子 session 在它的分支
+     `git merge <本機主分支>`：用 git 預設的合併訊息（`Merge branch ...`；自訂標題會被 `merge-ticket.sh` 擋）、
+     不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，d 不必在隔離的 worktree 重跑。
    - d. lint / type / test 綠燈，而且是**最後一次改動之後**跑的全套。子 session 只重跑了部分時你補跑，放在隔離的
      worktree（`git worktree add --detach <scratchpad>/verify-<票> <commit>` → 安裝依賴、跑全套 →
-     `git worktree remove --force`）。merge 之後：主分支在這張票開出後只多了文件類 commit，不重跑；
-     多了程式碼，就在合併結果上跑一次全套（專案的檢查指令與 test）。
+     `git worktree remove --force`）。主分支在這張票開出後只多了文件類 commit，不重跑；多了程式碼，照上一條。
      檢查指令一律包在 `bash <S>/run-check.sh <指令>` 裡：機器原生崩潰（0xC0000005 / 0xC000001D 之類）會被記到
      `~/.claude/crash-log.tsv` 並自動重跑一次。崩潰不算測試偶發，不計次、不開票；重跑仍紅才是真的紅。
    - push：`bash <S>/push-ci.sh <repo>`（`run_in_background`）。它先等主分支上還在跑的 run（新 push 會取消它們，
-     上一張票或發版的驗證就沒了），push 後等這個 commit 的 CI，印 `ci=`。CI 不綠，這張票還沒完成：
-     叫同一個子 session 在它的分支修，修完重走這一步。
+     上一張票或發版的驗證就沒了），push 後等這個 commit 的 CI，印 `ci=`；同一個 repo 的 `push-ci.sh` 用鎖排隊。
+     CI 不綠，這張票還沒完成：叫同一個子 session 在它的分支跟上主分支、修，修完重走這一步（補修的合併用
+     `REQUIRE=""`，紀錄檔已在原合併動過）。紅在本機全套沒跑到的檢查（例如產生檔與原始碼的 diff）：把本機的
+     等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
 
    **偶發紅燈**：子 session 附註「既有紅燈，不是本票造成、在前一個 commit 上也紅」可以接受一次，記進 ledger 的
    「偶發紀錄」表。同一條紅燈第二次出現（不論哪張票、本機或 CI），或變成穩定紅：插一張修復票 `<NN>b-<slug>.md`，
@@ -88,8 +101,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 ## 規則
 
 - 只碰自己開的終端。使用者手動關掉某個子終端就不重開；之後要接回用 `claude --resume <session id>`。
-- 子 session 只在自己的分支 commit，不 push、不 merge 主分支以外的東西；push 主分支只由協調者用 `push-ci.sh` 做，
-  一次一個，免得互相取消 CI。開 PR、開 issue 照授權範圍。
+- 子 session 只在自己的分支 commit，不 push、不 merge 主分支以外的東西；push 主分支只由協調者用 `push-ci.sh` 做。
+  開 PR、開 issue 照授權範圍。
 - 協調者自己也會 commit（開票、修紀錄檔、合併後的小修）：先跑 `preflight.sh`，`git add` 只點名自己的檔，不用
   `-A` / `.`。新票號先 `git fetch`，取 origin 主分支與所有 worktree 分支裡最大的號碼加一，免得跟別的 session 撞號。
 - 使用者叫你做 X 就只做 X；順手想清的東西（刪目錄、刪分支、改設定）另外問，不要夾帶在同一個指令裡。

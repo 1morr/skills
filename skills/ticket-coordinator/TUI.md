@@ -14,6 +14,8 @@
   `python3` 可能是 Microsoft Store 的空殼）。你自己手動叫 `scr.py` / `state.py` 時同理，Windows 上沒有 `python3` 就用 `python`。
 - 腳本要在 macOS 內建的 bash 3.2 跑：變數後面緊貼中文要寫 `${var}`（3.2 會把中文吃進變數名，`set -u` 下直接退出）；
   不用 GNU 專屬的 `stat -c`、`touch -d`、`sed -i` 等，檔案時間交給 `py.sh` 的 `age`。改完在 macOS 上跑 `selftest.sh`。
+- Claude Code 的 Bash 工具可能跑在 zsh：沒加引號的 `$var` 不分詞，`for t in "t02 a.md" "t05 b.md"; do set -- $t`
+  會把整串當成一個參數，worktree 名字變成整條票路徑。開多張票就一張一行呼叫 `new-ticket.sh`。
 - 收票只關 worktree 路徑完全相同的終端（`terminals_in.py`）：比對前統一斜線、Windows 磁碟代號不分大小寫，`t07` 不會比中 `t07b`。
 
 ## 讀畫面
@@ -27,11 +29,13 @@
 ## 等待
 
 - 以 transcript 為準，不以畫面為準：終端停在捲動模式時畫面不會更新，曾把還在跑的票誤判成做完。
-  `python3 <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy` / `waiting-bg`、
+  `python3 <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy`（含並行的工具
+  只回來一部分，例如 vitest 回來了、pytest 還在跑）/ `waiting-bg`、
   `asking`（停在 AskUserQuestion 等你）、`unknown`（額度、API 錯誤、被中斷，讀畫面判斷）。
 - `waitbg.sh` 每 30 秒問一次 `state.py`，`done` 而畫面上還有 shell / monitor 計數時繼續等（Monitor 認不出來）；
-  `waiting-bg` 半小時沒動靜、畫面也沒有在跑的東西時以 `state=stalled` 返回，多半是它停了背景工作卻沒留紀錄。
-- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
+  `waiting-bg` 半小時、`busy` 一小時沒動靜，畫面也沒有在跑的東西時以 `state=stalled` 返回：多半是它停了背景
+  工作卻沒留紀錄，或行程卡死。
+- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，
@@ -52,7 +56,8 @@
 
 - Claude Code 會在子 session 畫面底部放一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。摘要只有一句，完整內容（原因、推測的後果、建議）要展開才看得到。
 - 展開：輸入框是空的時候送 `1`（不加 `--enter`），再 `scr.py <handle> 40` 讀。展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `1` 收起。看到的已經是後者，代表有人展開過，直接讀畫面上的內容；不要再按 `1`，那會把它收掉。
-- 子 session 停在 AskUserQuestion 時不要按，數字鍵會被當成選項。
+- 子 session 停在 AskUserQuestion 時先答題，等它回到空輸入框再展開：題目開著時數字鍵會被當成選項。
+- 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就把內容轉述給它。
 
 ## 額度
 
