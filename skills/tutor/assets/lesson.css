@@ -1,16 +1,14 @@
 /* tutor 講解頁共用樣式；build.py 會把它內嵌進每一頁 */
 :root {
   --bg: #fdfcf9; --fg: #1d1d1f; --muted: #66625a; --line: #e4e0d6;
-  --accent: #b42318; --prereq-bg: #eef4ff; --prereq-line: #4f7bd9;
-  --trap-bg: #fff3ec; --trap-line: #d9672b; --sheet-bg: #ffffff; --tr-bg: #f4f1ea;
-  --why-bg: #eef7f0; --why-line: #2f8a4c;
+  --accent: #b42318; --sheet-bg: #ffffff; --tr-bg: #f4f1ea;
+  --def-bg: #eef4ff; --def-line: #4f7bd9; --sum-bg: #eef7f0; --sum-line: #2f8a4c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #18181a; --fg: #e8e6e1; --muted: #a29d93; --line: #34322e;
-    --accent: #ff7a6b; --prereq-bg: #1c2433; --prereq-line: #6d95e8;
-    --trap-bg: #2d211a; --trap-line: #e28a55; --sheet-bg: #f7f5f0; --tr-bg: #232220;
-    --why-bg: #1a2a20; --why-line: #5cc07e;
+    --accent: #ff7a6b; --sheet-bg: #f7f5f0; --tr-bg: #232220;
+    --def-bg: #1c2433; --def-line: #6d95e8; --sum-bg: #1a2a20; --sum-line: #5cc07e;
   }
 }
 * { box-sizing: border-box; }
@@ -33,23 +31,28 @@ figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
 .tr { background: var(--tr-bg); border-radius: 4px; padding: .4rem .8rem; margin: .5rem 0; }
 .tr .en { font-family: Georgia, "Times New Roman", serif; }
 div.tr { padding: .6rem 1rem; }
-div.tr::before { content: "課件譯文"; display: block; font-size: .8rem; font-weight: 700; color: var(--muted); }
+div.tr::before { content: "譯文"; display: block; font-size: .8rem; font-weight: 700; color: var(--muted); }
 div.tr p { margin: .3rem 0; }
 .tr strong { color: var(--accent); }
-.prereq, .trap { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
-.prereq { background: var(--prereq-bg); border: 1px solid color-mix(in srgb, var(--prereq-line) 35%, transparent); }
-.prereq::before { content: "先補"; font-weight: 700; color: var(--prereq-line); margin-right: .5em; }
-.trap { background: var(--trap-bg); border: 1px solid color-mix(in srgb, var(--trap-line) 35%, transparent); }
-.trap::before { content: "常見錯誤"; font-weight: 700; color: var(--trap-line); margin-right: .5em; }
-.why { background: var(--why-bg); border: 1px solid color-mix(in srgb, var(--why-line) 35%, transparent); border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
-.why::before { content: "為什麼"; display: block; font-weight: 700; color: var(--why-line); }
-.why > :first-child { margin-top: .2rem; }
+/* 有底色的框只有三種：譯文（灰）、定義（藍）、這段記住（綠）。為什麼、常見錯誤只是有標籤的段落 */
+.def, .summary { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
+.def { background: var(--def-bg); border: 1px solid color-mix(in srgb, var(--def-line) 35%, transparent); }
+.def dfn { font-style: normal; font-weight: 700; color: var(--def-line); }
+.def .test::before { content: "怎樣才算："; font-weight: 700; }
+.summary { background: var(--sum-bg); border: 1px solid color-mix(in srgb, var(--sum-line) 35%, transparent); }
+.summary::before { content: "這段記住"; display: block; font-weight: 700; color: var(--sum-line); }
+.why::before, .trap::before { display: block; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.why::before { content: "為什麼"; }
+.trap::before { content: "常見錯誤"; }
+.def > :first-child, .summary > :first-child, .why > :first-child { margin-top: .2rem; }
 table.origin caption { caption-side: top; text-align: left; font-weight: 700; padding-bottom: .3rem; }
 ol.steps { padding-left: 1.4rem; }
 ol.steps li { margin: .5rem 0; }
 ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②③ 時不要再加數字 */
 .src { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 .3em; margin-left: .3em; white-space: nowrap; }
 .calc { overflow-x: auto; padding: .4rem 0; font-family: "Times New Roman", Times, serif; font-size: 1.1rem; }
+.calc .formula, .calc .subst { margin: .2rem 0; }
+.calc .subst { padding-left: 1.5em; }
 .frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; margin: 0 .2em; font-size: .95em; }
 .frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .2em; }
 .frac > span:last-child { padding: 0 .2em; }
@@ -65,8 +68,11 @@ th, td { border: 1px solid var(--line); padding: .3rem .6rem; text-align: left; 
 th { background: var(--line); }
 details { margin: 1rem 0; }
 summary { cursor: pointer; font-weight: 600; }
-.toc { columns: 2; column-gap: 2rem; padding-left: 1.2rem; }
-@media (max-width: 560px) { .toc { columns: 1; } body { font-size: 16px; } }
+nav.toc { border: 1px solid var(--line); border-radius: 6px; padding: .5rem 1rem; margin: 1.5rem 0; }
+nav.toc > p { margin: 0; font-weight: 700; }
+nav.toc ol { list-style: none; columns: 2; column-gap: 2rem; padding-left: 0; margin: .3rem 0; font-size: .92rem; }
+nav.toc a { text-decoration: none; }
+@media (max-width: 560px) { nav.toc ol { columns: 1; } body { font-size: 16px; } }
 @media print {
   body { max-width: none; background: #fff; color: #000; }
   h2 { break-before: auto; }

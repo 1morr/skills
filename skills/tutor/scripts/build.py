@@ -29,11 +29,12 @@ METHOD_CLASSES = {"calc", "sheet"}
 # 「數字從哪來」表裡，在任何材料上都看不到、所以不必附圖的數字
 NO_FIGURE_FROM = {"calc", "convention", "constant"}
 
-CJK = re.compile(r"[㐀-鿿豈-﫿]")
+CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
 PAGE_REF = re.compile(r"\bp{1,2}\.\s*\d+")
 # data-pages 的一項：「檔名 p.3」或「檔名 p.1-8」
 PAGES_ITEM = re.compile(r"^(.+?)\s+p\.\s*(\d+)(?:\s*-\s*(\d+))?$")
+SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 
 
@@ -55,8 +56,11 @@ class Lint(HTMLParser):
         self.page_captions = []  # 每張 figure.page 的 figcaption
         self.stack = []  # [(tag, skip, classes)]
         self.prev = [set()]  # prev[d]：stack 第 d 層裡最後一個結束的子元素的 class
-        self.sections = []  # [{"title", "units", "method", "why", "origin", "figs", "rows"}]
+        self.sections = []  # 每個 h2 段落，欄位見 handle_starttag
         self.row = None  # 正在讀的「數字從哪來」表格列
+        self.defs = []  # 開著的 .def：{"dfn": 個數, "test": 文字}
+        self.calcs = []  # 開著的 .calc：{"formula": 文字, "subst": 文字}
+        self.refs = []  # 內文提到的 §N、§N.M
         self.heading = None  # 正在讀的 h2 標題
         self.prelude = 0  # 第一個 h2 之前的字數
         self.figures = []  # 每個開著的 figure：[figcaption 文字, 是否在 figcaption 內, 是否整頁圖]
@@ -66,6 +70,9 @@ class Lint(HTMLParser):
 
     def inside(self, tag) -> bool:
         return any(t == tag for t, _, _ in self.stack)
+
+    def inside_class(self, name) -> bool:
+        return any(name in c for _, _, c in self.stack)
 
     def in_origin(self) -> bool:
         return any(t == "table" and "origin" in c for t, _, c in self.stack)
@@ -85,28 +92,40 @@ class Lint(HTMLParser):
             self.problems.append(f"頁面不能有練習（<{tag}>）：read 不出練習，learn 的練習在對話裡做")
         if "sheet" in cls and self.mode == "learn" and not self.inside("details"):
             self.problems.append("learn 模式的答案紙要收在 <details> 裡：使用者要先在對話裡自己做")
-        sec = self.sections[-1] if self.sections else None
         if tag == "figure":
             self.figures.append(["", False, "page" in cls])
-            # 同一段已經放過整頁圖和整頁譯文，之後截這頁的小塊不用再翻
-            translated = sec is not None and sec["page"]
-            if a.get("data-tr") != "none" and not translated and "tr" not in self.prev[len(self.stack)]:
+            if "page" in cls and not self.inside("details"):
+                self.problems.append('整頁圖 <figure class="page"> 要和整頁譯文一起收在 <details> 裡：正文逐塊講，整頁只在需要時打開')
+            if a.get("data-tr") != "none" and "tr" not in self.prev[len(self.stack)]:
                 self.problems.append(f"圖片前面沒有譯文（figure {a.get('id') or ''}）：先放 class=\"tr\" 的譯文，再放原圖；"
                                      '圖上沒有要翻的字才寫 data-tr="none"')
         if tag == "figcaption" and self.figures:
             self.figures[-1][1] = True
+        if tag == "dfn":
+            if self.defs:
+                self.defs[-1]["dfn"] += 1
+            else:
+                self.problems.append('<dfn> 不在 class="def" 的定義框裡：術語要有「是什麼、怎樣才算、例子」')
+        if "def" in cls:
+            self.defs.append({"dfn": 0, "test": ""})
+        if "calc" in cls:
+            self.calcs.append({"formula": "", "subst": ""})
         if tag == "h2":
             self.heading = ""
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
-                                  "page": False, "figs": set(), "rows": []})
+                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0,
+                                  "depth": len(self.stack), "last": set(), "recap": "recap" in cls})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
             sec["origin"] |= "origin" in cls
-            sec["page"] |= tag == "figure" and "page" in cls
+            if tag == "h3":
+                sec["h3"] += 1
             if tag == "figure" and a.get("id"):
                 sec["figs"].add(a["id"])
+            if "calc" in cls and a.get("id"):
+                sec["calcs"].add(a["id"])
             if tag == "tr" and self.in_origin():
                 self.row = {"text": "", "from": a.get("data-from"), "links": [], "cells": 0}
                 sec["rows"].append(self.row)
@@ -116,10 +135,16 @@ class Lint(HTMLParser):
                 if tag == "a" and (a.get("href") or "").startswith("#"):
                     self.row["links"].append(a["href"][1:])
         if tag in VOID:
-            self.prev[len(self.stack)] = cls
+            self.closed(len(self.stack), cls)
         else:
             self.stack.append((tag, tag in SKIP_TAGS or bool(cls & SKIP_CLASSES), cls))
             self.prev.append(set())
+
+    def closed(self, depth, cls):
+        """第 depth 層有一個元素結束：記成那一層最後一個子元素；和 h2 同層的，就是這一段目前的最後一塊。"""
+        self.prev[depth] = cls
+        if self.sections and self.sections[-1]["depth"] == depth:
+            self.sections[-1]["last"] = cls
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -128,15 +153,31 @@ class Lint(HTMLParser):
         if tag in VOID:
             return
         # 容許省略結束標籤：往回找到同名的那層再收
+        cls = None
         for i in range(len(self.stack) - 1, -1, -1):
             if self.stack[i][0] == tag:
                 cls = self.stack[i][2]
                 del self.stack[i:]
                 del self.prev[i + 1:]
-                self.prev[i] = cls
+                self.closed(i, cls)
                 break
+        if cls is None:
+            return
         if tag == "tr":
             self.row = None
+        if "def" in cls and self.defs:
+            d = self.defs.pop()
+            if d["dfn"] != 1:
+                self.problems.append(f'定義框裡有 {d["dfn"]} 個 <dfn>：一個 class="def" 只定義一個術語')
+            if not d["test"].strip():
+                self.problems.append('定義框沒有 class="test" 的「怎樣才算」：要寫讀者能拿來檢查的判斷標準')
+        if "calc" in cls and self.calcs:
+            c = self.calcs.pop()
+            what = " ".join((c["formula"] + c["subst"]).split())[:30]
+            if not re.search(r"[=＝]", c["formula"]):
+                self.problems.append(f'計算「{what}」沒有寫出公式：.calc 裡要有含「=」的 class="formula"，不寫「用 §N 的公式」')
+            if not re.search(r"\d", c["subst"]):
+                self.problems.append(f'計算「{what}」沒有代入數字：.calc 裡要有 class="subst"，把數字代進公式')
         if tag == "figcaption" and self.figures:
             self.figures[-1][1] = False
         if tag == "figure" and self.figures:
@@ -157,6 +198,14 @@ class Lint(HTMLParser):
                 fig[0] += data
         if self.heading is not None:
             self.heading += data
+        if self.defs and self.inside_class("test"):
+            self.defs[-1]["test"] += data
+        if self.calcs:
+            if self.inside_class("formula"):
+                self.calcs[-1]["formula"] += data
+            elif self.inside_class("subst"):
+                self.calcs[-1]["subst"] += data
+        self.refs += SECTION_REF.findall(data)
         if self.skipping():
             return
         n = text_units(data)
@@ -179,22 +228,30 @@ def lint(src: str) -> list:
         title, n = sec["title"][:30], sec["units"]
         if n > PER_SECTION:
             problems.append(f"§「{title}」有 {n} 字，每段上限 {PER_SECTION}：拆成幾段，或刪掉不是在教這頁的東西")
-        if sec["page"] and not sec["why"]:
-            problems.append(f'§「{title}」是課件導讀頁，卻沒有 class="why" 的區塊：要講這頁的東西為什麼這樣、什麼意思')
-        elif sec["method"] and not sec["why"]:
+        if sec["method"] and not sec["why"]:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這個方法在回答什麼、公式為什麼長這樣')
         if sec["method"] and not sec["origin"]:
             problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
+        if not sec["recap"] and "summary" not in sec["last"]:
+            problems.append(f'§「{title}」最後一塊不是 class="summary" 的「這段記住」：每段結尾都要有總結')
         for row in sec["rows"]:
             if not row["cells"]:  # 表頭
                 continue
             what = " ".join(row["text"].split())[:30]
-            missing = [x for x in row["links"] if x not in sec["figs"]]
+            missing = [x for x in row["links"] if x not in sec["figs"] | sec["calcs"]]
             if missing:
-                problems.append(f"§「{title}」數字從哪來的「{what}」連到 #{missing[0]}，這一段沒有這個 id 的 figure")
+                problems.append(f"§「{title}」數字從哪來的「{what}」連到 #{missing[0]}，這一段沒有這個 id 的 figure 或 .calc")
+            elif row["from"] == "calc" and not any(x in sec["calcs"] for x in row["links"]):
+                problems.append(f'§「{title}」數字從哪來的「{what}」是算出來的，要連到這一段寫出公式和代入的 .calc（<a href="#id">）')
             elif not row["links"] and row["from"] not in NO_FIGURE_FROM:
                 problems.append(f"§「{title}」數字從哪來的「{what}」沒有附圖：連到這一段圈出它的 figure（<a href=\"#id\">），"
                                 '材料上看不到的數字才寫 data-from="calc|convention|constant"')
+    if not p.sections or not p.sections[-1]["recap"]:
+        problems.append('最後一段要是 <h2 class="recap"> 的整個 topic 總結')
+    labels = {f"{i}" for i in range(1, len(p.sections) + 1)}
+    labels |= {f"{i}.{j}" for i, sec in enumerate(p.sections, 1) for j in range(1, sec["h3"] + 1)}
+    for ref in sorted(set(p.refs) - labels):
+        problems.append(f"內文提到 §{ref}，但頁面沒有這一段：§ 編號由 build 依 h2、h3 的順序產生")
     return problems
 
 
@@ -216,23 +273,67 @@ def coverage(pages, captions) -> list:
     return problems
 
 
-def number_headings(src: str) -> str:
+HEADING = re.compile(r"<h([23])(\s[^>]*)?>(.*?)</h\1\s*>", re.I | re.S)
+TAG = re.compile(r"<[^>]+>")
+
+
+def number_headings(src: str):
+    """替 h2、h3 加上 §編號和錨點。回傳 (新的 HTML, {編號: 錨點}, [(編號, 錨點, h2 標題)])。"""
     counters = [0, 0]
+    anchors, toc = {}, []
 
     def repl(m):
-        level, attrs = int(m.group(1)), m.group(2) or ""
+        level, attrs, inner = int(m.group(1)), m.group(2) or "", m.group(3)
         if level == 2:
             counters[0] += 1
             counters[1] = 0
-            label, anchor = f"§{counters[0]}", f"s{counters[0]}"
+            label, anchor = f"{counters[0]}", f"s{counters[0]}"
         else:
             counters[1] += 1
-            label, anchor = f"§{counters[0]}.{counters[1]}", f"s{counters[0]}-{counters[1]}"
-        if not re.search(r"\bid\s*=", attrs):
+            label, anchor = f"{counters[0]}.{counters[1]}", f"s{counters[0]}-{counters[1]}"
+        own = re.search(r"""\bid\s*=\s*["']?([^"'\s>]+)""", attrs)
+        if own:
+            anchor = own.group(1)
+        else:
             attrs += f' id="{anchor}"'
-        return f'<h{level}{attrs}><span class="num">{label}</span> '
+        anchors[label] = anchor
+        if level == 2:
+            toc.append((label, anchor, " ".join(TAG.sub("", inner).split())))
+        return f'<h{level}{attrs}><span class="num">§{label}</span> {inner}</h{level}>'
 
-    return re.sub(r"<h([23])(\s[^>]*)?>", repl, src)
+    return HEADING.sub(repl, src), anchors, toc
+
+
+def link_refs(src: str, anchors: dict) -> str:
+    """把內文的 §N、§N.M 換成連到那一段的連結；標籤裡、<a> 裡、標題編號不動。"""
+    out, depth_a, in_num = [], 0, False
+    for part in re.split(r"(<[^>]+>)", src):
+        if part.startswith("<"):
+            low = part.lower()
+            if re.match(r"<a[\s>]", low):
+                depth_a += 1
+            elif low.startswith("</a"):
+                depth_a = max(0, depth_a - 1)
+            elif re.match(r"<span[^>]*class=\"num\"", low):
+                in_num = True
+            elif low.startswith("</span") and in_num:
+                in_num = False
+            out.append(part)
+        elif depth_a or in_num:
+            out.append(part)
+        else:
+            out.append(SECTION_REF.sub(
+                lambda m: f'<a href="#{anchors[m.group(1)]}">{m.group(0)}</a>' if m.group(1) in anchors else m.group(0),
+                part))
+    return "".join(out)
+
+
+def add_toc(src: str, toc: list) -> str:
+    if not toc:
+        return src
+    items = "".join(f'<li><a href="#{a}">§{n} {t}</a></li>' for n, a, t in toc)
+    nav = f'<nav class="toc"><p>目錄</p><ol>{items}</ol></nav>\n'
+    return re.sub(r"<h2[\s>]", lambda m: nav + m.group(0), src, count=1, flags=re.I)
 
 
 def inline_images(src: str, base: Path) -> str:
@@ -258,7 +359,8 @@ def inject_css(src: str) -> str:
 
 
 def build(src: str, base: Path) -> str:
-    return inject_css(inline_images(number_headings(src), base))
+    src, anchors, toc = number_headings(src)
+    return inject_css(inline_images(add_toc(link_refs(src, anchors), toc), base))
 
 
 def main(argv=None) -> int:
