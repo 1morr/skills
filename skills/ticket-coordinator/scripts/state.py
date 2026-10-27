@@ -1,6 +1,6 @@
 # 用法：python3 state.py <子 session 的 jsonl 路徑>  —— 從 transcript 判斷子 session 的狀態，印一個字並以 exit code 回報
 #   0 done     回合結束（最後是 turn_duration），而且沒有還沒回來的背景工作
-#   1 busy     60 秒內有寫入、工具還在跑，或回合結束但在等自己的背景 shell / 子代理（印 waiting-bg）
+#   1 busy     60 秒內有寫入、工具還在跑（含並行工具只回來一部分），或回合結束但在等自己的背景 shell / 子代理（印 waiting-bg）
 #   2 asking   停在 AskUserQuestion，等協調者回答
 #   3 unknown  其他（額度用完、API 錯誤、被中斷）：讀畫面判斷
 # 以 transcript 為準而不是畫面：終端停在捲動模式時畫面不會更新，只看畫面會把還在跑的票當成做完
@@ -37,6 +37,10 @@ def state(path, now=None):
     if last and last.get('subtype') == 'turn_duration':
         return 'waiting-bg' if launched - finished else 'done'
     if last and last.get('type') == 'assistant' and m.get('stop_reason') == 'tool_use':
+        return 'busy'
+    # 最後一行是 tool_result：回合還沒結束（並行的工具先回來一個、其他還在跑，或模型正要接著寫）
+    if last and last.get('type') == 'user' and any(
+            isinstance(c, dict) and c.get('type') == 'tool_result' for c in m.get('content') or []):
         return 'busy'
     return 'unknown'
 

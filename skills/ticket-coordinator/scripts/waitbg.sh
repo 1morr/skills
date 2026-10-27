@@ -11,7 +11,9 @@ while :; do
     2) break ;;
     0) screen_bg || break ;;
     # 只在等自己的背景工作、畫面又看不到任何在跑的東西，半小時沒動靜：多半是它停了自己的背景工作，交給協調者看
-    1) [ "$st" = waiting-bg ] && [ "$(quiet)" -gt 1800 ] && ! screen_bg && { st=stalled; break; } ;;
+    1) [ "$st" = waiting-bg ] && [ "$(quiet)" -gt 1800 ] && ! screen_bg && { st=stalled; break; }
+       # 工具跑了一小時 transcript 都沒動、畫面也沒有計時中的東西：多半是行程卡死
+       [ "$st" = busy ] && [ "$(quiet)" -gt 3600 ] && ! screen_bg && { st=stalled; break; } ;;
     *) [ "$(quiet)" -gt 120 ] && break ;;
   esac
   sleep 30

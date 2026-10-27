@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -23,6 +23,9 @@ ok "state bg stopped by TaskStop"    "$(st "$BGL" "$STOP" "$A" "$TD")" done
 ok "state one of two bg finished"    "$(st "$BGL" "$AG" "$(NOTE b1x2)" "$A" "$TD")" waiting-bg
 ok "state asking"                    "$(st "$A" "$ASK")" asking
 ok "state tool running"              "$(st "$A" "$TOOL")" busy
+# 並行的兩個工具先回來一個、另一個（例如 pytest）還在跑：最後一行是 tool_result，不是 unknown
+RES='{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Tests 2199 passed"}]}}'
+ok "state parallel tool still running" "$(st "$A" "$TOOL" "$TOOL" "$RES")" busy
 ok "state unknown (no turn end)"     "$(st "$A")" unknown
 printf '%s\n' "$A" "$TD" > "$X/s.jsonl"
 ok "state recent write is busy"      "$("$PY" "$D/state.py" "$X/s.jsonl")" busy
@@ -77,5 +80,31 @@ echo "$out" | grep -q "主目錄有未提交"; ok "dirty main dir reported" $? 0
 git -C "$R" checkout -q -- docs/progress.md; touch "$R/untracked.tmp"
 out=$(mt); ok "ready ticket merges (untracked file in main is fine)" $? 0
 ok "merge commit made" "$(git -C "$R" log -1 --format=%s)" "merge: ticket 01 x"
+
+# ---- push-ci.sh（假的 gh；bare repo 的 hook 記下 push 的時間點）
+P="$X/pc"; mkdir -p "$P/bin"; git init -q --bare "$P/remote.git"; git clone -q "$P/remote.git" "$P/repo" 2>/dev/null
+LOG="$P/log"; : > "$LOG"; printf '#!/bin/sh\necho push >> "%s"\n' "$LOG" > "$P/remote.git/hooks/pre-receive"; chmod +x "$P/remote.git/hooks/pre-receive"
+cat > "$P/bin/gh" <<EOF
+#!/bin/sh
+case "\$*" in
+  *"--branch"*) n=\$(grep -c list "$LOG"); echo list >> "$LOG"; [ "\$n" -eq 0 ] && { echo 'Get "https://api.github.com/...": EOF' >&2; exit 1; }; exit 0 ;;
+  *"--commit"*) echo 7 ;;
+  *"--json status"*) echo completed ;;
+  *"--json conclusion"*) echo success ;;
+esac
+EOF
+chmod +x "$P/bin/gh"
+(cd "$P/repo" && git config user.email t@t && git config user.name t && git commit -q --allow-empty -m "chore: x" && git push -q origin HEAD:main 2>/dev/null; git branch -q -M main)
+: > "$LOG"; (cd "$P/repo" && git commit -q --allow-empty -m "chore: y")
+# 另一個 push-ci 拿著鎖（pid 還活著）：這一個要等，不能先去問 gh 或 push
+sleep 30 & holder=$!; L="$P/repo/.git/push-ci.lock"; mkdir "$L"; echo $holder > "$L/pid"
+PATH="$P/bin:$PATH" PUSH_CI_POLL=1 bash "$D/push-ci.sh" "$P/repo" > "$P/out" 2>&1 & pc=$!
+sleep 3; ok "push-ci waits for the lock holder" "$(wc -l < "$LOG" | tr -d ' ')" 0
+kill $holder 2>/dev/null; wait $holder 2>/dev/null; wait $pc; rc=$?
+ok "push-ci proceeds after the holder dies" "$rc" 0
+# gh 第一次回錯誤時不能當成「沒有在跑的 run」直接 push（新 push 會取消上一張票的 CI）
+ok "push-ci retries a failed run list before pushing" "$(tr '\n' ' ' < "$LOG")" "list list push "
+grep -q "ci=success" "$P/out"; ok "push-ci reports the run" $? 0
+[ -d "$L" ]; ok "push-ci releases the lock" $? 1
 
 rm -rf "$X"; [ $fail -eq 0 ] && echo "ALL OK"; exit $fail
