@@ -14,7 +14,7 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0 auto; max-width: 46rem; padding: 2rem 1rem 5rem;
+  margin: 0 auto; max-width: 46rem; padding: 0 1rem 5rem;
   background: var(--bg); color: var(--fg);
   font: 17px/1.75 "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
 }
@@ -28,6 +28,13 @@ a { color: var(--accent); }
 figure { margin: 1.2rem 0; }
 figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+/* 翻譯圖：預設顯示中文，點圖換原文（build 把 <img data-zh> 拆成 img.zh 和 img.en） */
+figure img.en { display: none; }
+figure.show-en img.en { display: block; }
+figure.show-en img.zh { display: none; }
+figure:has(img.zh) img { cursor: pointer; }
+figure:has(img.zh) figcaption::before { content: "中文 · 點圖看原文 · "; font-weight: 600; }
+figure.show-en figcaption::before { content: "原文 · 點圖看中文 · "; }
 .tr { background: var(--tr-bg); border-radius: 4px; padding: .4rem .8rem; margin: .5rem 0; }
 .tr .en { font-family: Georgia, "Times New Roman", serif; }
 div.tr { padding: .6rem 1rem; }
@@ -68,13 +75,31 @@ th, td { border: 1px solid var(--line); padding: .3rem .6rem; text-align: left; 
 th { background: var(--line); }
 details { margin: 1rem 0; }
 summary { cursor: pointer; font-weight: 600; }
-nav.toc { border: 1px solid var(--line); border-radius: 6px; padding: .5rem 1rem; margin: 1.5rem 0; }
-nav.toc > p { margin: 0; font-weight: 700; }
-nav.toc ol { list-style: none; columns: 2; column-gap: 2rem; padding-left: 0; margin: .3rem 0; font-size: .92rem; }
-nav.toc a { text-decoration: none; }
-@media (max-width: 560px) { nav.toc ol { columns: 1; } body { font-size: 16px; } }
+/* 題目欄的做法和答案：先自己做，做完再打開 */
+details.answer { border: 1px dashed var(--muted); border-radius: 6px; padding: .3rem .9rem; }
+details.answer > summary { color: var(--accent); padding: .3rem 0; }
+details.answer > summary::after { content: "（先自己做，做完再打開）"; color: var(--muted); font-weight: 400; }
+details.answer[open] > summary::after { content: none; }
+details.toc { border: 1px solid var(--line); border-radius: 6px; padding: .3rem 1rem; }
+details.toc ol { list-style: none; padding-left: 0; margin: .3rem 0; font-size: .92rem; }
+details.toc a { text-decoration: none; }
+.bar { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.bar button { font: inherit; font-size: .9rem; color: var(--fg); background: var(--tr-bg); border: 1px solid var(--line); border-radius: 6px; padding: .2rem .8rem; cursor: pointer; }
+:target { scroll-margin-top: 3.5rem; animation: flash 2s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } to { background: transparent; } }
+section.problems { border-top: 3px solid var(--line); margin-top: 3rem; }
+/* 螢幕夠寬時左右並排：左邊課件、右邊題目，各自捲動；點連結會讓另一欄跳過去 */
+@media (min-width: 1100px) {
+  body { max-width: none; height: 100vh; overflow: hidden; padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  section.course, section.problems { overflow-y: auto; padding: 0 1.5rem 6rem; margin: 0; border-top: 0; }
+  section.course { border-right: 2px solid var(--line); }
+  section.course > *, section.problems > * { max-width: 46rem; margin-left: auto; margin-right: auto; }
+}
+@media (max-width: 560px) { body { font-size: 16px; } }
 @media print {
-  body { max-width: none; background: #fff; color: #000; }
+  body { display: block; height: auto; overflow: visible; max-width: none; background: #fff; color: #000; }
+  section.course, section.problems { overflow: visible; }
+  .bar { display: none; }
   h2 { break-before: auto; }
   figure, .sheet { break-inside: avoid; }
 }

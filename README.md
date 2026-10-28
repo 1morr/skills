@@ -5,7 +5,7 @@
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
 | [showcase](skills/showcase/SKILL.md) | `/1morr:showcase [commit \| 範圍 \| PR# \| 分支] [no-run] [post] [auto]`，或直接說「展示這個改動」。預設實跑擷取、不提問；`post` 貼成 PR 留言，`auto` 全程不問（適合接在自己的流程後面） | 把一次改動展示給沒寫它的人，不必問 agent、不必自己跑：實跑修改前後兩版，擷取截圖、錄影、輸出與測試結果，產出內嵌證據的 HTML 報告（貼到 PR 時另有純文字版），說明改了什麼、為什麼、做了哪些決策 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試] [read \| learn]`，或說「教我」「看不懂」「複習」 | 把大學課程、作業或考試教給沒上過課、零基礎的人：以老師課件為唯一標準，產出單一 HTML 導讀頁，先照講義順序逐頁教（每塊先譯文再截圖，術語附「怎樣才算」的定義，公式都寫全再代入數字，每段結尾有重點），再做老師的例題，最後教這個 topic 的作業並附整個 topic 的總結，讀的人不用打開課件；還沒交的作業另出照老師格式寫的答案紙。`read`（兩天內要交 / 考，或不想被問）一整頁讀完，不提問、不出練習；`learn` 用同一份導讀頁當課本，在對話裡一起做例題和作業、由你說答案，再做課本題或照測驗形式出的練習題，記學習紀錄 |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試] [read \| learn]`，或說「教我」「看不懂」「複習」 | 把大學課程、作業或考試教給沒上過課、零基礎的人：以老師課件為唯一標準，產出單一 HTML 導讀頁，左右兩欄並排、各自捲動。左欄照講義順序逐頁教（課件截圖附同版面的中文翻譯圖，點圖切換原文；術語附「怎樣才算」的定義，公式都寫全再代入數字，每段結尾有重點），右欄是老師的例題和這個 topic 的作業，做法和答案摺起來、可一鍵全部展開，題目的「為什麼」連回左欄對應的課件；還沒交的作業另出照老師格式寫的答案紙。`read`（兩天內要交 / 考，或不想被問）自己讀完整頁；`learn` 用同一份頁面，在對話裡由你一步步做例題、再自己做沒看過的同類題，做對才算會，學習紀錄記每類題會不會做 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序]`（只能手動叫用） | 當協調者，用 [Orca](https://www.onorca.dev) 為每張票開一個子 Claude Code session 解票、代答提問、驗收、合併，逐張跑完隊列。需要 Orca |
 
 ## 安裝
@@ -35,7 +35,7 @@ claude plugin install 1morr@1morr-skills
 ```
 python -m unittest discover -s skills/showcase/tests
 bash skills/ticket-coordinator/scripts/selftest.sh
-python -m unittest discover -s skills/tutor/tests
+uv run --no-project --with pymupdf --with pillow python -m unittest discover -s skills/tutor/tests
 ```
 
 檢查 manifest：`claude plugin validate .`。manifest 刻意不寫 `version`（寫了會把使用者釘在那個版本），所以 validator 會提醒缺 `version`，那條可以忽略。

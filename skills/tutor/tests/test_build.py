@@ -22,46 +22,83 @@ PNG = base64.b64decode(
 )
 TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p></div>'
 FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
+ZH_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
-WHY = '<div class="why"><p>F 是訊號除以雜訊</p></div>'
+# 課件欄第一段是 §1，題目欄的「為什麼」連到它
+WHY = '<div class="why"><p>F 是訊號除以雜訊，見 §1</p></div>'
 ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
 CALC = ('<div class="calc" id="c1"><p class="formula"><i>R</i>² = SSR / SST</p>'
         '<p class="subst">= 10556.1 / 11443.3 = 0.9225</p></div>')
 ANOVA = TR + '<figure id="anova"><img src="a.png"><figcaption>Minitab p.3</figcaption></figure>'
 SUMMARY = '<div class="summary"><ul><li>R² 是解釋了的比例</li></ul></div>'
 RECAP = '<h2 class="recap">總結</h2><table><tr><td>看到什麼</td><td>結論</td></tr></table>'
-COVER = ('<details><summary>看整頁</summary>' + TR +
-         '<figure class="page"><img src="a.png"><figcaption>Cover p.1</figcaption></figure></details>')
+COVER = ('<details><summary>看整頁</summary>'
+         '<figure class="page"><img src="a.png" data-zh="a.png"><figcaption>Cover p.1</figcaption></figure></details>')
+COURSE = "<h2>課</h2><p>內容</p>"
+PROBLEMS = "<h2>例</h2><p>題目</p>"
 
 
-def close_sections(body):
-    """每個 h2 段落結尾補上總結，頁尾補上 topic 總結，讓其他規則的測試只管自己那條。"""
+def ans(inner, summary=True):
+    """題目欄的做法和答案，收在 details.answer 裡，最後是這題記住。"""
+    return f'<details class="answer"><summary>做法和答案</summary>{inner}{SUMMARY if summary else ""}</details>'
+
+
+def close_sections(body, recap):
+    """每個 h2 段落結尾補上總結（題目欄最後一段是 recap 就不補），讓其他規則的測試只管自己那條。"""
     starts = [m.start() for m in re.finditer(r"<h2[\s>]", body, re.I)]
     for pos in reversed(starts[1:]):
         body = body[:pos] + SUMMARY + body[pos:]
-    return body + (SUMMARY if starts else "") + RECAP
+    return body + (SUMMARY if starts else "") + (RECAP if recap else "")
 
 
-def page(body, mode="read", pages="Cover p.1", cover=COVER, close=True):
-    """整頁 HTML。預設在第一個 h2 之前放一張整頁圖滿足頁數覆蓋，並補上總結。"""
+def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close=True, head="", tail=""):
+    """整頁 HTML：左欄課件、右欄題目。預設在課件欄開頭放一張整頁圖滿足頁數覆蓋，並補上總結。"""
     if close:
-        body = close_sections(body)
-    return (f'<!doctype html><html><head><title>x</title></head>'
-            f'<body data-mode="{mode}" data-pages="{pages}">{cover}{body}</body></html>')
+        course = close_sections(course, recap=False)
+        problems = close_sections(problems, recap=True)
+    return (f'<!doctype html><html><head><title>x</title></head><body data-pages="{pages}">{head}'
+            f'<section class="course">{cover}{course}</section>'
+            f'<section class="problems">{problems}</section>{tail}</body></html>')
+
+
+def prob(body, **kw):
+    """只寫題目欄，課件欄用預設的一段。"""
+    return page(problems=body, **kw)
+
+
+def prob_raw(problems, course=COURSE):
+    """題目欄照寫、不補總結（測試自己決定每段怎麼結尾）；課件欄補好總結。"""
+    return page(close_sections(course, recap=False), problems, close=False)
 
 
 def ok(src):
     return build.lint(src) == []
 
 
-class ModeRule(unittest.TestCase):
-    def test_missing_mode_fails(self):
-        self.assertFalse(ok("<html><body><h2>一</h2><p>短</p></body></html>"))
+class PaneRule(unittest.TestCase):
+    """左欄課件、右欄題目：body 底下只有這兩欄，兩欄都要有，課件欄在前。"""
 
-    def test_both_modes_pass(self):
-        for mode in ("read", "learn"):
-            with self.subTest(mode=mode):
-                self.assertTrue(ok(page("<h2>一</h2><p>短</p>", mode)), build.lint(page("<h2>一</h2><p>短</p>", mode)))
+    def test_content_outside_panes_fails(self):
+        self.assertFalse(ok(page(head="<h1>Topic 4</h1>")))
+
+    def test_h2_in_other_section_fails(self):
+        self.assertFalse(ok(page(tail='<section class="extra"><h2>多</h2></section>')))
+
+    def test_missing_problems_pane_fails(self):
+        src = page().replace('<section class="problems">', '<section class="course">')
+        self.assertFalse(ok(src))
+
+    def test_course_after_problems_fails(self):
+        src = (f'<html><body data-pages="Cover p.1"><section class="problems">{PROBLEMS}{SUMMARY}</section>'
+               f'<section class="course">{COVER}{COURSE}{SUMMARY}{RECAP}</section></body></html>')
+        self.assertFalse(ok(src))
+
+    def test_formatting_variants_pass(self):
+        src = ('<html><body data-pages="Cover p.1">\n  <!-- 左欄 -->\n'
+               f'<SECTION CLASS="pane course" id="c"><h1>Topic 4</h1>{COVER}<section><h2>課</h2><p>內容</p>{SUMMARY}</section></SECTION>\n'
+               f'<section data-x="1" class="problems wide"><section>{PROBLEMS}{SUMMARY}</section>{RECAP}</section>'
+               '<script>console.log(1)</script></body></html>')
+        self.assertTrue(ok(src), build.lint(src))
 
 
 class FigureRule(unittest.TestCase):
@@ -85,6 +122,10 @@ class FigureRule(unittest.TestCase):
 class RemoteRule(unittest.TestCase):
     def test_remote_img_fails(self):
         self.assertFalse(ok(page(f'<h2>一</h2>{TR}<figure><img src="https://x.y/a.png"><figcaption>p.1</figcaption></figure>')))
+
+    def test_remote_translated_img_fails(self):
+        self.assertFalse(ok(page('<h2>一</h2><figure><img src="a.png" data-zh="https://x.y/a.png">'
+                                 '<figcaption>p.1</figcaption></figure>')))
 
     def test_remote_script_fails(self):
         self.assertFalse(ok(page('<script src="//cdn.x/y.js"></script><h2>一</h2>')))
@@ -113,10 +154,10 @@ class LengthRule(unittest.TestCase):
 
     def test_sheet_table_figure_not_counted(self):
         big = "字" * (self.per * 2)
-        body = (f'<h2>一</h2>{WHY}{ORIGIN}<div class="sheet"><p>{big}</p></div>'
-                f"<table><tr><td>{big}</td></tr></table>"
+        body = (f'<h2>一</h2>{WHY}' + ans(f'{ORIGIN}<div class="sheet"><p>{big}</p></div>')
+                + f"<table><tr><td>{big}</td></tr></table>"
                 f'{TR}<figure><img src="a.png"><figcaption>p.2 {big}</figcaption></figure>')
-        self.assertTrue(ok(page(body)), build.lint(page(body)))
+        self.assertTrue(ok(prob(body)), build.lint(prob(body)))
 
     def test_translation_not_counted(self):
         big = "字" * (self.per * 2)
@@ -127,35 +168,80 @@ class LengthRule(unittest.TestCase):
 
 
 class MethodRule(unittest.TestCase):
-    """有 .calc 或 .sheet 的段落要有 .why 和 .origin。"""
+    """題目欄有 .calc 或 .sheet 的段落要有 .why（連到課件欄的 §）和 .origin；課件欄不用。"""
 
     def test_calc_without_why_fails(self):
-        self.assertFalse(ok(page(f'<h2>一</h2>{ORIGIN}{CALC}')))
+        self.assertFalse(ok(prob(f'<h2>一</h2>' + ans(ORIGIN + CALC))))
 
     def test_sheet_without_origin_fails(self):
-        self.assertFalse(ok(page(f'<h2>一</h2>{WHY}<div class="sheet">α = 0.05</div>')))
+        self.assertFalse(ok(prob(f'<h2>一</h2>{WHY}' + ans('<div class="sheet">α = 0.05</div>'))))
+
+    def test_why_without_course_ref_fails(self):
+        self.assertFalse(ok(prob('<h2>一</h2><div class="why"><p>F 是訊號除以雜訊</p></div>' + ans(ORIGIN + CALC))))
+
+    def test_why_linking_to_problem_section_fails(self):
+        self.assertFalse(ok(prob('<h2>一</h2><div class="why"><p>同 §2</p></div>' + ans(ORIGIN + CALC))))
+
+    def test_ref_outside_why_does_not_count(self):
+        self.assertFalse(ok(prob('<h2>一</h2><p>見 §1</p><div class="why"><p>F</p></div>' + ans(ORIGIN + CALC))))
 
     def test_blocks_in_another_section_do_not_count(self):
-        self.assertFalse(ok(page(f'<h2>一</h2>{WHY}{ORIGIN}<h2>二</h2>{CALC}')))
+        self.assertFalse(ok(prob(f'<h2>一</h2>{WHY}' + ans(ORIGIN) + '<h2>二</h2>' + ans(CALC))))
 
     def test_section_without_method_needs_nothing(self):
-        self.assertTrue(ok(page("<h2>一</h2><p>Topic 3 在做什麼</p>")))
+        self.assertTrue(ok(prob("<h2>一</h2><p>Topic 3 在做什麼</p>")))
+
+    def test_course_calc_needs_nothing(self):
+        self.assertTrue(ok(page(f"<h2>一</h2><p>先用 5 個數算一次</p>{CALC}")), build.lint(page(f"<h2>一</h2>{CALC}")))
 
     def test_formatting_variants_pass(self):
         variants = [
-            f'<h2>一</h2>{WHY}{ORIGIN}{CALC}',
-            f'<h2>一</h2>{CALC}{ORIGIN}{WHY}',
-            '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>為什麼</p></SECTION>\n'
-            '<div><table data-x="1" class="origin small"><tr data-from="convention"><td>0.05</td></tr></table></div>'
-            '<div class="sheet big">F = 29.74</div>',
+            f'<h2>一</h2>{WHY}' + ans(ORIGIN + CALC),
+            '<h2>一</h2>' + ans(CALC + ORIGIN) + WHY + SUMMARY,
+            '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>用到 <a href="#s1">§1</a> 的 F</p></SECTION>\n'
+            '<DETAILS class="answer x" open><summary>做法</summary><div><table data-x="1" class="origin small">'
+            '<tr data-from="convention"><td>0.05</td></tr></table></div>'
+            f'<div class="sheet big">F = 29.74</div>{SUMMARY}</DETAILS>',
+            '<h2>一</h2><div class="why"><p>見 §1.1</p></div>' + ans(ORIGIN + CALC),
         ]
         for body in variants:
             with self.subTest(body=body[:40]):
-                self.assertTrue(ok(page(body)), build.lint(page(body)))
+                src = prob_raw(body + RECAP, course="<h2>課</h2><h3>甲</h3><p>內容</p>")
+                self.assertTrue(ok(src), build.lint(src))
+
+
+class AnswerFoldRule(unittest.TestCase):
+    """題目欄的算式、答案紙、數字從哪來、常見錯誤都收進 details.answer；課件欄不用。"""
+
+    BLOCKS = {
+        "calc": CALC,
+        "sheet": '<div class="sheet">F = 29.74</div>',
+        "origin": ORIGIN,
+        "trap": '<div class="trap"><p>n 不是 8</p></div>',
+    }
+
+    def test_open_blocks_fail(self):
+        for name, block in self.BLOCKS.items():
+            with self.subTest(block=name):
+                self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}{block}" + ans(ORIGIN + CALC))))
+
+    def test_plain_details_is_not_enough(self):
+        self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}<details><summary>答案</summary>{ORIGIN}{CALC}</details>")))
+
+    def test_folded_blocks_pass(self):
+        for folded in (ans("".join(self.BLOCKS.values())),
+                       f'<DETAILS class="x answer"><summary>答案</summary><div>{"".join(self.BLOCKS.values())}</div>{SUMMARY}</DETAILS>'):
+            with self.subTest(folded=folded[:30]):
+                src = prob_raw(f"<h2>一</h2>{WHY}{folded}{RECAP}")
+                self.assertTrue(ok(src), build.lint(src))
+
+    def test_course_blocks_stay_open(self):
+        src = page(f'<h2>一</h2>{CALC}<div class="trap"><p>小心</p></div>')
+        self.assertTrue(ok(src), build.lint(src))
 
 
 class TranslationRule(unittest.TestCase):
-    """每張圖前面緊接著譯文，整頁圖之後的小截圖也一樣。"""
+    """每張圖都要有翻譯：翻譯圖（data-zh），或緊接在前的譯文，或標明沒有字要翻。"""
 
     def test_figure_without_translation_fails(self):
         self.assertFalse(ok(page('<h2>一</h2><figure><img src="a.png"><figcaption>p.4</figcaption></figure>')))
@@ -175,12 +261,17 @@ class TranslationRule(unittest.TestCase):
         self.assertFalse(ok(page(f'<h2>p.5</h2>{COVER}<h3>R²</h3><figure><img src="a.png">'
                                  '<figcaption>p.5（R² 那塊）</figcaption></figure>')))
 
+    def test_empty_zh_does_not_count(self):
+        self.assertFalse(ok(page('<h2>一</h2><figure><img src="a.png" data-zh=""><figcaption>p.4</figcaption></figure>')))
+
     def test_formatting_variants_pass(self):
         variants = [
             '<h2>一</h2><P CLASS="x tr">譯文</P>\n  <!-- 註解 -->\n<figure><img src="a.png"><figcaption>p.4</figcaption></figure>',
             '<h2>一</h2><div class="why"><div class="tr">譯</div><figure class="w"><img src="a.png">'
             '<figcaption>p.4</figcaption></figure></div>',
             '<h2>一</h2><figure data-tr="none"><img src="a.png"><figcaption>殘差圖 p.5</figcaption></figure>',
+            f'<h2>一</h2>{ZH_FIG}',
+            '<h2>一</h2><p>先看圖</p><FIGURE id="f"><IMG DATA-ZH="a.zh.png" alt="" SRC="a.png" /><figcaption>p.4</figcaption></FIGURE>',
         ]
         for body in variants:
             with self.subTest(body=body[:40]):
@@ -188,47 +279,52 @@ class TranslationRule(unittest.TestCase):
 
 
 class OriginRule(unittest.TestCase):
-    """「數字從哪來」的每一列：材料上的數字連到圈出它的圖，算出來的連到寫出算式的 .calc。"""
+    """「數字從哪來」只列不明顯的數字；查表和要數的連到同一段裡的圖或算式。"""
 
     def body(self, row, fig=ANOVA, calc=CALC):
-        return page(f'<h2>一</h2>{WHY}{fig}{calc}'
-                    f'<table class="origin"><tr><th>值</th><th>從哪來</th></tr>{row}</table>')
+        return prob(f'<h2>一</h2>{WHY}{fig}' + ans(
+            f'{calc}<table class="origin"><tr><th>值</th><th>從哪來</th></tr>{row}</table>'))
 
-    def test_row_without_figure_fails(self):
-        self.assertFalse(ok(self.body('<tr><td>10556.1</td><td>Minitab SS</td></tr>')))
+    def test_row_without_kind_fails(self):
+        self.assertFalse(ok(self.body('<tr><td>10556.1</td><td>Minitab SS（<a href="#anova">圖</a>）</td></tr>')))
 
-    def test_link_to_missing_target_fails(self):
-        self.assertFalse(ok(self.body('<tr><td>10556.1</td><td><a href="#coef">圖</a></td></tr>')))
+    def test_calc_row_fails(self):
+        self.assertFalse(ok(self.body('<tr data-from="calc"><td>0.9225</td><td><a href="#c1">算式</a></td></tr>')))
 
-    def test_link_to_figure_in_other_section_fails(self):
-        src = page(f'<h2>零</h2>{ANOVA}<h2>一</h2>{WHY}{CALC}'
-                   '<table class="origin"><tr><td>10556.1</td><td><a href="#anova">圖</a></td></tr></table>')
-        self.assertFalse(ok(src))
-
-    def test_unknown_from_fails(self):
+    def test_unknown_kind_fails(self):
         self.assertFalse(ok(self.body('<tr data-from="minitab"><td>10556.1</td></tr>')))
 
-    def test_calc_row_without_link_fails(self):
-        self.assertFalse(ok(self.body('<tr data-from="calc"><td>0.9225</td><td>上一步算的</td></tr>')))
+    def test_table_row_without_link_fails(self):
+        self.assertFalse(ok(self.body('<tr data-from="table"><td>1.96</td><td>常態表</td></tr>')))
 
-    def test_calc_row_linked_to_figure_fails(self):
-        self.assertFalse(ok(self.body('<tr data-from="calc"><td>0.9225</td><td><a href="#anova">圖</a></td></tr>')))
+    def test_count_row_without_link_fails(self):
+        self.assertFalse(ok(self.body('<tr data-from="count"><td>n = 36</td><td>9 年 × 4 季</td></tr>')))
+
+    def test_link_to_missing_target_fails(self):
+        self.assertFalse(ok(self.body('<tr data-from="table"><td>1.96</td><td><a href="#z">圖</a></td></tr>')))
+
+    def test_link_to_figure_in_other_section_fails(self):
+        src = prob(f'<h2>零</h2>{ANOVA}<h2>一</h2>{WHY}' + ans(
+            f'{CALC}<table class="origin"><tr data-from="table"><td>1.96</td><td><a href="#anova">圖</a></td></tr></table>'))
+        self.assertFalse(ok(src))
 
     def test_formatting_variants_pass(self):
         rows = [
-            '<tr><td>10556.1</td><td>Minitab ANOVA 的 SS（<a href="#anova">圖</a>）</td></tr>',
-            '<TR class="x"><td><a class="y" href="#anova">10556.1</a></td></TR>',
-            '<tr data-from="calc"><td>0.9225</td><td>上面算的（<a href="#c1">算式</a>）</td></tr>',
-            '<tr class="z" data-from="calc"><td><A HREF="#c1">0.9225</A></td></tr>',
-            '<tr data-from="constant"><td>1</td><td>截距</td></tr>',
+            '<tr data-from="table"><td>F 臨界值</td><td>F 表 α = 0.05 那頁（<a href="#anova">圖</a>）</td></tr>',
+            '<TR class="x" DATA-FROM="table"><td><a class="y" href="#anova">4.35</a></td></TR>',
+            '<tr data-from="count"><td>n = 6</td><td>只數有預測的週（<a href="#c1">算式</a>）</td></tr>',
+            '<tr data-from="convention"><td>α = 0.05</td><td>題目沒寫就用這個</td></tr>',
+            '<tr data-from="rule"><td>DW 1.5–2.5</td><td>講義的經驗法則</td></tr>',
+            '<tr class="z" data-from="constant"><td>1</td><td>截距</td></tr>',
         ]
         for row in rows:
             with self.subTest(row=row[:40]):
                 self.assertTrue(ok(self.body(row)), build.lint(self.body(row)))
 
     def test_figure_after_table_passes(self):
-        src = page(f'<h2>一</h2>{WHY}{CALC}'
-                   '<table class="origin"><tr><td>10556.1</td><td><a href="#anova">圖</a></td></tr></table>' + ANOVA)
+        src = prob_raw(f'<h2>一</h2>{WHY}' + ans(
+            f'{CALC}<table class="origin"><tr data-from="table"><td>1.96</td><td><a href="#anova">圖</a></td></tr></table>')
+            + ANOVA + SUMMARY + RECAP)
         self.assertTrue(ok(src), build.lint(src))
 
 
@@ -236,7 +332,7 @@ class CalcRule(unittest.TestCase):
     """每個 .calc 都寫出公式，再代入數字；不能只寫答案或「用 §N 的公式」。"""
 
     def body(self, calc):
-        return page(f'<h2>一</h2>{WHY}{ORIGIN}{calc}')
+        return page(f'<h2>一</h2>{calc}')
 
     def test_answer_only_fails(self):
         self.assertFalse(ok(self.body('<div class="calc">R² = 0.9225</div>')))
@@ -293,40 +389,57 @@ class DefRule(unittest.TestCase):
 
 
 class SummaryRule(unittest.TestCase):
-    """每個 h2 段落以 .summary 結尾；最後一段是 h2.recap。"""
+    """每個 h2 段落以 .summary 結尾（題目欄可以是 details.answer 的最後一塊）；最後一段是 h2.recap。"""
+
+    def raw(self, course, problems):
+        return page(course, problems, close=False)  # 兩欄都照寫，不補總結
 
     def test_section_without_summary_fails(self):
-        self.assertFalse(ok(page(f"<h2>一</h2><p>內容</p>{RECAP}", close=False)))
+        self.assertFalse(ok(self.raw("<h2>一</h2><p>內容</p>", f"<h2>例</h2>{SUMMARY}{RECAP}")))
 
     def test_summary_not_last_fails(self):
-        self.assertFalse(ok(page(f"<h2>一</h2>{SUMMARY}<h3>後面</h3><p>還有</p>{RECAP}", close=False)))
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}<h3>後面</h3><p>還有</p>", f"<h2>例</h2>{SUMMARY}{RECAP}")))
 
     def test_summary_only_in_next_section_fails(self):
-        self.assertFalse(ok(page(f"<h2>一</h2><p>內容</p><h2>二</h2>{SUMMARY}{RECAP}", close=False)))
+        self.assertFalse(ok(self.raw("<h2>一</h2><p>內容</p>", f"<h2>二</h2>{SUMMARY}{RECAP}")))
 
     def test_missing_recap_fails(self):
-        self.assertFalse(ok(page(f"<h2>一</h2>{SUMMARY}", close=False)))
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{SUMMARY}")))
 
     def test_recap_not_last_fails(self):
-        self.assertFalse(ok(page(f"{RECAP}<h2>一</h2>{SUMMARY}", close=False)))
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"{RECAP}<h2>例</h2>{SUMMARY}")))
+
+    def test_answer_without_summary_fails(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{ans('<p>答</p>', summary=False)}{RECAP}")))
+
+    def test_summary_not_last_in_answer_fails(self):
+        folded = f'<details class="answer"><summary>答案</summary>{SUMMARY}<p>還有</p></details>'
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{folded}{RECAP}")))
+
+    def test_summary_in_plain_details_fails(self):
+        folded = f'<details><summary>延伸</summary>{SUMMARY}</details>'
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{folded}{RECAP}")))
 
     def test_formatting_variants_pass(self):
         variants = [
-            f"<h2>一</h2><p>內容</p>{SUMMARY}{RECAP}",
-            f'<h2>一</h2><p>內容</p><SECTION CLASS="x summary"><p>記住</p></SECTION>\n  <!-- 註解 -->\n{RECAP}',
-            f'<H2 id="a">一</H2>{SUMMARY}<h2 class="x recap" id="r">總結</h2><p>判斷表</p>',
+            (f"<h2>一</h2><p>內容</p>{SUMMARY}", f"<h2>例</h2>{SUMMARY}{RECAP}"),
+            (f'<h2>一</h2><p>內容</p><SECTION CLASS="x summary"><p>記住</p></SECTION>\n  <!-- 註解 -->\n',
+             f"<h2>例</h2>{ans('<p>答</p>')}\n<!-- 註解 -->\n{RECAP}"),
+            (f'<H2 id="a">一</H2>{SUMMARY}',
+             f'<h2>例</h2><DETAILS CLASS="answer"><summary>答</summary><div>x</div>'
+             f'<ASIDE class="summary y"><p>記住</p></ASIDE>\n</DETAILS><h2 class="x recap" id="r">總結</h2><p>判斷表</p>'),
         ]
-        for body in variants:
-            with self.subTest(body=body[:40]):
-                src = page(body, close=False)
+        for course, problems in variants:
+            with self.subTest(problems=problems[:40]):
+                src = self.raw(course, problems)
                 self.assertTrue(ok(src), build.lint(src))
 
 
 class PageFoldRule(unittest.TestCase):
-    """整頁圖和整頁譯文收進 <details>，data-pages 的每一頁都要有。"""
+    """整頁圖收進 <details>，data-pages 的每一頁都要有。"""
 
     def whole(self, name, n, cls="page", fold=True):
-        fig = f'{TR}<figure class="{cls}"><img src="a.png"><figcaption>{name} p.{n}</figcaption></figure>'
+        fig = f'<figure class="{cls}"><img src="a.png" data-zh="a.png"><figcaption>{name} p.{n}</figcaption></figure>'
         if fold:
             fig = f"<details><summary>看整頁</summary>{fig}</details>"
         return f"<h2>{name} p.{n}</h2>{fig}"
@@ -366,59 +479,37 @@ class PageFoldRule(unittest.TestCase):
 
 
 class RefRule(unittest.TestCase):
-    """內文的 §N、§N.M 要指向真的存在的段落。"""
+    """內文的 §N、§N.M 要指向真的存在的段落，兩欄連續編號。"""
 
     def test_missing_section_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2><p>見 §4</p><h2>二</h2>")))
+        self.assertFalse(ok(page("<h2>一</h2><p>見 §9</p><h2>二</h2>")))
 
     def test_missing_subsection_fails(self):
         self.assertFalse(ok(page("<h2>一</h2><h3>甲</h3><p>見 §1.2</p>")))
 
     def test_existing_refs_pass(self):
-        body = "<h2>一</h2><h3>甲</h3><p>見 §1.1、§2 和 §3（總結）</p><h2 class='x'>二</h2><p>回到§1</p>"
+        body = "<h2>一</h2><h3>甲</h3><p>見 §1.1、§2 和 §3（例題）、§4（總結）</p><h2 class='x'>二</h2><p>回到§1</p>"
         self.assertTrue(ok(page(body)), build.lint(page(body)))
 
 
 class ExerciseRule(unittest.TestCase):
-    def test_check_fails_in_both_modes(self):
-        for mode in ("read", "learn"):
-            with self.subTest(mode=mode):
-                self.assertFalse(ok(page("<h2>一</h2>" + CHECK, mode)))
+    def test_check_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2>" + CHECK)))
 
     def test_input_fails(self):
-        self.assertFalse(ok(page('<h2>一</h2><input type="text">', "learn")))
+        self.assertFalse(ok(prob('<h2>一</h2><input type="text">')))
 
     def test_plain_details_passes(self):
-        self.assertTrue(ok(page("<h2>一</h2><details><summary>延伸</summary><p>可略過</p></details>", "read")))
-
-
-class LearnSheetRule(unittest.TestCase):
-    """learn 的答案紙要摺起來，使用者先在對話裡做。"""
-
-    SHEET = '<div class="sheet">F = 29.74</div>'
-
-    def body(self, sheet):
-        return f"<h2>一</h2>{WHY}{ORIGIN}{sheet}"
-
-    def test_open_sheet_fails_in_learn(self):
-        self.assertFalse(ok(page(self.body(self.SHEET), "learn")))
-
-    def test_open_sheet_passes_in_read(self):
-        self.assertTrue(ok(page(self.body(self.SHEET), "read")))
-
-    def test_folded_sheet_passes_in_learn(self):
-        for folded in (f"<details><summary>做完再打開</summary>{self.SHEET}</details>",
-                       f'<DETAILS class="x"><summary>答案</summary><div>{self.SHEET}</div></DETAILS>'):
-            with self.subTest(folded=folded[:30]):
-                src = page(self.body(folded), "learn")
-                self.assertTrue(ok(src), build.lint(src))
+        self.assertTrue(ok(page("<h2>一</h2><details><summary>延伸</summary><p>可略過</p></details>")))
 
 
 class Output(unittest.TestCase):
-    def built(self, body):
+    def built(self, course=COURSE, problems=PROBLEMS, zh=True):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "a.png").write_bytes(PNG)
-            return build.build(page(body), Path(d))
+            if zh:
+                (Path(d) / "a.zh.png").write_bytes(PNG + b"zh")
+            return build.build(page(course, problems), Path(d))
 
     def test_inlines_numbers_and_styles(self):
         out = self.built("<h2>甲</h2><h3>乙</h3><h3 id='keep'>丙</h3><h2>丁</h2>" + FIG)
@@ -428,20 +519,55 @@ class Output(unittest.TestCase):
         self.assertIn('id="s1-1"><span class="num">§1.1</span> 乙', out)
         self.assertIn("id='keep'><span class=\"num\">§1.2</span> 丙", out)
         self.assertIn('<span class="num">§2</span> 丁', out)
+        self.assertIn('<span class="num">§3</span> 例', out)
         self.assertIn("<style>", out)
+        self.assertIn("<script>", out)
 
-    def test_toc_lists_every_h2(self):
-        out = self.built("<h2>甲 <i>x</i></h2><h3>乙</h3><h2 id='own'>丁</h2>")
-        toc = out[out.index('<nav class="toc">'):out.index("</nav>")]
-        self.assertIn('<a href="#s1">§1 甲 x</a>', toc)
-        self.assertIn('<a href="#own">§2 丁</a>', toc)
-        self.assertNotIn("乙", toc)
-        self.assertLess(out.index('<nav class="toc">'), out.index("<h2"))
+    def test_each_pane_gets_its_own_toc(self):
+        out = self.built("<h2>甲 <i>x</i></h2><h3>乙</h3><h2 id='own'>丁</h2>", "<h2>例一</h2><h2>例二</h2>")
+        split = out.index('<section class="problems">')
+        course, problems = out[:split], out[split:]
+        self.assertEqual(course.count('<details class="toc">'), 1)
+        self.assertEqual(problems.count('<details class="toc">'), 1)
+        ctoc = course[course.index('<details class="toc">'):course.index("</details>", course.index('<details class="toc">'))]
+        self.assertIn('<a href="#s1">§1 甲 x</a>', ctoc)
+        self.assertIn('<a href="#own">§2 丁</a>', ctoc)
+        self.assertNotIn("乙", ctoc)
+        self.assertNotIn("例一", ctoc)
+        self.assertIn('<a href="#s3">§3 例一</a>', problems)
+        self.assertLess(course.index('<details class="toc">'), course.index("<h2"))
 
-    def test_refs_become_links(self):
+    def test_translated_image_becomes_two(self):
+        out = self.built(f"<h2>甲</h2>{ZH_FIG}")
+        zh = base64.b64encode(PNG + b"zh").decode()
+        en = base64.b64encode(PNG).decode()
+        self.assertIn(f'<img class="zh" src="data:image/png;base64,{zh}" alt="">', out)
+        self.assertIn(f'<img class="en" src="data:image/png;base64,{en}" alt="">', out)
+        self.assertNotIn("data-zh", out.split("</style>", 1)[1])
+        self.assertIn('data-act="lang"', out)
+
+    def test_existing_class_is_kept(self):
+        out = self.built('<h2>甲</h2><figure><img class="wide" data-zh="a.zh.png" src="a.png"><figcaption>p.1</figcaption></figure>')
+        self.assertIn('class="zh wide"', out)
+        self.assertIn('class="en wide"', out)
+
+    def test_no_lang_button_without_translations(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "a.png").write_bytes(PNG)
+            src = page(f"<h2>甲</h2>{FIG}", cover=COVER.replace(' data-zh="a.png"', ""))
+            out = build.build(src, Path(d))
+        self.assertNotIn('data-act="lang"', out)
+        self.assertIn('data-act="answers"', out)
+
+    def test_missing_translated_image_stops(self):
+        with self.assertRaises(SystemExit):
+            self.built('<h2>甲</h2><figure><img src="a.png" data-zh="nope.png"><figcaption>p.1</figcaption></figure>')
+
+    def test_refs_become_links_across_panes(self):
         out = self.built("<h2>甲</h2><h3>乙</h3><h3 id='keep'>丙</h3><p>見 §1.1 和 §1.2</p>"
-                         '<p><a href="#x">§1</a></p><h2>丁</h2>')
+                         '<p><a href="#x">§1</a></p><h2>丁</h2>', "<h2>例</h2><p>用到 §1.1</p>")
         self.assertIn('見 <a href="#s1-1">§1.1</a> 和 <a href="#keep">§1.2</a>', out)
+        self.assertIn('用到 <a href="#s1-1">§1.1</a>', out)
         self.assertIn('<a href="#x">§1</a>', out)
         self.assertIn('<span class="num">§1</span> 甲', out)
 
