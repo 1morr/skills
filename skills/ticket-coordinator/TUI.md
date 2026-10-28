@@ -20,6 +20,8 @@
 
 ## 讀畫面
 
+- 同一個 worktree 裡常有 Orca 自動開的 shell 終端（`orca terminal list` 會列出兩個），送訊息一律用 `new-ticket.sh` 印出的 `handle=`，不要用 worktree 路徑反查：查到 shell 就會把整段話當指令送進 zsh。
+
 - `python3 <S>/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端
   還在，不代表子 session 在忙。
 - 畫面停在捲動模式（出現 `Jump to bottom`、看不到 spinner）：送 Ctrl+End
@@ -35,7 +37,11 @@
 - `waitbg.sh` 每 30 秒問一次 `state.py`，`done` 而畫面上還有 shell / monitor 計數時繼續等（Monitor 認不出來）；
   `waiting-bg` 半小時、`busy` 一小時沒動靜，畫面也沒有在跑的東西時以 `state=stalled` 返回：多半是它停了背景
   工作卻沒留紀錄，或行程卡死。
-- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
+- `state=done-bg`：回合結束，畫面卻還掛著 shell / 子代理計數、transcript 一小時沒動。多半是殘留的背景程序
+  （票 22 是子代理留下的 `find /` 跑了 7 小時，等待因此卡了 6 小時）。叫子 session 查清楚、收掉，確認
+  `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
+- `state=no-response`：帶了 `sent`，送出後 5 分鐘 transcript 都沒新寫入。讀畫面：停在輸入框就是字被吞了，補送一次。
+- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh`、`waitbg.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，

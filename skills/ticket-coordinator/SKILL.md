@@ -41,7 +41,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    互不相擋的票可以同時開幾張。會撞的排先後：改同一區程式碼、同一張登記表或閘門測試、都新增資料庫 migration
    （合起來會有兩個 head）的票。
 2. **掛等待**：把 worktree、handle、session id 寫進 ledger，用 Bash `run_in_background` 跑
-   `bash <S>/waitbg.sh <handle> <jsonl 路徑>`，然後結束回合等通知。不輪詢。
+   `bash <S>/waitbg.sh <handle> <jsonl 路徑>`，然後結束回合等通知。不輪詢。之後每次送訊息給子 session
+   （代答、叫它補、轉述 Heads up）再掛等待時，最後加 `sent`：沒加會讀到上一輪的 done，馬上返回。
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
    不夠就 `python3 <S>/scr.py <handle> 40`。
 

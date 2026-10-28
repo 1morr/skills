@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -106,5 +106,31 @@ ok "push-ci proceeds after the holder dies" "$rc" 0
 ok "push-ci retries a failed run list before pushing" "$(tr '\n' ' ' < "$LOG")" "list list push "
 grep -q "ci=success" "$P/out"; ok "push-ci reports the run" $? 0
 [ -d "$L" ]; ok "push-ci releases the lock" $? 1
+
+# ---- waitbg.sh（假的 orca 印出指定的畫面；每個情境都限時，舊版會卡住的那幾個靠限時判出來）
+Wb="$X/wb"; mkdir -p "$Wb/bin"; SCREEN="$Wb/screen.txt"
+cat > "$Wb/bin/orca" <<EOF
+#!/bin/sh
+"$PY" -c 'import json,sys; print(json.dumps({"ok": True, "result": {"terminal": {"status": "running", "tail": open(sys.argv[1], encoding="utf-8").read().splitlines()}}}))' "$SCREEN"
+EOF
+chmod +x "$Wb/bin/orca"
+# 跑 waitbg 最多 $1 秒，印它的 state= 那一行（沒返回就印 TIMEOUT）
+wb() { secs=$1; shift
+  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
+  for i in $(seq 1 "$secs"); do kill -0 $p 2>/dev/null || break; sleep 1; done
+  if kill -0 $p 2>/dev/null; then kill $p 2>/dev/null; wait $p 2>/dev/null; echo TIMEOUT; else wait $p; grep -m1 '^state=' "$Wb/out"; fi; }
+printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
+echo '❯' > "$SCREEN"
+ok "waitbg done returns at once"                   "$(wb 5)" "state=done"
+# 票 22：回合結束了，畫面卻還掛著子代理留下的 shell，舊版一直等
+echo '  ⏵⏵ bypass permissions on · 1 shell' > "$SCREEN"
+ok "waitbg done with a lingering shell keeps waiting while fresh" "$(WAITBG_BG_STALE=600 wb 4)" "TIMEOUT"
+ok "waitbg done with a lingering shell returns once stale"        "$(WAITBG_BG_STALE=60 wb 5)" "state=done-bg"
+# 送出新指示後馬上掛等待：transcript 還是上一輪的 done，不能算這一次做完
+echo '❯' > "$SCREEN"
+ok "waitbg sent: old done is not this turn"        "$(WAITBG_SENT_TIMEOUT=3 wb 8 sent)" "state=no-response"
+( sleep 2; printf '%s\n' "$A" "$TD" >> "$Wb/s.jsonl" ) & writer=$!
+ok "waitbg sent: a new turn after the send counts" "$(WAITBG_SENT_TIMEOUT=30 wb 15 sent)" "state=done"
+wait $writer 2>/dev/null
 
 rm -rf "$X"; [ $fail -eq 0 ] && echo "ALL OK"; exit $fail

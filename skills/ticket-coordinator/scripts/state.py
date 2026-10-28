@@ -8,6 +8,7 @@ import json, os, re, sys, time
 
 LAUNCH = re.compile(r'running in background with ID: (\w+)|agentId: (\w+)')
 FINISH = re.compile(r'<task-id>(\w+)</task-id>.*?<status>(\w+)</status>', re.S)
+RECENT = int(os.environ.get('STATE_RECENT_SECS', 60))  # 這麼多秒內有寫入就算 busy（selftest 調小）
 STOPPED = re.compile(r'Successfully stopped task: (\w+)')  # 它自己用 TaskStop 停掉的，不會再有通知
 
 
@@ -32,7 +33,7 @@ def state(path, now=None):
     uses = [c for c in m.get('content') or [] if isinstance(c, dict) and c.get('type') == 'tool_use']
     if last and last.get('type') == 'assistant' and any(u.get('name') == 'AskUserQuestion' for u in uses):
         return 'asking'
-    if now - os.path.getmtime(path) < 60:
+    if now - os.path.getmtime(path) < RECENT:
         return 'busy'
     if last and last.get('subtype') == 'turn_duration':
         return 'waiting-bg' if launched - finished else 'done'
