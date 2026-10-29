@@ -135,13 +135,15 @@ class Lint(HTMLParser):
         if tag == "h2":
             self.heading = ""
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
-                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0, "why_refs": [],
+                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0, "why_refs": [], "calc_first": False,
                                   "pane": self.pane(), "depth": len(self.stack), "last": set(),
                                   "last_inner": set(), "recap": "recap" in cls})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
+            if "calc" in cls and not sec["origin"]:
+                sec["calc_first"] = True  # 題目欄要先列出要用的數字從哪來，再代公式
             sec["origin"] |= "origin" in cls
             if tag == "h3":
                 sec["h3"] += 1
@@ -268,6 +270,9 @@ def lint(src: str) -> list:
                 problems.append(f"§「{title}」的「為什麼」沒有連到課件欄：寫出用到課件的 §N，讀者點了左欄就跳過去")
             if not sec["origin"]:
                 problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
+            elif sec["calc_first"]:
+                problems.append(f"§「{title}」的「數字從哪來」表排在算式後面：先列出要用的數字從哪來，再代公式，"
+                                "讀者算到那一步時才知道每個數字的來源")
         ends = "summary" in sec["last"] or ("answer" in sec["last"] and "summary" in sec["last_inner"])
         if not sec["recap"] and not ends:
             problems.append(f'§「{title}」最後一塊不是 class="summary" 的「這段記住」：每段結尾都要有總結'

@@ -197,7 +197,7 @@ class MethodRule(unittest.TestCase):
     def test_formatting_variants_pass(self):
         variants = [
             f'<h2>一</h2>{WHY}' + ans(ORIGIN + CALC),
-            '<h2>一</h2>' + ans(CALC + ORIGIN) + WHY + SUMMARY,
+            '<h2>一</h2>' + ans(ORIGIN + CALC) + WHY + SUMMARY,
             '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>用到 <a href="#s1">§1</a> 的 F</p></SECTION>\n'
             '<DETAILS class="answer x" open><summary>做法</summary><div><table data-x="1" class="origin small">'
             '<tr data-from="convention"><td>0.05</td></tr></table></div>'
@@ -214,9 +214,9 @@ class AnswerFoldRule(unittest.TestCase):
     """題目欄的算式、答案紙、數字從哪來、常見錯誤都收進 details.answer；課件欄不用。"""
 
     BLOCKS = {
+        "origin": ORIGIN,
         "calc": CALC,
         "sheet": '<div class="sheet">F = 29.74</div>',
-        "origin": ORIGIN,
         "trap": '<div class="trap"><p>n 不是 8</p></div>',
     }
 
@@ -283,7 +283,7 @@ class OriginRule(unittest.TestCase):
 
     def body(self, row, fig=ANOVA, calc=CALC):
         return prob(f'<h2>一</h2>{WHY}{fig}' + ans(
-            f'{calc}<table class="origin"><tr><th>值</th><th>從哪來</th></tr>{row}</table>'))
+            f'<table class="origin"><tr><th>值</th><th>從哪來</th></tr>{row}</table>{calc}'))
 
     def test_row_without_kind_fails(self):
         self.assertFalse(ok(self.body('<tr><td>10556.1</td><td>Minitab SS（<a href="#anova">圖</a>）</td></tr>')))
@@ -323,9 +323,39 @@ class OriginRule(unittest.TestCase):
 
     def test_figure_after_table_passes(self):
         src = prob_raw(f'<h2>一</h2>{WHY}' + ans(
-            f'{CALC}<table class="origin"><tr data-from="table"><td>1.96</td><td><a href="#anova">圖</a></td></tr></table>')
+            f'<table class="origin"><tr data-from="table"><td>1.96</td><td><a href="#anova">圖</a></td></tr></table>{CALC}')
             + ANOVA + SUMMARY + RECAP)
         self.assertTrue(ok(src), build.lint(src))
+
+
+class OriginFirstRule(unittest.TestCase):
+    """題目欄先列「數字從哪來」，再代公式：讀者算到那一步時已經知道每個數字的來源。"""
+
+    def test_calc_before_origin_fails(self):
+        self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}" + ans(CALC + ORIGIN))))
+
+    def test_calc_in_earlier_fold_fails(self):
+        self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}" + ans(CALC, summary=False) + ans(ORIGIN))))
+
+    def test_origin_of_other_section_does_not_count(self):
+        src = prob(f"<h2>零</h2>{WHY}" + ans(ORIGIN + CALC) + f"<h2>一</h2>{WHY}" + ans(CALC + ORIGIN))
+        self.assertFalse(ok(src))
+
+    def test_course_pane_order_is_free(self):
+        src = page(f"<h2>一</h2>{CALC}{ORIGIN}")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            f"<h2>一</h2>{WHY}" + ans(ORIGIN + CALC),
+            f"<h2>一</h2>{WHY}" + ans(ORIGIN + '<p>(a)</p>', summary=False) + ans(f'<div>{CALC}</div>'),
+            f'<h2>一</h2>{WHY}<DETAILS class="answer"><summary>(a)</summary><TABLE CLASS="x origin">'
+            '<tr data-from="convention"><td>0.05</td></tr></TABLE>\n<!-- 先找數字 -->\n'
+            f'<DIV class="calc w" id="c9"><p class="formula">a = b</p><p class="subst">= 1</p></DIV>{SUMMARY}</DETAILS>',
+        ]
+        for body in variants:
+            with self.subTest(body=body[:40]):
+                self.assertTrue(ok(prob(body)), build.lint(prob(body)))
 
 
 class CalcRule(unittest.TestCase):

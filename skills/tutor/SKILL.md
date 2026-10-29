@@ -1,6 +1,6 @@
 ---
 name: tutor
-description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth, so the learner can solve the course's problems and pass its tests. Produces one self-contained HTML guide with two side-by-side panes that scroll on their own - the left walks through the teacher's courseware page by page in its own order (each slide crop paired with a same-layout Chinese translation the learner can click to swap), the right works the teacher's examples and the topic's assignments with every working and answer folded, each linking back to the courseware it uses; an assignment not yet handed in also gets an answer sheet in the teacher's format. Two modes share the same guide - read (the learner reads it alone; never asks questions; for a deadline or exam within about two days, or when the learner just wants to read it through) and learn (in the chat the learner works the examples step by step, then solves unseen problems of the same type from the textbook, past tests, or new ones generated in the course's quiz and assignment format; a type counts as learned only when solved without hints; keeps a learning record per problem type). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
+description: Teach a university course topic, assignment, or exam to a learner who missed every lecture and has zero background, using the teacher's own slides and answers as the only source of truth, so the learner can solve the course's problems and pass its tests. Produces one self-contained HTML guide with two side-by-side panes that scroll on their own - the left walks through the teacher's courseware page by page in its own order (each slide crop paired with a same-layout Chinese translation the learner can click to swap), the right works the teacher's examples and the topic's assignments with every working and answer folded, each linking back to the courseware it uses; an assignment not yet handed in also gets an answer sheet in the teacher's format. Two modes share the same guide - read (the learner reads it alone; never asks questions; for a deadline or exam within about two days, or when the learner just wants to read it through) and learn (in the chat the learner works the examples in the guide's order, step by step, giving numbers and reasons rather than yes/no, then solves unseen problems of the same type from the textbook, past tests, or new ones generated in the course's quiz and assignment format; a type counts as learned only when solved without hints; keeps a learning record per problem type). Use when asked to teach, explain, or review course material, to do an assignment while teaching how it is done, or to prepare for a quiz or exam. Also triggers on 教我、看不懂、零基礎、沒聽過課、複習、備考、作業教我.
 argument-hint: "[作業 | topic | 考試] [read | learn]"
 ---
 
@@ -45,7 +45,7 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 1. **先舉例，再給名字**：新概念先用一個生活情境和 3–5 個小整數，在原地算一次或畫一次，再說「這叫做○○」。例如先用 2, 4, 6, 8, 10 把序列往右挪一格配對，算出 r₁ = 16/40 = 0.4，再講 Σ 是什麼意思。
 2. **每個術語一個定義框**（`<div class="def">`，術語用 `<dfn>`）：「是什麼」一句，`class="test"` 寫「怎樣才算」，要是讀者能拿來檢查的標準，再給一個「是」的例子、一個「不是」的例子。課件只給名詞時，用課本的定義（附頁碼）。**先教再用**：在定義之前就要用到的詞（例如「平均」「顯著」），先在原地給一句白話，再說「詳細在 §N」。前置知識（之前 topic 或其他課的東西，例如標準差、假設檢定）不能只寫「Topic 2 學過」：用定義框從零教，放在第一次用到的地方，只補這裡需要的那一點。
 3. **符號小抄**：課件欄最前面一段，用小整數在原地教一次這個 topic 會用到的符號和算法，例如負數、平方、√、小數和百分比、分數、Σ、下標、怎麼讀圖的橫軸縱軸。只教這個 topic 用得到的。
-4. **公式每次都寫全**：`<div class="calc">` 裡一行 `class="formula"` 寫公式，下一行 `class="subst"` 代入數字並算出答案。不寫「用 §N 的公式」；加總不用「…」省略項目，項目多就列成表，表上每一項都看得到。
+4. **公式每次都寫全**：`<div class="calc">` 裡一行 `class="formula"` 寫公式，下一行 `class="subst"` 代入數字並算出答案。不寫「用 §N 的公式」；加總不用「…」省略項目，項目多就列成表，表上每一項都看得到。代入時先寫出每一項再算：寫 (−4)² + (−2)² + … = 16 + 4 + …，不要直接寫 16 + 4 + …。手算的示範表，公式裡每個中間量各一列（例如離差、往右挪 k 格的離差、兩者相乘、離差平方），最後一欄是總和，讀者照著表就能自己算一遍。
 5. **一段只講一件新東西**：句子短，一句一件事。每個符號第一次出現就說怎麼唸、代表什麼。新詞第一次出現寫成「中文（English）」。比喻只在概念太抽象時用一個，馬上回到課件的寫法。
 6. **每段結尾放「這段記住」**（`<div class="summary">`，最多 3 點）：學到什麼、怎麼判斷、考試怎麼問。題目欄最後一段是 `<h2 class="recap">` 整個 topic 的總結：一張「看到什麼 → 結論 → 用哪條公式、哪個表」的判斷表，加上做題的流程。
 
@@ -80,7 +80,7 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
    - 定義框（§3 第 2 條）。
    - 這塊的截圖，附翻譯圖（紅框圈出要看的地方）。
    - 講解：公式為什麼長這樣，從讀者已經懂的東西一步步推，每一塊（分子、分母、平方、減 1）在做什麼、拿掉會怎樣；算出來的數字大代表什麼、小代表什麼。用直覺推，不寫證明；推導不考時說一句「看懂就好，不會考」。
-   - 課件上有門檻或常數（例如 |*r*| ≥ 0.7、DW 1.5–2.5）時，用「數字從哪來」表交代（格式見下面第 5 步）。
+   - 課件上有門檻或常數（例如 |*r*| ≥ 0.7、DW 1.5–2.5）時，用「數字從哪來」表交代（格式見下面第 4 步）。
 4. **這段記住**（`.summary`）。
 
 用到這頁的例題和作業題，在講解裡寫一句「Eg 2（§15）就是在算這個」，讓讀者能跳到右欄。
@@ -98,15 +98,16 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 
 1. **為什麼**（`<div class="why">`）：這題在問什麼現實問題，用到左欄哪幾段（寫 §N，讀者點了左欄就跳過去）。不用把左欄的定義和公式再抄一遍，只寫這題才有的提示，例如「k = 2 所以從 t = 3 開始加」「n 只數有預測的週」。作業題再加一句：和哪一題例題同類、哪裡不一樣。**不要寫結論**（「lag 4 顯著，所以有季節性」是答案）。
 2. **題目**：只截這一題的題目全文和表格，附翻譯圖。不要把別題的題目放進來。Minitab 的欄名列名（Source、DF、SS…）、統計表的列和欄也要翻。
-3. **做法和答案**：下面第 4–8 步全部收進 `<details class="answer"><summary>做法和答案</summary>…</details>`，讀者先自己做。頁面頂端有「展開全部做法」的按鈕，只想讀的人按一下就全部打開。
-4. **套到這題**：一步一步算，每一步一個 `.calc`（公式一行、代入一行）。用到的數字在材料上看得到時（題目、軟體輸出、統計表、講義），就在這一段放那份材料的截圖，紅框圈出那幾個數字，查表用 `--mark` 標出列與欄。前一段放過同一張也要再放：讀者不該往上翻找數字。
-5. **數字從哪來**（`<table class="origin">`，`<caption>數字從哪來</caption>`）：欄位是「值｜從哪來｜換一題怎麼找」。**只列不明顯的數字**；題目直接給的、上面算出來的不列，算式就在旁邊。每一列在 `<tr>` 寫 `data-from` 說是哪一種：
-   - `table`（查表）：哪張表、哪一列哪一欄，列和欄的值又各自從哪來；連到這一段圈出那一格的 `<figure>`（`<a href="#圖的id">`）。
+3. **做法和答案**：下面第 4–8 步收進 `<details class="answer"><summary>做法和答案</summary>…</details>`，讀者先自己做。題目有好幾小題時，**每一小題各一個** `details.answer`（摘要寫「(a) 的做法和答案」），讀者做完一小題只打開那一小題，不會順便看到後面的答案。做下一小題要用到的圖（例如 (a) 畫出的時間序列圖，(b) 要看它判斷），放在下一小題的摺疊外面。頁面頂端有「展開全部做法」的按鈕，只想讀的人按一下就全部打開。
+4. **數字從哪來**（`<table class="origin">`，`<caption>這題要用的數字從哪來</caption>`）：排在這一題**第一個算式前面**，做題的順序就是「先找齊數字，再代公式」，讀者算到那一步時已經知道每個數字的來源。欄位是「值｜從哪來｜換一題怎麼找」。**只列不明顯的數字**；題目直接給的、上面算出來的不列。每一列在 `<tr>` 寫 `data-from` 說是哪一種：
+   - `table`（查表）：哪張表、哪一列哪一欄，列和欄的值又各自從哪來；連到這一段圈出那一格的 `<figure>`（`<a href="#圖的id">`），並寫出左欄講這張表的 §N。
    - `count`（要自己數的，例如 n、df）：怎麼數、容易數錯成什麼；連到數它用的圖或 `.calc`（給 `.calc` 一個 `id`）。
    - `convention`（慣例，例如 α = 0.05）：說明這是大家約定的，不是算出來的；為什麼常用這個值；題目怎樣寫就要換（「at the 1% level」→ 0.01）；題目沒寫時老師用什麼。
    - `rule`（經驗法則，例如 DW 在 1.5–2.5 之間）：誰定的（老師講義或課本）、背後的道理、別的書可能用別的門檻，考試照老師。
    - `constant`（公式裡的常數，例如 *n* − *k* − 1 的 1）：它代表什麼。
-6. **答案紙上寫這樣**：放在 `<div class="sheet">` 裡，內容和答案紙上的那段一模一樣。下面用一兩句中文說每句英文在說什麼。步驟已經在第 4 步算過，這裡不要再用文字把步驟列一遍。
+5. **套到這題**：一步一步算，每一步一個 `.calc`（公式一行、代入一行）。代入那一行之前用一句話交代代進去的數字（「*n* = 36：資料有 3 欄 × 12 期」），不要只寫「*n* = 36」。用到的數字在材料上看得到時（題目、軟體輸出、統計表、講義），就在這一段放那份材料的截圖，紅框圈出那幾個數字，查表用 `--mark` 標出列與欄。前一段放過同一張也要再放：讀者不該往上翻找數字。
+   - 數字由軟體算出時（例如 Minitab 的 *r<sub>k</sub>*），至少用這題的資料手算其中一個，列成 §3 第 4 條的示範表，說一句「Minitab 就是照這個公式算的」；資料太多時，連到手算同一種數字的那一題（例如「怎麼算見 Eg 2，§22」）。不要只寫「用軟體算，不用手算」。
+6. **答案紙上寫這樣**：放在 `<div class="sheet">` 裡，內容和答案紙上的那段一模一樣。下面用一兩句中文說每句英文在說什麼。步驟已經在第 5 步算過，這裡不要再用文字把步驟列一遍。
 7. **常見錯誤**（`<div class="trap">`，有才寫）：給出具體的錯數字，例如「把 n 算成 8 會得到 …」。
 8. **這題記住**（`.summary`，放在 `details.answer` 的最後）。
 
@@ -163,7 +164,7 @@ build 會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3>` 
 - 每個 `.calc` 都有含「=」的 `.formula` 和含數字的 `.subst`。
 - 每個 `<dfn>` 都在一個只定義它的 `.def` 裡，那個 `.def` 有不是空的 `.test`。
 - 每個 `<h2>` 段落的最後一塊是 `.summary`（題目欄可以是 `details.answer` 裡的最後一塊）；最後一段是 `<h2 class="recap">`。
-- 題目欄有 `.calc` 或 `.sheet` 的段落要有 `.why`（裡面寫出左欄的 §N）和 `.origin` 表；`.calc`、`.sheet`、`.origin`、`.trap` 都要在 `<details class="answer">` 裡。
+- 題目欄有 `.calc` 或 `.sheet` 的段落要有 `.why`（裡面寫出左欄的 §N）和 `.origin` 表，`.origin` 排在這一段第一個 `.calc` 前面；`.calc`、`.sheet`、`.origin`、`.trap` 都要在 `<details class="answer">` 裡。
 - `.origin` 表的每一列都有 `data-from="table|count|convention|rule|constant"`；`table`、`count` 連到同一段裡的 `<figure>` 或 `.calc`。
 - 內文的 §N、§N.M 都指向存在的段落。
 - 每個 `<h2>` 段落的文字量有上限；figure、表格、公式、`.sheet`、`.tr` 譯文不算。超過時拆段，或刪掉不是在教這頁的東西。
@@ -177,14 +178,17 @@ build 會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3>` 
 
 ## 6. learn：用做題證明會做
 
-導讀頁做好（或已經存在）之後，一次帶一種題型：課件一兩頁，加上用到它的例題和作業題。有截止日快到的作業時，先帶那份作業用到的題型；趕時間時，照考試和作業的比重排，先帶最常考的。
+導讀頁做好（或已經存在）之後，一次帶一題：**照導讀頁的順序**，Eg 1、Eg 2……再到作業，每題先讀它用到的課件。只有兩種情況改順序：有截止日快到的作業（先帶那份作業和它用到的例題），或使用者說要趕（照考試和作業的比重，先帶最常考的）。改順序時，開始前先說要怎麼排、為什麼，讓使用者可以改。
 
 不出前測、不問「讀懂了嗎」、不出選擇題：會不會只看能不能把題目做出來。
 
 0. **開始前**讀課程資料夾的 `學習紀錄.md`：先重做上次標「要提示」的題型，各一題沒看過的。
-1. **讀**：請使用者讀左欄的 §x–§y，說大約要讀多久。趕時間可以跳過，直接做題，卡住再讀。
+1. **讀**：派讀這題「為什麼」裡列的**每一段**，照左欄的順序，一個都不漏（漏了定義，後面的問題就答不出來）。一次只派 10 分鐘以內的一小段，讀完就問一題這段的內容，再派下一段。趕時間可以跳過，直接做題，卡住再讀。
 2. **一起做**：老師的例題，一次問一步（例如「df₁ 是多少？從 ANOVA 表哪裡看？」），使用者回答了再往下。
-   - 答對：簡短確認，說一句為什麼對。
+   - 問題要使用者**給出東西**：一個數字、一個步驟、或一句理由。是非題（「有沒有趨勢」「有沒有超線」）猜也有一半會對，只能和「為什麼」一起問，例如「前 18 期和後 18 期的平均各是多少？差距算不算趨勢？」。
+   - 問題花在考試會扣分的地方：*n*、df 怎麼數，查哪張表哪一格，拿什麼跟什麼比，結論句怎麼寫。不要花在常識上（「橫軸放什麼」）。
+   - 數字由使用者自己從材料上讀：叫他看導讀頁的哪張圖、哪張輸出表，不要把表上的數字打在對話裡給他。考試時他要自己讀。
+   - 答對：簡短確認，說一句為什麼對。不要接著替他做下一步的推理或計算，下一步也問他。
    - 答錯：先給提示（指到哪張圖、左欄哪個 §），第二次再錯才講答案和原因。
    - 卡在前置知識（例如不會算 Σ、不會查表）：就在這一步補那一點，補完回到題目。
    - 不要一次把所有步驟列出來。最後請使用者寫出答案紙那一段，再對照老師的格式改。
@@ -200,6 +204,7 @@ build 會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3>` 
 對話規則：
 
 - 一次只問一個問題，問完就停，等使用者回答。
+- 要使用者打開答案時，只叫他打開剛做完那一小題的摺疊。
 - 使用者說「不懂」「直接告訴我」時就講解，講完再出一題同類的讓他自己做。
 - 術語第一次定下中文譯名後記進 `學習紀錄.md`，之後都用同一個。
 
