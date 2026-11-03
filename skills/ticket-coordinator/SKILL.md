@@ -42,14 +42,15 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    （合起來會有兩個 head）的票。
 2. **掛等待**：把 worktree、handle、session id 寫進 ledger，用 Bash `run_in_background` 跑
    `bash <S>/waitbg.sh <handle> <jsonl 路徑>`，然後結束回合等通知。不輪詢。之後每次送訊息給子 session
-   （代答、叫它補、轉述 Heads up）再掛等待時，最後加 `sent`：沒加會讀到上一輪的 done，馬上返回。
+   （代答、叫它補、轉貼 Heads up）再掛等待時，最後加 `sent`：沒加會讀到上一輪的 done，馬上返回。
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
    不夠就 `python3 <S>/scr.py <handle> 40`。
 
    每次讀畫面都看底部有沒有 `✦ Heads up`（Claude Code 給在場的人的風險提醒）。它只在畫面上，子 session 的
    transcript 裡沒有，所以子 session 不知道它。展開讀完整內容（按鍵見 TUI.md「Heads up」），對票、文件或程式碼查證
-   一次：屬實又該修的，把內容轉述給**同一個 session** 叫它修完再驗收；不屬實或不修的寫進 ledger 的「待使用者看」
-   並附理由。
+   一次：屬實又該修的，把展開後的完整原文貼給**同一個 session**，開頭註明「以下是 Claude Code 給在場者的
+   Heads up 原文」，你的查證與修法另起一段，叫它修完再驗收；不屬實或不修的寫進 ledger 的
+   「待使用者看」並附理由。
 
    再判斷情況：
    - **選項題**：選標 `(Recommended)` 的。沒有推薦就自己查：票、票指定的章節、名詞表、決定紀錄、程式碼，

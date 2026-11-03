@@ -63,7 +63,7 @@
 - Claude Code 會在子 session 畫面底部放一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。摘要只有一句，完整內容（原因、推測的後果、建議）要展開才看得到。
 - 展開：輸入框是空的時候送 `1`（不加 `--enter`），再 `scr.py <handle> 40` 讀。展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `1` 收起。看到的已經是後者，代表有人展開過，直接讀畫面上的內容；不要再按 `1`，那會把它收掉。
 - 子 session 停在 AskUserQuestion 時先答題，等它回到空輸入框再展開：題目開著時數字鍵會被當成選項。
-- 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就把內容轉述給它。
+- 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就照 SKILL.md「每張票」第 3 步把原文貼給它。
 
 ## 額度
 
