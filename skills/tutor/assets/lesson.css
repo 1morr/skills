@@ -85,6 +85,10 @@ details.toc ol { list-style: none; padding-left: 0; margin: .3rem 0; font-size: 
 details.toc a { text-decoration: none; }
 .bar { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: .5rem 0; border-bottom: 1px solid var(--line); }
 .bar button { font: inherit; font-size: .9rem; color: var(--fg); background: var(--tr-bg); border: 1px solid var(--line); border-radius: 6px; padding: .2rem .8rem; cursor: pointer; }
+/* 跨欄跳轉後回到跳之前的位置；lesson.js 產生，只在跳過之後顯示 */
+.back { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 3; font: inherit; font-size: .95rem; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 999px; padding: .5rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,.25); cursor: pointer; }
+.back[hidden] { display: none; }
+table.types caption { caption-side: top; text-align: left; font-weight: 700; padding-bottom: .3rem; }
 :target { scroll-margin-top: 3.5rem; animation: flash 2s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } to { background: transparent; } }
 section.problems { border-top: 3px solid var(--line); margin-top: 3rem; }
@@ -99,7 +103,7 @@ section.problems { border-top: 3px solid var(--line); margin-top: 3rem; }
 @media print {
   body { display: block; height: auto; overflow: visible; max-width: none; background: #fff; color: #000; }
   section.course, section.problems { overflow: visible; }
-  .bar { display: none; }
+  .bar, .back { display: none; }
   h2 { break-before: auto; }
   figure, .sheet { break-inside: avoid; }
 }

@@ -24,8 +24,13 @@ TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p><
 FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 ZH_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
-# 課件欄第一段是 §1，題目欄的「為什麼」連到它
-WHY = '<div class="why"><p>F 是訊號除以雜訊，見 §1</p></div>'
+# 課件欄第一段是 §1，題目欄的「為什麼」連到它，並把那一塊課件截過來
+WHY_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
+WHY = f'<div class="why"><p>F 是訊號除以雜訊，見 §1</p>{WHY_FIG}</div>'
+# 題目欄開頭的題型表：看到什麼 → 用什麼 → 示範題。題目欄第一段的 § 由 page() 算
+TYPES = '<table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table>'
+# 定義框前面先用小數字舉例
+EG = '<p>先用 2, 4, 6 算一次：平均是 4。</p>'
 ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
 CALC = ('<div class="calc" id="c1"><p class="formula"><i>R</i>² = SSR / SST</p>'
         '<p class="subst">= 10556.1 / 11443.3 = 0.9225</p></div>')
@@ -51,14 +56,18 @@ def close_sections(body, recap):
     return body + (SUMMARY if starts else "") + (RECAP if recap else "")
 
 
-def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close=True, head="", tail=""):
-    """整頁 HTML：左欄課件、右欄題目。預設在課件欄開頭放一張整頁圖滿足頁數覆蓋，並補上總結。"""
+def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close=True, head="", tail="",
+         types=None, kind=""):
+    """整頁 HTML：左欄課件、右欄題目。預設在課件欄開頭放一張整頁圖滿足頁數覆蓋，題目欄開頭放題型表，並補上總結。"""
     if close:
         course = close_sections(course, recap=False)
         problems = close_sections(problems, recap=True)
-    return (f'<!doctype html><html><head><title>x</title></head><body data-pages="{pages}">{head}'
+    if types is None:
+        types = TYPES.replace("{n}", str(len(re.findall(r"<h2[\s>]", course, re.I)) + 1))
+    body = f' data-problems="{kind}"' if kind else ""
+    return (f'<!doctype html><html><head><title>x</title></head><body data-pages="{pages}"{body}>{head}'
             f'<section class="course">{cover}{course}</section>'
-            f'<section class="problems">{problems}</section>{tail}</body></html>')
+            f'<section class="problems">{types}{problems}</section>{tail}</body></html>')
 
 
 def prob(body, **kw):
@@ -68,11 +77,19 @@ def prob(body, **kw):
 
 def prob_raw(problems, course=COURSE):
     """題目欄照寫、不補總結（測試自己決定每段怎麼結尾）；課件欄補好總結。"""
-    return page(close_sections(course, recap=False), problems, close=False)
+    return page(close_sections(course, recap=False), problems, close=False,
+                types=TYPES.replace("{n}", str(len(re.findall(r"<h2[\s>]", course, re.I)) + 1)))
 
 
 def ok(src):
     return build.lint(src) == []
+
+
+def prose(n, word="字"):
+    """n 個字的正文，切成不超過一句上限的短句。"""
+    step = build.MAX_SENTENCE - 10
+    glue, end = ("", "。") if word == "字" else (" ", ". ")
+    return "".join(glue.join([word] * min(step, n - i)) + end for i in range(0, n, step))
 
 
 class PaneRule(unittest.TestCase):
@@ -89,14 +106,14 @@ class PaneRule(unittest.TestCase):
         self.assertFalse(ok(src))
 
     def test_course_after_problems_fails(self):
-        src = (f'<html><body data-pages="Cover p.1"><section class="problems">{PROBLEMS}{SUMMARY}</section>'
+        src = (f'<html><body data-pages="Cover p.1"><section class="problems">{TYPES.replace("{n}", "1")}{PROBLEMS}{SUMMARY}</section>'
                f'<section class="course">{COVER}{COURSE}{SUMMARY}{RECAP}</section></body></html>')
         self.assertFalse(ok(src))
 
     def test_formatting_variants_pass(self):
         src = ('<html><body data-pages="Cover p.1">\n  <!-- 左欄 -->\n'
                f'<SECTION CLASS="pane course" id="c"><h1>Topic 4</h1>{COVER}<section><h2>課</h2><p>內容</p>{SUMMARY}</section></SECTION>\n'
-               f'<section data-x="1" class="problems wide"><section>{PROBLEMS}{SUMMARY}</section>{RECAP}</section>'
+               f'<section data-x="1" class="problems wide">{TYPES.replace("{n}", "2")}<section>{PROBLEMS}{SUMMARY}</section>{RECAP}</section>'
                '<script>console.log(1)</script></body></html>')
         self.assertTrue(ok(src), build.lint(src))
 
@@ -138,18 +155,18 @@ class LengthRule(unittest.TestCase):
     per = build.PER_SECTION
 
     def test_long_section_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * (self.per + 1) + "</p>")))
+        self.assertFalse(ok(page("<h2>一</h2><p>" + prose(self.per + 1) + "</p>")))
 
     def test_same_text_split_into_sections_passes(self):
-        half = "字" * (self.per // 2 + 1)
+        half = prose(self.per // 2 + 1)
         self.assertTrue(ok(page(f"<h2>一</h2><p>{half}</p><h2>二</h2><p>{half}</p>")))
 
     def test_no_whole_page_limit(self):
-        body = "".join(f"<h2>{i}</h2><p>{'字' * (self.per - 20)}</p>" for i in range(30))
+        body = "".join(f"<h2>{i}</h2><p>{prose(self.per - 20)}</p>" for i in range(30))
         self.assertTrue(ok(page(body)), build.lint(page(body))[:2])
 
     def test_english_counts_words_not_letters(self):
-        words = " ".join(["regression"] * (self.per - 20))
+        words = prose(self.per - 20, "regression")
         self.assertTrue(ok(page(f"<h2>一</h2><p>{words}</p>")))
 
     def test_sheet_table_figure_not_counted(self):
@@ -164,7 +181,7 @@ class LengthRule(unittest.TestCase):
         self.assertTrue(ok(page(f'<h2>一</h2><div class="tr"><p>{big}</p></div>' + FIG.removeprefix(TR))))
 
     def test_unclosed_paragraphs_still_counted(self):
-        self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * self.per + "<p>多")))
+        self.assertFalse(ok(page("<h2>一</h2><p>" + prose(self.per) + "<p>多")))
 
 
 class MethodRule(unittest.TestCase):
@@ -198,11 +215,11 @@ class MethodRule(unittest.TestCase):
         variants = [
             f'<h2>一</h2>{WHY}' + ans(ORIGIN + CALC),
             '<h2>一</h2>' + ans(ORIGIN + CALC) + WHY + SUMMARY,
-            '<H2 class="x">二</H2><SECTION CLASS="wide why"><p>用到 <a href="#s1">§1</a> 的 F</p></SECTION>\n'
+            f'<H2 class="x">二</H2><SECTION CLASS="wide why"><p>用到 <a href="#s1">§1</a> 的 F</p>{WHY_FIG}</SECTION>\n'
             '<DETAILS class="answer x" open><summary>做法</summary><div><table data-x="1" class="origin small">'
             '<tr data-from="convention"><td>0.05</td></tr></table></div>'
             f'<div class="sheet big">F = 29.74</div>{SUMMARY}</DETAILS>',
-            '<h2>一</h2><div class="why"><p>見 §1.1</p></div>' + ans(ORIGIN + CALC),
+            f'<h2>一</h2><div class="why"><p>見 §1.1</p>{WHY_FIG}</div>' + ans(ORIGIN + CALC),
         ]
         for body in variants:
             with self.subTest(body=body[:40]):
@@ -392,7 +409,7 @@ class DefRule(unittest.TestCase):
     """術語寫成 .def：一個 <dfn>，加上「怎樣才算」的 .test。"""
 
     def body(self, d):
-        return page(f'<h2>一</h2>{d}')
+        return page(f'<h2>一</h2>{EG}{d}')
 
     def test_dfn_outside_def_fails(self):
         self.assertFalse(ok(self.body('<p><dfn>趨勢</dfn>是長期方向</p>')))
@@ -520,6 +537,233 @@ class RefRule(unittest.TestCase):
     def test_existing_refs_pass(self):
         body = "<h2>一</h2><h3>甲</h3><p>見 §1.1、§2 和 §3（例題）、§4（總結）</p><h2 class='x'>二</h2><p>回到§1</p>"
         self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+
+class SentenceRule(unittest.TestCase):
+    """一句不超過 MAX_SENTENCE 字：讀者是零基礎，一句一件事。"""
+    cap = build.MAX_SENTENCE
+
+    def test_long_sentence_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * (self.cap + 1) + "。</p>")))
+
+    def test_long_sentence_without_period_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2><p>" + "字" * (self.cap + 1) + "</p>")))
+
+    def test_long_list_item_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2><ul><li>" + "字" * (self.cap + 1) + "</li></ul>")))
+
+    def test_long_english_sentence_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2><p>" + " ".join(["word"] * (self.cap + 1)) + ".</p>")))
+
+    def test_same_text_split_into_sentences_passes(self):
+        half = "字" * (self.cap // 2 + 1)
+        src = page(f"<h2>一</h2><p>{half}。{half}！{half}？{half}；{half}</p><p>{half}</p>")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_inline_tags_do_not_split_or_join(self):
+        half = "字" * (self.cap // 2 + 1)
+        self.assertFalse(ok(page(f"<h2>一</h2><p>{half}<b>{half}</b></p>")))
+        src = page(f"<h2>一</h2><p>{half}。<i>{half}</i></p>")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_decimal_point_does_not_end_sentence(self):
+        self.assertFalse(ok(page("<h2>一</h2><p>" + "x 1.5 " * (self.cap // 2 + 2) + "</p>")))
+
+    def test_english_period_ends_sentence(self):
+        words = " ".join(["word"] * (self.cap // 2 + 1))
+        src = page(f"<h2>一</h2><p>{words}. {words}.</p>")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_blocks_end_sentences(self):
+        half = "字" * (self.cap // 2 + 1)
+        src = page(f"<h2>一</h2><p>{half}</p><p>{half}</p><ul><li>{half}</li><li>{half}</li></ul>"
+                   f"<div class='why'>{half}</div><h3>{half}</h3>")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_calc_table_figure_sheet_not_counted(self):
+        long = " + ".join(["12"] * (self.cap + 1))
+        body = (f'<h2>一</h2><p>先用 5 個數算一次</p><div class="calc"><p class="formula">S = Σx</p><p class="subst">= {long}</p></div>'
+                f"<table><tr><td>{'字' * (self.cap + 1)}</td></tr></table>"
+                f"<div class='tr'><p>{'字' * (self.cap + 1)}</p></div>"
+                f'<figure><img src="a.png"><figcaption>p.2 {"字" * (self.cap + 1)}</figcaption></figure>')
+        self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+
+class ExampleBeforeDefRule(unittest.TestCase):
+    """定義框前面要先舉例：同一個 h2/h3 塊裡，定義框之前的正文要有數字。"""
+    DEF = '<div class="def"><p><dfn>趨勢</dfn>：長期方向</p><p class="test">後半平均比前半高</p></div>'
+
+    def test_def_first_fails(self):
+        self.assertFalse(ok(page(f"<h2>一</h2>{self.DEF}")))
+
+    def test_example_only_in_heading_fails(self):
+        self.assertFalse(ok(page(f"<h2>講義 p.3 的 5 個數</h2>{self.DEF}")))
+
+    def test_example_only_in_previous_block_fails(self):
+        self.assertFalse(ok(page(f"<h2>一</h2>{EG}<h3>甲</h3>{self.DEF}")))
+
+    def test_example_in_figure_or_table_does_not_count(self):
+        body = f'<h2>一</h2><table><tr><td>2, 4, 6</td></tr></table>{TR}<figure><img src="a.png"><figcaption>p.2</figcaption></figure>{self.DEF}'
+        self.assertFalse(ok(page(body)))
+
+    def test_example_inside_the_def_does_not_count(self):
+        d = '<div class="def"><p>例如 2, 4, 6。</p><p><dfn>趨勢</dfn>：長期方向</p><p class="test">後半高</p></div>'
+        self.assertFalse(ok(page(f"<h2>一</h2>{d}")))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            f"<h2>一</h2>{EG}{self.DEF}",
+            f"<h2>一</h2><h3>甲</h3><p>先看 12 個月的銷量：往上。</p>\n{self.DEF}",
+            f'<h2>一</h2><p>先用 5 個數算一次</p>{CALC}{self.DEF}',
+            f"<h2>一</h2>{EG}{self.DEF}<p>再來。</p>{self.DEF}",
+        ]
+        for body in variants:
+            with self.subTest(body=body[:40]):
+                self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+
+class PrereqRule(unittest.TestCase):
+    """不能把讀者推去看別的 topic：前置知識在原地教。"""
+
+    def test_sending_reader_to_other_topic_fails(self):
+        for text in ("ACF 是 Topic 4 的東西", "Topic 2 學過標準差", "見 Topic 3", "上個 topic 講過", "之前學過的 t 檢定",
+                     "Topic 4 已經教過", "上學期的統計學"):
+            with self.subTest(text=text):
+                self.assertFalse(ok(page(f"<h2>一</h2><p>{text}</p>")))
+
+    def test_mention_in_why_fails(self):
+        self.assertFalse(ok(prob(f'<h2>一</h2><div class="why"><p>Topic 4 的東西，見 §1</p>{WHY_FIG}</div>' + ans(ORIGIN + CALC))))
+
+    def test_teaching_in_place_passes(self):
+        body = ("<h2>一</h2><p>這題會用到自相關係數 r₁。它是 Topic 4 的 ACF，這裡用 2, 4, 6, 8 從零算一次。</p>"
+                "<p>Topic 4 Summary p.3 的公式長這樣：</p>" + FIG)
+        self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+    def test_html_comment_is_exempt(self):
+        src = page("<h2>一</h2><!-- 維護者：ACF 是 Topic 4 的東西，這裡只補用到的 --><p>內容</p>")
+        self.assertTrue(ok(src), build.lint(src))
+
+
+class CrossLinkRule(unittest.TestCase):
+    """題目欄每一題最多連到課件欄 MAX_CROSS 段：定義和公式原地再寫，不叫讀者跳來跳去。"""
+    cap = build.MAX_CROSS
+    course = "".join(f"<h2>課{i}</h2><p>內容</p>" for i in range(cap + 2))
+
+    def refs(self, n):
+        return "、".join(f"§{i}" for i in range(1, n + 1))
+
+    def test_too_many_course_sections_fails(self):
+        body = f'<h2>一</h2><div class="why"><p>用到 {self.refs(self.cap + 1)}</p>{WHY_FIG}</div>' + ans(ORIGIN + CALC)
+        self.assertFalse(ok(page(self.course, body)))
+
+    def test_refs_spread_over_the_section_count(self):
+        body = (f'<h2>一</h2><div class="why"><p>用到 §1</p>{WHY_FIG}</div>'
+                + ans(ORIGIN + CALC + f"<p>見 {self.refs(self.cap + 1)}</p>"))
+        self.assertFalse(ok(page(self.course, body)))
+
+    def test_same_section_many_times_passes(self):
+        body = (f'<h2>一</h2><div class="why"><p>用到 §1、§1.1、§1</p>{WHY_FIG}</div>'
+                + ans(ORIGIN + CALC + f"<p>見 {self.refs(self.cap)}，再見 §1</p>"))
+        src = page("<h2>課</h2><h3>甲</h3><p>內容</p>" + self.course, body)
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_links_to_problem_sections_do_not_count(self):
+        n = self.cap + 2  # 課件欄有 cap+2 段，題目欄從 §n+1 起
+        body = (f'<h2>一</h2><div class="why"><p>用到 §1，同 §{n + 2}</p>{WHY_FIG}</div>' + ans(ORIGIN + CALC)
+                + "".join(f"<h2>題{i}</h2><p>見 §{n + 1}、§1、§2、§{self.cap + 1}</p>" for i in range(2, 5)))
+        src = page(self.course, body)
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_course_pane_is_free(self):
+        body = "".join(f"<h2>課{i}</h2><p>見 {self.refs(self.cap + 2)}</p>" for i in range(self.cap + 2))
+        self.assertTrue(ok(page(body)), build.lint(page(body)))
+
+    def test_recap_is_free(self):
+        recap = f'<h2 class="recap">總結</h2><p>流程：{self.refs(self.cap + 2)}</p>'
+        src = page(close_sections(self.course, recap=False), f"<h2>一</h2><p>題目</p>{SUMMARY}{recap}", close=False)
+        self.assertTrue(ok(src), build.lint(src))
+
+
+class WhyFigureRule(unittest.TestCase):
+    """「為什麼」裡要有這題用到的那一塊課件的截圖。"""
+
+    def test_why_without_figure_fails(self):
+        self.assertFalse(ok(prob('<h2>一</h2><div class="why"><p>見 §1</p></div>' + ans(ORIGIN + CALC))))
+
+    def test_figure_outside_why_does_not_count(self):
+        self.assertFalse(ok(prob(f'<h2>一</h2><div class="why"><p>見 §1</p></div>{ZH_FIG}' + ans(ORIGIN + CALC))))
+
+    def test_section_without_method_needs_no_figure(self):
+        self.assertTrue(ok(prob('<h2>一</h2><div class="why"><p>見 §1</p></div><p>只是說明</p>')))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            f'<h2>一</h2><SECTION class="x why"><p>見 §1</p>\n{ZH_FIG}</SECTION>' + ans(ORIGIN + CALC),
+            f'<h2>一</h2><div class="why">{TR}<figure data-x="1"><img src="a.png"><figcaption>p.3</figcaption></figure><p>見 §1</p></div>' + ans(ORIGIN + CALC),
+        ]
+        for body in variants:
+            with self.subTest(body=body[:40]):
+                self.assertTrue(ok(prob(body)), build.lint(prob(body)))
+
+
+class TypesTableRule(unittest.TestCase):
+    """題目欄開頭要有題型表，每種題型連到示範題。"""
+
+    def test_missing_table_fails(self):
+        self.assertFalse(ok(page(types="")))
+
+    def test_table_after_first_h2_fails(self):
+        self.assertFalse(ok(page(problems="<h2>例</h2>" + TYPES.replace("{n}", "2"), types="")))
+
+    def test_table_in_course_pane_fails(self):
+        self.assertFalse(ok(page(course=TYPES.replace("{n}", "2") + COURSE, types="")))
+
+    def test_table_without_problem_ref_fails(self):
+        self.assertFalse(ok(page(types=TYPES.replace("{n}", "1"))))
+        self.assertFalse(ok(page(types='<table class="types"><tr><td>看到 ANOVA</td><td>F</td></tr></table>')))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            '<p>先看這張表。</p>\n<TABLE CLASS="wide types" id="t"><caption>題型</caption><tr><th>看到</th></tr>'
+            '<tr><td>ANOVA</td><td>示範：§2、§2.1</td></tr></TABLE>',
+            '<details open><summary>題型表</summary>' + TYPES.replace("{n}", "2") + "</details>",
+        ]
+        for types in variants:
+            with self.subTest(types=types[:40]):
+                src = page(problems="<h2>例</h2><h3>甲</h3><p>題目</p>", types=types)
+                self.assertTrue(ok(src), build.lint(src))
+
+
+class KindRule(unittest.TestCase):
+    """data-problems="text"：文科題目欄不用「數字從哪來」，可以放摺起來的自測；calc（預設）照舊。"""
+    SHEET = '<div class="sheet"><p>Answer: the Treaty of 1842.</p></div>'
+
+    def test_unknown_kind_fails(self):
+        self.assertFalse(ok(page(kind="essay")))
+
+    def test_text_sheet_without_origin_passes(self):
+        src = prob(f"<h2>一</h2>{WHY}" + ans(self.SHEET), kind="text")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_text_sheet_still_needs_why_with_figure(self):
+        self.assertFalse(ok(prob("<h2>一</h2>" + ans(self.SHEET), kind="text")))
+        self.assertFalse(ok(prob('<h2>一</h2><div class="why"><p>見 §1</p></div>' + ans(self.SHEET), kind="text")))
+
+    def test_text_sheet_still_folded(self):
+        self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}{self.SHEET}{SUMMARY}", kind="text")))
+
+    def test_text_allows_folded_check(self):
+        src = prob(f"<h2>一</h2>{CHECK}", kind="text")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_text_still_forbids_inputs(self):
+        self.assertFalse(ok(prob('<h2>一</h2><input type="text">', kind="text")))
+
+    def test_calc_kind_explicit_behaves_as_default(self):
+        self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}" + ans(self.SHEET), kind="calc")))
+        self.assertFalse(ok(prob(f"<h2>一</h2>{CHECK}", kind="calc")))
+        src = prob(f"<h2>一</h2>{WHY}" + ans(ORIGIN + CALC), kind="calc")
+        self.assertTrue(ok(src), build.lint(src))
 
 
 class ExerciseRule(unittest.TestCase):

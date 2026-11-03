@@ -20,6 +20,12 @@ JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
 PANES = ("course", "problems")
 # 每個 h2 段落的字數上限，單位見 text_units。整頁不設上限：課件導讀要教完宣告的每一頁，由頁數覆蓋把關
 PER_SECTION = 2000
+# 一句話的字數上限：讀者是零基礎，一句一件事
+MAX_SENTENCE = 50
+# 題目欄每一題最多連到課件欄幾段：用到的定義和公式要在題目旁邊原地再寫一次，不叫讀者跳來跳去
+MAX_CROSS = 3
+# 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子，可以放摺起來的自測）
+KINDS = ("calc", "text")
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
@@ -43,6 +49,13 @@ PAGE_REF = re.compile(r"\bp{1,2}\.\s*\d+")
 PAGES_ITEM = re.compile(r"^(.+?)\s+p\.\s*(\d+)(?:\s*-\s*(\d+))?$")
 SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
+# 把讀者推去看別的 topic 的句子：前置知識要在原地從零教，把那一頁課件截過來
+PREREQ = re.compile(r"(Topic\s*\d+\s*(學過|教過|講過|的東西|的內容|已經)|見\s*Topic\s*\d|[上前]一?個\s*topic|"
+                    r"之前(學|教|講)過|前面的\s*topic|上學期)", re.I)
+SENTENCE_END = re.compile(r"[。！？；!?]|\.(?=\s|$)")  # 英文句點後面要有空白，小數點不算
+# 句子在這些元素的邊界結束
+BLOCK = {"p", "li", "div", "h1", "h2", "h3", "h4", "summary", "dd", "dt", "caption", "td", "th", "section", "aside",
+         "blockquote"}
 
 
 def text_units(s: str) -> int:
@@ -70,6 +83,12 @@ class Lint(HTMLParser):
         self.heading = None  # 正在讀的 h2 標題
         self.prelude = 0  # 第一個 h2 之前的字數
         self.figures = []  # 每個開著的 figure，欄位見 handle_starttag
+        self.kind = "calc"  # <body data-problems>
+        self.sentence = ""  # 正在讀的一句散文
+        self.in_heading = 0  # 在 h2/h3 裡（標題的頁碼不算「先舉例」）
+        self.example = False  # 這個 h2/h3 塊裡，定義框之前有沒有用數字舉過例
+        self.types = None  # 題目欄開頭的題型表提到的 §；None 表示沒有這張表
+        self.problems_h2 = False  # 題目欄已經有 h2 了（題型表要在它前面）
 
     def skipping(self) -> bool:
         return any(skip for _, skip, _ in self.stack)
@@ -98,6 +117,9 @@ class Lint(HTMLParser):
         cls = classes(attrs)
         if tag == "body":
             self.pages = a.get("data-pages")
+            self.kind = a.get("data-problems") or "calc"
+            if self.kind not in KINDS:
+                self.problems.append(f'<body data-problems="{self.kind}"> 看不懂：只能是 {" 或 ".join(KINDS)}')
         if self.stack and self.stack[-1][0] == "body" and not (
                 tag in ("script", "style") or (tag == "section" and cls & set(PANES))):
             self.problems.append(f'<body> 底下只能放 <section class="course"> 和 <section class="problems">（現在有 <{tag}>）：'
@@ -110,12 +132,21 @@ class Lint(HTMLParser):
                 self.problems.append(f"圖片 {a.get('src', '')!r} 不在 <figure> 裡：每張圖都要有寫出處的 figcaption")
             elif a.get("data-zh"):
                 self.figures[-1]["zh"] = True
-        if tag in ("input", "textarea", "select") or (tag == "details" and "check" in cls):
+        if tag in ("input", "textarea", "select") or (tag == "details" and "check" in cls and self.kind != "text"):
             self.problems.append(f"頁面不能有練習（<{tag}>）：練習在對話裡做")
+        if tag in BLOCK:
+            self.end_sentence()
+        if tag in ("h2", "h3"):
+            self.in_heading += 1
+            self.example = False
+        if tag == "table" and "types" in cls and self.pane() == "problems" and not self.problems_h2:
+            self.types = []
         if cls & ANSWER_ONLY and self.pane() == "problems" and not self.in_answer():
             what = ", ".join(sorted(cls & ANSWER_ONLY))
             self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
         if tag == "figure":
+            if self.sections and self.inside_class("why"):
+                self.sections[-1]["why_fig"] = True
             self.figures.append({"caption": "", "in_caption": False, "page": "page" in cls, "id": a.get("id") or "",
                                  "tr": "tr" in self.prev[len(self.stack)], "none": a.get("data-tr") == "none",
                                  "zh": False})
@@ -129,15 +160,17 @@ class Lint(HTMLParser):
             else:
                 self.problems.append('<dfn> 不在 class="def" 的定義框裡：術語要有「是什麼、怎樣才算、例子」')
         if "def" in cls:
-            self.defs.append({"dfn": 0, "test": ""})
+            self.defs.append({"dfn": 0, "test": "", "term": "", "example": self.example})
         if "calc" in cls:
             self.calcs.append({"formula": "", "subst": ""})
         if tag == "h2":
             self.heading = ""
+            if self.pane() == "problems":
+                self.problems_h2 = True
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
                                   "figs": set(), "calcs": set(), "rows": [], "h3": 0, "why_refs": [], "calc_first": False,
                                   "pane": self.pane(), "depth": len(self.stack), "last": set(),
-                                  "last_inner": set(), "recap": "recap" in cls})
+                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "why_fig": False, "done": False})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
@@ -169,7 +202,7 @@ class Lint(HTMLParser):
         """第 depth 層有一個元素結束：記成那一層最後一個子元素；和 h2 同層的，就是這一段目前的最後一塊。
         inner 是這個元素自己最後一個子元素的 class（最後一塊是摺起來的答案時，要看它裡面的最後一塊）。"""
         self.prev[depth] = cls
-        if self.sections and self.sections[-1]["depth"] == depth:
+        if self.sections and self.sections[-1]["depth"] == depth and not self.sections[-1]["done"]:
             self.sections[-1]["last"] = cls
             self.sections[-1]["last_inner"] = inner
 
@@ -191,6 +224,12 @@ class Lint(HTMLParser):
                 break
         if cls is None:
             return
+        if tag == "section" and cls & set(PANES) and self.sections:
+            self.sections[-1]["done"] = True  # 這一欄結束了，後面那欄開頭的東西不算這一段的最後一塊
+        if tag in BLOCK:
+            self.end_sentence()
+        if tag in ("h2", "h3"):
+            self.in_heading = max(0, self.in_heading - 1)
         if tag == "tr":
             self.row = None
         if "def" in cls and self.defs:
@@ -199,6 +238,9 @@ class Lint(HTMLParser):
                 self.problems.append(f'定義框裡有 {d["dfn"]} 個 <dfn>：一個 class="def" 只定義一個術語')
             if not d["test"].strip():
                 self.problems.append('定義框沒有 class="test" 的「怎樣才算」：要寫讀者能拿來檢查的判斷標準')
+            if not d["example"]:
+                self.problems.append(f'定義框「{d["term"].strip()[:20]}」前面沒有先舉例：新概念先用生活情境和小整數在原地算一次或畫一次，'
+                                     "再說「這叫做○○」（這個 h2/h3 塊裡，定義框之前的正文要有數字）")
         if "calc" in cls and self.calcs:
             c = self.calcs.pop()
             what = " ".join((c["formula"] + c["subst"]).split())[:30]
@@ -223,9 +265,25 @@ class Lint(HTMLParser):
             self.sections[-1]["title"] = self.heading.strip()
             self.heading = None
 
+    def end_sentence(self):
+        """一個區塊結束，手上這句也結束：太長就報。"""
+        self.check_sentence(self.sentence)
+        self.sentence = ""
+
+    def check_sentence(self, s):
+        n = text_units(s)
+        if n > MAX_SENTENCE:
+            self.problems.append(f"這句有 {n} 字，一句上限 {MAX_SENTENCE}：「{' '.join(s.split())[:30]}…」一句只講一件事，拆開")
+
     def handle_data(self, data):
         if self.row is not None:
             self.row["text"] += data
+        m = PREREQ.search(data)
+        if m:
+            self.problems.append(f"「{m.group(0)}」把讀者推去看別的 topic：前置知識要在原地從零教，"
+                                 "用定義框加上那一頁課件的截圖，只補這裡需要的那一點")
+        if self.types is not None and self.inside_class("types"):
+            self.types += SECTION_REF.findall(data)
         for fig in self.figures:
             if fig["in_caption"]:
                 fig["caption"] += data
@@ -233,6 +291,8 @@ class Lint(HTMLParser):
             self.heading += data
         if self.defs and self.inside_class("test"):
             self.defs[-1]["test"] += data
+        if self.defs and self.inside("dfn"):
+            self.defs[-1]["term"] += data
         if self.calcs:
             if self.inside_class("formula"):
                 self.calcs[-1]["formula"] += data
@@ -240,10 +300,20 @@ class Lint(HTMLParser):
                 self.calcs[-1]["subst"] += data
         found = SECTION_REF.findall(data)
         self.refs += found
-        if self.sections and self.inside_class("why"):
-            self.sections[-1]["why_refs"] += found
+        if self.sections:
+            self.sections[-1]["refs"] += found
+            if self.inside_class("why"):
+                self.sections[-1]["why_refs"] += found
         if self.skipping():
             return
+        if not self.in_heading and not self.defs and re.search(r"\d", data):
+            self.example = True
+        if not self.calcs:
+            parts = SENTENCE_END.split(data)
+            for done in parts[:-1]:
+                self.check_sentence(self.sentence + done)
+                self.sentence = ""
+            self.sentence += parts[-1]
         n = text_units(data)
         if self.sections:
             self.sections[-1]["units"] += n
@@ -255,20 +325,38 @@ def lint(src: str) -> list:
     p = Lint()
     p.feed(src)
     p.close()
+    p.end_sentence()
     problems = list(p.problems)
     problems += coverage(p.pages, p.page_captions)
     problems += panes(p.sections)
     course = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "course"}
+    problem_secs = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "problems"}
+    if p.types is None:
+        problems.append('題目欄開頭（第一個 h2 之前）要有 <table class="types"> 題型表：看到什麼題目 → 用哪條公式、哪張表 → '
+                        "示範題 §N，趕時間的人從這裡起步")
+    elif not any(r.split(".")[0] in problem_secs for r in p.types):
+        problems.append("題型表沒有連到任何一題：每種題型寫出示範題的 §N")
     for sec in p.sections:
         title, n = sec["title"][:30], sec["units"]
         if n > PER_SECTION:
             problems.append(f"§「{title}」有 {n} 字，每段上限 {PER_SECTION}：拆成幾段，或刪掉不是在教這頁的東西")
+        if sec["pane"] == "problems" and not sec["recap"]:  # 總結是整個 topic 的導覽，連回課件不限
+            cross = {r.split(".")[0] for r in sec["refs"]} & course
+            if len(cross) > MAX_CROSS:
+                problems.append(f"§「{title}」連到課件欄 {len(cross)} 段（§{'、§'.join(sorted(cross, key=int))}），"
+                                f"上限 {MAX_CROSS}：用到的定義和公式在這題旁邊原地再寫一次，§ 連結只留「想看完整推導再點」的")
         if sec["pane"] == "problems" and sec["method"]:
             if not sec["why"]:
                 problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這題在問什麼、用到課件哪裡')
-            elif not any(r.split(".")[0] in course for r in sec["why_refs"]):
-                problems.append(f"§「{title}」的「為什麼」沒有連到課件欄：寫出用到課件的 §N，讀者點了左欄就跳過去")
-            if not sec["origin"]:
+            else:
+                if not any(r.split(".")[0] in course for r in sec["why_refs"]):
+                    problems.append(f"§「{title}」的「為什麼」沒有連到課件欄：寫出用到課件的 §N，讀者點了左欄就跳過去")
+                if not sec["why_fig"]:
+                    problems.append(f"§「{title}」的「為什麼」沒有課件截圖：把這題用到的那一塊課件（公式、規則）截過來放在這裡，"
+                                    "讀者不用跳去左欄找")
+            if p.kind == "text":
+                pass
+            elif not sec["origin"]:
                 problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
             elif sec["calc_first"]:
                 problems.append(f"§「{title}」的「數字從哪來」表排在算式後面：先列出要用的數字從哪來，再代公式，"
