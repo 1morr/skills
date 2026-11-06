@@ -133,7 +133,7 @@ class Lint(HTMLParser):
             elif a.get("data-zh"):
                 self.figures[-1]["zh"] = True
         if tag in ("input", "textarea", "select") or (tag == "details" and "check" in cls and self.kind != "text"):
-            self.problems.append(f"頁面不能有練習（<{tag}>）：練習在對話裡做")
+            self.problems.append(f"導讀頁不能有練習（<{tag}>）：練習放練習頁，用 practice.py 組")
         if tag in BLOCK:
             self.end_sentence()
         if tag in ("h2", "h3"):

@@ -1,0 +1,338 @@
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、右下角查表面板、點圖切換中英文。
+(function () {
+  "use strict";
+  const KEY = document.body.dataset.key;
+  const TITLE = document.body.dataset.title || document.title;
+  const COLORS = { black: "#1d2433", red: "#c62828", blue: "#1f5fd1" };
+  const FAMILY = getComputedStyle(document.body).fontFamily;
+  const FONT = 18;  // 打字的字級和行高，單位是畫布座標
+  const LINE = 26;
+  const CJK = "㐀-鿿豈-﫿　-〿＀-￯";
+  const TOKEN = new RegExp("[" + CJK + "]|[^\\s" + CJK + "]+\\s*|\\s+", "g");
+  const measure = document.createElement("canvas").getContext("2d");
+  let lastPad = null;
+
+  // 打的字自動換行：中文一字一斷，英文整個字一起換；單一個字比一行還寬才逐字切
+  function wrap(text, width) {
+    measure.font = FONT + "px " + FAMILY;
+    const lines = [];
+    for (const para of text.split("\n")) {
+      let line = "";
+      for (const tok of para.match(TOKEN) || []) {
+        if (measure.measureText(line + tok).width <= width || !line.trim()) {
+          line += tok;
+        } else {
+          lines.push(line.trimEnd());
+          line = tok.trimStart();
+        }
+        while (measure.measureText(line).width > width && line.length > 1) {
+          let i = line.length - 1;
+          while (i > 1 && measure.measureText(line.slice(0, i)).width > width) i--;
+          lines.push(line.slice(0, i));
+          line = line.slice(i);
+        }
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
+
+  function drawItem(ctx, it) {
+    ctx.save();
+    if (it.tool === "text") {
+      ctx.fillStyle = COLORS.black;
+      ctx.font = FONT + "px " + FAMILY;
+      ctx.textBaseline = "middle";
+      wrap(it.text, it.w).forEach(function (line, i) { ctx.fillText(line, it.x, it.y + i * LINE + LINE / 2); });
+    } else {
+      ctx.globalCompositeOperation = it.tool === "eraser" ? "destination-out" : "source-over";
+      ctx.strokeStyle = it.tool === "eraser" ? "#000" : COLORS[it.tool];
+      ctx.lineWidth = it.tool === "eraser" ? 22 : 2.4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      const p = it.pts;
+      ctx.moveTo(p[0][0], p[0][1]);
+      if (p.length === 1) ctx.lineTo(p[0][0] + 0.01, p[0][1]);
+      for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function textBottom(it) {
+    return it.y + wrap(it.text, it.w).length * LINE;
+  }
+
+  function makePad(host) {
+    const id = host.dataset.id;
+    const section = host.closest("section.q");
+    const question = section ? section.querySelector("h2").textContent.trim() : id;
+    const store = KEY + ":" + id;
+    const saved = JSON.parse(localStorage.getItem(store) || "null");
+    const st = { items: saved ? saved.items : [], h: saved ? saved.h : +host.dataset.h, w: saved ? saved.w : 0, tool: "black" };
+
+    host.innerHTML =
+      '<div class="tools">' +
+      '<button type="button" data-tool="black" aria-pressed="true"><span class="dot" style="background:' + COLORS.black + '"></span>黑筆</button>' +
+      '<button type="button" data-tool="red" aria-pressed="false"><span class="dot" style="background:' + COLORS.red + '"></span>紅筆</button>' +
+      '<button type="button" data-tool="blue" aria-pressed="false"><span class="dot" style="background:' + COLORS.blue + '"></span>藍筆</button>' +
+      '<button type="button" data-tool="text" aria-pressed="false">文字</button>' +
+      '<button type="button" data-tool="eraser" aria-pressed="false">橡皮擦</button>' +
+      '<span class="sep"></span>' +
+      '<button type="button" data-act="undo">復原</button>' +
+      '<button type="button" data-act="grow">加長</button>' +
+      '<button type="button" data-act="clear" class="danger">清空</button>' +
+      '<button type="button" data-act="send" class="send">複製給 Claude</button>' +
+      '<span class="status" aria-live="polite"></span></div>' +
+      '<div class="board"><canvas></canvas></div>';
+    const board = host.querySelector(".board");
+    const canvas = host.querySelector("canvas");
+    const ctx = canvas.getContext("2d");
+    const status = host.querySelector(".status");
+    let current = null;  // 正在畫的一筆
+    let editing = null;  // 正在打的字：{ item, index, ta }
+    let scale = 1;
+
+    function say(msg) { status.textContent = msg; }
+    function save() {
+      localStorage.setItem(store, JSON.stringify({ w: st.w, h: st.h, items: st.items }));
+      say("已自動儲存");
+    }
+    function redraw() {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      st.items.forEach(function (it, i) { if (!editing || editing.index !== i) drawItem(ctx, it); });
+    }
+    // 畫布座標固定是第一次打開時的寬度 st.w；版面變窄變寬時整張等比例縮放，字不會被切掉
+    function resize() {
+      const cw = board.clientWidth;
+      if (!cw) return;
+      if (!st.w) st.w = cw;
+      scale = cw / st.w;
+      const k = scale * (window.devicePixelRatio || 1);
+      canvas.style.height = st.h * scale + "px";
+      canvas.width = Math.round(st.w * k);
+      canvas.height = Math.round(st.h * k);
+      ctx.setTransform(k, 0, 0, k, 0, 0);
+      if (editing) placeEditor();
+      redraw();
+    }
+    function pos(e) {
+      const r = canvas.getBoundingClientRect();
+      return [Math.round((e.clientX - r.left) / scale * 10) / 10, Math.round((e.clientY - r.top) / scale * 10) / 10];
+    }
+
+    // 打字：文字工具下點空白處開一個輸入框，點已有的字就改那段字；點別處或按 Esc 就收起來畫上去
+    function placeEditor() {
+      const { item, ta } = editing;
+      Object.assign(ta.style, {
+        left: item.x * scale + "px", top: item.y * scale + "px", width: item.w * scale + "px",
+        fontSize: FONT * scale + "px", lineHeight: LINE * scale + "px"
+      });
+      ta.style.height = "auto";
+      ta.style.height = Math.max(LINE * scale, ta.scrollHeight) + "px";
+    }
+    function openEditor(item, index) {
+      const ta = document.createElement("textarea");
+      ta.value = item.text;
+      ta.setAttribute("aria-label", question + " 的文字");
+      board.appendChild(ta);
+      editing = { item: item, index: index, ta: ta };
+      placeEditor();
+      redraw();
+      ta.addEventListener("input", placeEditor);
+      ta.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { e.preventDefault(); ta.blur(); }
+      });
+      ta.addEventListener("blur", commitEditor);
+      ta.focus();
+    }
+    function commitEditor() {
+      if (!editing) return;
+      const { item, index, ta } = editing;
+      editing = null;
+      const text = ta.value.replace(/\s+$/, "");
+      ta.remove();
+      if (index < 0) {
+        if (text) st.items.push(Object.assign(item, { text: text }));
+      } else if (text) {
+        st.items[index].text = text;
+      } else {
+        st.items.splice(index, 1);
+      }
+      if (text && st.h < textBottom(item) + LINE) st.h = textBottom(item) + LINE * 2;
+      resize();
+      save();
+    }
+    function textAt(p) {
+      for (let i = st.items.length - 1; i >= 0; i--) {
+        const it = st.items[i];
+        if (it.tool === "text" && p[0] >= it.x && p[0] <= it.x + it.w && p[1] >= it.y && p[1] <= textBottom(it)) return i;
+      }
+      return -1;
+    }
+
+    canvas.addEventListener("click", function (e) {
+      if (st.tool !== "text") return;
+      lastPad = api;
+      const p = pos(e);
+      const hit = textAt(p);
+      if (hit >= 0) { openEditor(st.items[hit], hit); return; }
+      const x = Math.max(4, Math.min(p[0], st.w - 160));
+      openEditor({ tool: "text", x: x, y: Math.max(0, p[1] - LINE / 2), w: st.w - x - 12, text: "" }, -1);
+    });
+    canvas.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || st.tool === "text") return;
+      canvas.setPointerCapture(e.pointerId);
+      current = { tool: st.tool, pts: [pos(e)] };
+      lastPad = api;
+      drawItem(ctx, current);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!current) return;
+      const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of events) current.pts.push(pos(ev));
+      const p = current.pts;
+      drawItem(ctx, { tool: current.tool, pts: p.slice(Math.max(0, p.length - events.length - 1)) });
+    });
+    function finish() {
+      if (!current) return;
+      st.items.push(current);
+      current = null;
+      save();
+    }
+    canvas.addEventListener("pointerup", finish);
+    canvas.addEventListener("pointercancel", finish);
+
+    // 複製給 Claude：題目名稱、題目代號和這張畫布合成一張圖，只裁到寫過的高度
+    function snapshot() {
+      const k = 2, head = 58;
+      let bottom = 0;
+      for (const it of st.items) {
+        if (it.tool === "text") bottom = Math.max(bottom, textBottom(it));
+        else if (it.tool !== "eraser") for (const p of it.pts) bottom = Math.max(bottom, p[1]);
+      }
+      const h = Math.min(st.h, Math.max(120, bottom + 24));
+      const layer = document.createElement("canvas");
+      layer.width = st.w * k;
+      layer.height = h * k;
+      const lc = layer.getContext("2d");
+      lc.scale(k, k);
+      st.items.forEach(function (it) { drawItem(lc, it); });  // 橡皮擦只擦這一層，不會擦到白底和標題
+      const out = document.createElement("canvas");
+      out.width = st.w * k;
+      out.height = (h + head) * k;
+      const oc = out.getContext("2d");
+      oc.scale(k, k);
+      oc.fillStyle = "#fff";
+      oc.fillRect(0, 0, st.w, h + head);
+      oc.fillStyle = COLORS.black;
+      oc.font = "600 17px " + FAMILY;
+      oc.fillText(TITLE + " · " + question, 12, 24);
+      oc.fillStyle = "#5b6475";
+      oc.font = "13px " + FAMILY;
+      oc.fillText("題目代號：" + id, 12, 46);
+      oc.fillRect(0, head - 1, st.w, 1);
+      oc.drawImage(layer, 0, head, st.w, h);
+      return new Promise(function (res) { out.toBlob(res, "image/png"); });
+    }
+    async function send() {
+      if (editing) editing.ta.blur();
+      if (!st.items.length) { say("畫布是空的"); return; }
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": snapshot() })]);
+        say("已複製：到對話裡按 Ctrl+V 貼上");
+      } catch (err) {
+        const url = URL.createObjectURL(await snapshot());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = KEY + "-" + id + ".png";
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        say("瀏覽器不讓複製，已下載成圖片：把它拖進對話");
+      }
+    }
+
+    host.querySelector(".tools").addEventListener("click", function (e) {
+      const b = e.target.closest("button");
+      if (!b) return;
+      lastPad = api;
+      if (b.dataset.tool) {
+        st.tool = b.dataset.tool;
+        host.querySelectorAll("[data-tool]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+        canvas.classList.toggle("erasing", st.tool === "eraser");
+        canvas.classList.toggle("typing", st.tool === "text");
+      } else if (b.dataset.act === "undo") {
+        api.undo();
+      } else if (b.dataset.act === "grow") {
+        st.h += 400; resize(); save();
+      } else if (b.dataset.act === "send") {
+        send();
+      } else if (b.dataset.act === "clear") {
+        if (b.classList.contains("armed")) {
+          st.items = []; st.h = +host.dataset.h; resize(); save();
+          b.classList.remove("armed"); b.textContent = "清空";
+        } else {
+          b.classList.add("armed"); b.textContent = "再按一次清空";
+          setTimeout(function () { b.classList.remove("armed"); b.textContent = "清空"; }, 2500);
+        }
+      }
+    });
+
+    const api = {
+      undo: function () {
+        if (!st.items.length) return;
+        st.items.pop();
+        redraw(); save();
+      },
+      resize: resize
+    };
+    resize();
+    return api;
+  }
+
+  const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
+  let timer;
+  window.addEventListener("resize", function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { pads.forEach(function (p) { p.resize(); }); }, 120);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.target.closest("textarea, input")) return;  // 打字時的 Ctrl+Z 是輸入框自己的復原
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && lastPad) {
+      e.preventDefault();
+      lastPad.undo();
+    }
+  });
+
+  function toggleLang(img) {
+    img.src = img.getAttribute("src") === img.dataset.zh ? img.dataset.en : img.dataset.zh;
+  }
+  document.querySelector("main").addEventListener("click", function (e) {
+    const img = e.target.closest("figure img[data-zh]");
+    if (img) toggleLang(img);
+  });
+
+  const panel = document.getElementById("panel");
+  if (!panel) return;
+  function setOpen(on) {
+    panel.classList.toggle("open", on);
+    document.body.classList.toggle("panel-open", on);
+    pads.forEach(function (p) { p.resize(); });
+  }
+  document.getElementById("panel-btn").addEventListener("click", function () { setOpen(!panel.classList.contains("open")); });
+  panel.addEventListener("click", function (e) {
+    const b = e.target.closest("button");
+    if (b && b.classList.contains("close")) { setOpen(false); return; }
+    if (b && b.dataset.tab) {
+      panel.querySelectorAll("header [data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      panel.querySelectorAll("figure").forEach(function (f) { f.hidden = f.dataset.tab !== b.dataset.tab; });
+      return;
+    }
+    const img = e.target.closest("img[data-zh]");
+    if (img) toggleLang(img);
+  });
+})();
