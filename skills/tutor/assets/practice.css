@@ -31,7 +31,7 @@ section.q.drill h2 { font-size: 1.1rem; }
 .ref a { color: var(--accent); }
 .en { margin: 14px 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; line-height: 1.65; }
 .en ol { margin: 6px 0 0; padding-left: 1.6em; list-style: lower-alpha; }
-.zh { color: var(--muted); font-size: .95rem; border-left: 3px solid var(--line); padding-left: 12px; margin: 8px 0 16px; }
+.zh { color: var(--muted); font-size: .95rem; margin: 8px 0 16px; }
 .zh ol { margin: 4px 0 0; padding-left: 1.6em; list-style: lower-alpha; }
 .data { font-family: Consolas, "Courier New", monospace; letter-spacing: .02em; }
 section.q table { border-collapse: collapse; margin: 8px 0; font-family: var(--font); font-size: .95rem; }
