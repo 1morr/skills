@@ -12,7 +12,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 參數：$ARGUMENTS
 
 腳本在這個 skill 的 `scripts/`，下文的 `<S>` 指它的絕對路徑。讀畫面、按鍵、等待、額度的已知行為在
-[`TUI.md`](TUI.md)：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。
+[`TUI.md`](TUI.md)：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。`bake-off` skill 也用 `TUI.md` 和
+`py.sh`、`scr.py`、`state.py`、`waitbg.sh`、`preflight.sh`、`close-ticket.sh`：改這些的參數或輸出時，`bake-off/SKILL.md` 一起改。
 
 ## 開工
 
