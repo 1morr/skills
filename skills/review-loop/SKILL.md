@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充]"
 ---
 
-你是這一場多輪審查的**協調者**，負責判斷和修改。每一輪你都用 Orca 的 orchestration 開一個新的 worker 當審查員：
+你是這一場多輪審查的**協調者**，負責判斷和修改。每一輪你都用 orca 開一個新的 Claude Code session 當審查員：
 它只審、只回報。你逐條查證、決定改什麼、動手改，直到**收斂**為止。
 
 收斂指的是剩下的都是可改可不改的小問題，不是找不到任何問題。每多審一輪，就多一次機會加進沒必要的東西。
@@ -16,9 +16,13 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 審查員要用一個全新的 session，而不是你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文裡
 不能有前幾輪的東西。
 
+`<TC>` 指 `ticket-coordinator` skill 的 `scripts/`（和這個 skill 同一個 plugin，路徑是這個 skill 目錄的
+`../ticket-coordinator/scripts`），裡面是開 session、等待、讀畫面的腳本。代答、Heads up、額度的已知行為寫在
+`<TC>/../TUI.md`：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。
+
 ## 開工
 
-1. 呼叫 Skill 工具兩次，分別載入 `orchestration` 和 `doc-diff`。照 `orchestration` 的指示讀 Orca 附帶的版本對應指南。
+1. 載入 `orca-cli` skill，用 `orca status --json` 確認 Orca 在跑。呼叫 Skill 工具載入 `doc-diff`。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用 playwright 照實際尺寸截圖）。
@@ -49,16 +53,18 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
      寫明：這些地方最容易改錯或說過頭，要逐一確認；其他部分照常審。
 
    **獨立**：prompt 裡不放前幾輪的意見、駁回清單，也不放你自己對成品的看法。重複出現的意見由你對照 ledger 擋掉。
-2. **開審查 worker**：
-   `orca orchestration worker-start --spec-file <批次目錄>/r<N>/prompt.md --worktree current --agent claude --task-title "review round <N>" --json`。
-   它和你在同一個 worktree，審的就是你剛 commit 的版本；它工作時你不改檔。把收據裡的 dispatch id 寫進 ledger，
-   然後結束回合。Orca 會在它提問或回報時叫醒你；不要輪詢。
-3. **被叫醒**：先讀 ledger。
-   - 如果它在提問：需求類的問題照依據回答（`orca orchestration reply`）；要它判斷的問題就回「照你的判斷，寫進報告」。
-     成品好不好、前幾輪說了什麼，都不告訴它。
-   - 如果它停下來但沒回報：照 orchestration 指南處理，用 `send` 叫它從中斷處繼續。
-   - 如果它回報做完了：讀 `r<N>/report.md`，再用 `git status` 確認它沒有改到 repo。有改到，就先把改動存成
-     `r<N>/stray.patch`，再丟掉，並記進 ledger。做完的 worker 會自己關掉。
+2. **開審查 session**：`bash <TC>/start-session.sh <repo 路徑> review-r<N> <批次目錄>/r<N>/prompt.md`。
+   它和你在同一個 worktree，審的就是你剛 commit 的版本；它工作時你不改檔。把印出的 `handle=`、`jsonl=` 寫進
+   ledger，再用 Bash 的 `run_in_background` 跑 `bash <TC>/waitbg.sh <handle> <jsonl>`，然後結束回合等通知，不輪詢。
+   之後每次送訊息給它再掛等待時，最後加 `sent`，否則會讀到上一輪的 done、馬上返回。
+3. **被叫醒**：先讀 ledger。背景輸出的第一行是 `state=`，後面是畫面；不夠的話跑 `python3 <TC>/scr.py <handle> 40`。
+   - 如果它在提問（按鍵見 TUI.md「回答 AskUserQuestion」）：需求類的問題照依據回答；要它判斷的問題就回
+     「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都不告訴它。
+   - Heads up、額度、停了沒做完：照 TUI.md 對應的段落處理。
+   - 如果它做完了：讀 `r<N>/report.md`，再用 `git status` 確認它沒有改到 repo。有改到，就先把改動存成
+     `r<N>/stray.patch`，再丟掉，並記進 ledger。
+   - 最後關掉它的終端，只關這個 handle：`orca terminal close --terminal <handle>`。不要用 `close-ticket.sh`，
+     它會把同一個 worktree 裡的所有終端都關掉，你自己可能就在那個 worktree 裡。
 4. **查證**：每一條都由你親自查，只用一種方法：數字就重算，引用就打開依據找原文，版面就渲染出來看。
    - 每一條只有兩種結果：採納（附證據）或駁回（附理由）。
    - 級別由你照 `reviewer.md` 的分級標準重新判，審查員給的級別只是參考。
@@ -107,11 +113,11 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 剩下的可不修項目
    - 使用者交件前要自己手動做的事
    - 總 diff 的路徑和 commit
-   - 每一輪審查 worker 的 dispatch id（`orca orchestration worker-read` 可以回看）
+   - 每一輪審查 session 的 session id，可以用 `claude --resume` 回看
 
 ## 規則
 
-- 只碰自己開的 worker。審查員只讀不改；修改只由你來做。
+- 只碰自己開的終端。審查員只讀不改；修改只由你來做。
 - 使用者叫你做 X 就只做 X。想順手清的東西另外問。
 
 ## Ledger
@@ -120,5 +126,5 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 - **「定案」段**：每一條寫決定、理由、出處、由誰拍板。
 - **「駁回紀錄」段**：意見摘要 → 理由 → 第幾輪。
 - **「字數」表**：起點和每一輪結束時的字數。
-- **每一輪一段**：dispatch id、報告路徑、逐條處置表（意見 → 採納或駁回 → 證據或理由 → 改法）、commit、
+- **每一輪一段**：handle、session id、報告路徑、逐條處置表（意見 → 採納或駁回 → 證據或理由 → 改法）、commit、
   有沒有開下一輪，以及理由。
