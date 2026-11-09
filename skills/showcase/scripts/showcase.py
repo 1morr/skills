@@ -64,6 +64,11 @@ LABELS = {
         "working_tree": "working tree",
         "generated": "Generated",
         "files_count": "{n} files",
+        "merge_danger": "Merge danger",
+        "door": "Door",
+        "one-way": "One-way: hard to undo once merged",
+        "two-way": "Two-way: cheap to roll back",
+        "blast_radius": "Blast radius",
     },
     "zh-Hant": {
         "summary": "摘要",
@@ -94,8 +99,15 @@ LABELS = {
         "working_tree": "工作區",
         "generated": "產生於",
         "files_count": "{n} 個檔案",
+        "merge_danger": "合併風險",
+        "door": "可回退性",
+        "one-way": "單向門：合併後難以回退",
+        "two-way": "雙向門：可以輕鬆回退",
+        "blast_radius": "影響範圍",
     },
 }
+
+DOORS = ("one-way", "two-way")
 
 STATUS = {"A": "added", "M": "modified", "D": "deleted", "R": "renamed", "C": "copied", "T": "type changed"}
 
@@ -329,6 +341,13 @@ def build(report: dict, report_dir: Path, repo: Path) -> tuple[dict, list[str]]:
             warnings.append(f"{f['path']}: {lines} diff lines selected; narrow `match` or lower `context`")
         hunks_out.append({"file": f["path"], "note": h.get("note", ""), "text": "\n".join(sel)})
 
+    md = report.get("merge_danger")
+    if md is not None:
+        if md.get("door") not in DOORS:
+            errors.append(f"merge_danger.door must be one of {', '.join(DOORS)}")
+        if not md.get("blast_radius"):
+            errors.append("merge_danger.blast_radius is required")
+
     ev = report["evidence"]
     if ev.get("level") not in LEVELS:
         errors.append(f"evidence.level must be one of {', '.join(LEVELS)}")
@@ -397,7 +416,22 @@ def inline(text: str) -> str:
     return "".join(out)
 
 
+FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.M | re.S)
+
+
 def blocks(text: str) -> str:
+    """段落、清單，以及 ``` 圍起來的區塊（示意圖、虛擬碼、呼叫樹）；區塊內容原樣保留。"""
+    text = (text or "").strip()
+    out, pos = [], 0
+    for m in FENCE.finditer(text):
+        out.append(prose(text[pos:m.start()]))
+        out.append(f'<pre class="out">{html.escape(m.group(1).rstrip())}</pre>')
+        pos = m.end()
+    out.append(prose(text[pos:]))
+    return "".join(out)
+
+
+def prose(text: str) -> str:
     out = []
     for block in re.split(r"\n\s*\n", (text or "").strip()):
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
@@ -564,6 +598,12 @@ def render_html(model: dict, L: dict) -> str:
             body += "</figure>"
     sec.append(("evidence", L["evidence"], body))
 
+    md = r.get("merge_danger")
+    if md:
+        body = (f'<p><strong>{L["door"]}:</strong> {L[md["door"]]}</p>{blocks(md.get("door_note", ""))}'
+                f'<p><strong>{L["blast_radius"]}:</strong> {inline(md["blast_radius"])}</p>{blocks(md.get("blast_note", ""))}')
+        sec.append(("merge-danger", L["merge_danger"], body))
+
     why = r.get("why") or {}
     body = ""
     if not why.get("sources"):
@@ -675,6 +715,15 @@ def render_md(model: dict, L: dict, include_hunks: bool = True) -> str:
                 out += [f"**{L['before']}**\n", fence(item["before"]), f"\n**{L['after_label']}**\n"]
             out += [fence(item["after"]), "\n</details>"]
     out.append("")
+
+    md = r.get("merge_danger")
+    if md:
+        out += [f"### {L['merge_danger']}", "", f"**{L['door']}:** {L[md['door']]}", ""]
+        if md.get("door_note"):
+            out += [md["door_note"].strip(), ""]
+        out += [f"**{L['blast_radius']}:** {md['blast_radius']}", ""]
+        if md.get("blast_note"):
+            out += [md["blast_note"].strip(), ""]
 
     why = r.get("why") or {}
     out += [f"### {L['why']}", ""]

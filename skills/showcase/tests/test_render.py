@@ -236,6 +236,36 @@ class RenderTest(unittest.TestCase):
         _, _, warnings = self.render(evidence=ev)
         self.assertFalse(any("scrub" in w for w in warnings), warnings)
 
+    def test_merge_danger_renders_in_html_and_pr_markdown(self):
+        md = {"door": "one-way", "door_note": "Drops the `legacy` column.", "blast_radius": "every saved greeting"}
+        html_path, md_path, _ = self.render(merge_danger=md)
+        page = html_path.read_text(encoding="utf-8")
+        self.assertIn('id="merge-danger"', page)
+        self.assertIn("One-way: hard to undo", page)
+        self.assertIn("every saved greeting", md_path.read_text(encoding="utf-8"))
+
+    def test_merge_danger_door_must_be_one_way_or_two_way(self):
+        with self.assertRaisesRegex(showcase.ReportError, "merge_danger.door"):
+            self.render(merge_danger={"door": "one way", "blast_radius": "x"})
+        with self.assertRaisesRegex(showcase.ReportError, "blast_radius"):
+            self.render(merge_danger={"door": "two-way"})
+        # 不寫 merge_danger 照樣渲染
+        html_path, _, _ = self.render()
+        self.assertNotIn('id="merge-danger"', html_path.read_text(encoding="utf-8"))
+
+    def test_how_keeps_fenced_sketch_verbatim(self):
+        how = "The call tree:\n\n```text\ngreet\n  formatName\n    <trim>\n```\n\nThen it returns."
+        html_path, _, _ = self.render(how=how)
+        page = html_path.read_text(encoding="utf-8")
+        self.assertIn("greet\n  formatName\n    &lt;trim&gt;", page)
+        self.assertIn("<p>Then it returns.</p>", page)
+        self.assertNotIn("```", page)
+
+    def test_how_without_fence_is_unchanged(self):
+        html_path, _, _ = self.render(how="Line one\nline two.\n\n- a\n- b")
+        page = html_path.read_text(encoding="utf-8")
+        self.assertIn("<p>Line one line two.</p><ul><li>a</li><li>b</li></ul>", page)
+
     def test_zh_hant_labels(self):
         html_path, _, _ = self.render(lang="zh-Hant")
         self.assertIn("關鍵改動", html_path.read_text(encoding="utf-8"))

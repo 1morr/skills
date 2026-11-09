@@ -1,6 +1,6 @@
 # report.json
 
-文字欄位接受簡易 Markdown：段落、`- ` 與 `1. ` 清單、`` `code` ``、`**粗體**`、`[文字](https://…)`。路徑相對於報告目錄。
+文字欄位接受簡易 Markdown：段落、`- ` 與 `1. ` 清單、`` `code` ``、`**粗體**`、`[文字](https://…)`，以及 ```` ``` ```` 圍起來的區塊（內容原樣顯示，給示意圖用）。路徑相對於報告目錄。
 
 ```json
 {
@@ -12,7 +12,12 @@
     "text": "長列表每點一次結果，使用者就找不到剛剛看到哪裡。",
     "sources": ["#212", "commit e4f5a6b"]
   },
-  "how": "列表在打開結果時記下捲動位置，返回時還原。",
+  "how": "列表在打開結果時記下捲動位置，返回時還原。\n\n```text\nopenResult\n  rememberScroll\nback\n  restoreScroll\n```",
+  "merge_danger": {
+    "door": "two-way",
+    "blast_radius": "搜尋結果頁",
+    "blast_note": "只動到列表元件；回退就是還原這個 commit。"
+  },
   "decisions": [
     {
       "decision": "位置存在記憶體，不放進網址",
@@ -53,7 +58,10 @@
 | `range.base_ref`、`range.head_ref` | 否 | 顯示在 SHA 旁的分支名。只有當該分支正指向那個 commit 時才顯示，否則捨棄並警告。 |
 | `summary` | 是 | 使用者感受到的效果。 |
 | `why.text`、`why.sources` | 否 | `sources` 為空時顯示「待作者補充」，`text` 若有則標為推斷。 |
-| `how` | 否 | 做法。 |
+| `how` | 否 | 做法。能用一張最小的圖講清楚就用 ```` ``` ```` 區塊：虛擬碼、呼叫樹、元件樹、檔案樹，或一段示意 diff。 |
+| `merge_danger.door` | 寫 `merge_danger` 時 | `one-way`（合併後難以回退：刪資料、改持久化格式、對外介面的破壞性變更、已發出去的東西）或 `two-way`（還原 commit 就回得去）。 |
+| `merge_danger.blast_radius` | 寫 `merge_danger` 時 | 一個短語：出事時波及哪裡。 |
+| `merge_danger.door_note`、`merge_danger.blast_note` | 否 | 補充說明：為什麼是這扇門、可能的後果。 |
 | `decisions[]` | 否 | `decision`、`why`、選填 `alternatives`、`basis`（`stated` 有來源或 `inferred` 推斷，預設 `inferred`）、選填 `source`。 |
 | `files` | 是 | 改動的路徑或 glob → 說明。diff 裡的每個路徑都需要一則，點開頭的目錄也算。鍵比對完整的 repo 相對路徑；精確路徑優先於 glob；`*` 會跨過 `/`。 |
 | `hunks[]` | 否 | `file`、選填 `match`（選出含它的 hunk，並縮到含它的行與前後 `context` 行，省略處標 `⋯`；不給就是整個檔案的全部 hunk）、選填 `context`（預設 6）、`note`。兩個條目選到同一段 hunk 會警告。 |
