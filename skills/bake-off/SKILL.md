@@ -5,17 +5,20 @@ disable-model-invocation: true
 argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt 或 prompt 檔路徑> [現成版本的路徑或連結…]"
 ---
 
-你是這一場 bake-off 的**協調者**，自己不做任何一版。你用 Orca 的 orchestration 為每一版開一個 worker，各有自己的
-worktree，讓每一版都從同一個乾淨的起點、拿同一份 prompt 獨立做完，再由你逐版審查，給使用者一份「選哪一版、怎麼改」的報告。
+你是這一場 bake-off 的**協調者**，自己不做任何一版。你用 orca 為每一版開一個 worktree 和子 Claude Code session，
+讓每一版都從同一個乾淨的起點、拿同一份 prompt 獨立做完，再由你逐版審查，給使用者一份「選哪一版、怎麼改」的報告。
 
 參數：$ARGUMENTS
+
+`<S>` 指這個 skill 的 `scripts/`，`<TC>` 指 `<S>/../../ticket-coordinator/scripts`（共用讀畫面、等待、收尾的腳本）。
+讀畫面、代答、Heads up、額度的已知行為在 `<TC>/../TUI.md`：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。
 
 **獨立**是這個 skill 的核心：每一版只收到共同 prompt、自己計畫的意見、和所有版本都一樣的答案。任何一版的內容、
 做法、評語都不帶給另一版，否則比的就不是 N 個獨立的版本。
 
 ## 開工
 
-1. 呼叫 Skill 工具載入 `orchestration`，照它的指示讀 Orca 附帶的版本對應指南。`orca repo list --json` 找出 repo 的 id。
+1. 載入 `orca-cli` skill，`orca status --json` 確認 Orca 在跑；`orca repo list` 找出 repo 選擇器。
 2. 讀 prompt（參數是檔案路徑就讀檔）和專案的 CLAUDE.md / AGENTS.md，找出：主分支、任務的來源（題目、評分指引、
    需求文件）、現有的舊產出。
    - **外部版本**：使用者附上的現成版本（檔案、資料夾、zip、claude.ai artifact 連結）都列進來。它們不開 session，
@@ -45,32 +48,32 @@ worktree，讓每一版都從同一個乾淨的起點、拿同一份 prompt 獨�
 
 ## 開版
 
-1. 每一版各開一個 worker，一次一行：
-   `orca orchestration worker-start --spec-file <批次目錄>/prompt.md --worktree new-top-level --repo id:<repo id>
-   --name <任務名>-<版號> --base-branch bake/<任務名>/base --agent claude --task-title "<任務名> v<版號>" --json`。
-   把收據裡的 dispatch id、worktree 路徑，以及 `git -C <worktree> rev-parse --abbrev-ref HEAD` 的分支名寫進 ledger。
-   `worker-start` 失敗時不要重跑，照 orchestration 指南的 recovery 處理。
-2. 全部開完就結束回合。Orca 會在 worker 提問或回報時叫醒你；不要輪詢。
+1. 每一版一行，各自呼叫一次（一次呼叫跑好幾版時，zsh 不會把沒加引號的變數分詞，見 TUI.md「跨平台」）：
+   `bash <S>/new-variant.sh <repo 選擇器> <任務名> <版號> <批次目錄>/prompt.md`。它從 base 開 worktree
+   `<任務名>-<版號>` 和分支 `bake/<任務名>/<版號>`，開子 session，用啟動參數叫它讀 prompt.md。印出的 `worktree=`、
+   `handle=`、`jsonl=` 寫進 ledger。印 `started: NO` 就讀畫面查原因。
+2. 每一版各掛一個等待：Bash `run_in_background` 跑 `bash <TC>/waitbg.sh <handle> <jsonl>`，然後結束回合等通知，
+   不輪詢。之後每次送訊息給子 session 再掛等待時，最後加 `sent`，否則會讀到上一輪的 done、馬上返回。
 
 ## 計畫關卡
 
-1. 每一版會把計畫當成問題送來（`ask`）。全部交齊再一起處理，先到的不回、繼續等。
+1. 每一版交計畫後會停下來。全部交齊再一起處理，先到的就繼續等。
 2. 逐版標出問題：取材碰到舊版或歷史、漏了任務的要求、產出沒辦法直接看。
 3. 交給使用者：一張對照表（版、要讀的檔、做法、產出形式，以及你的標註），再用 AskUserQuestion 問一次：
    全部照計畫做 / 照標註修正後做 / 使用者自己寫意見。
-4. 每一版各回一則（`orca orchestration reply --id <message_id>`）：「計畫核可，開始做。」，後面接著**只屬於這一版的**修正。
+4. 每一版各送一則：「計畫核可，開始做。」，後面接著**只屬於這一版的**修正。送完掛 `sent` 等待。
 
 ## 進行中
 
-每次被叫醒先讀 ledger，再照叫醒你的訊息處理。
+每次被叫醒：讀 ledger，背景輸出第一行是 `state=`，後面是畫面；不夠就 `python3 <TC>/scr.py <handle> 40`。
 
-- **提問**：照文件查得到答案的需求問題，從任務來源找答案，用 `reply` 回。同一題在每一版都給同一個答案，第一次
-  回答就記進 ledger 的「共同答案」，之後照抄。設計上的取捨回「你自己決定，寫進最後的回報」。版本之間的差異就是
-  從這些取捨來的。
+- **提問**（按鍵見 TUI.md「回答 AskUserQuestion」）。照文件查得到答案的需求問題，從任務來源找答案。同一題在每一版
+  都給同一個答案，第一次回答就記進 ledger 的「共同答案」，之後照抄。設計上的取捨回「你自己決定，寫進最後的回報」，
+  選項題就選它推薦的那一項。版本之間的差異就是從這些取捨來的。
 - **要人做的事**：先判斷是不是真的只有使用者能做（登入、付款、實體操作）。不是的話，叫它自己做。
-- **停下來但沒回報**（escalation）：照 orchestration 指南處理，用 `send` 叫它從中斷處繼續，保留已完成的部分。
-- **回報做完了**（`worker_done`）：驗收。分支上有 base 之後的新 commit（`git -C <worktree> log --oneline bake/<任務名>/base..HEAD`）、
-  `git status` 乾淨、回報列出的產出檔都在，而且是可以直接看的形式。缺一項就用 `send` 叫同一個 worker 補。
+- **Heads up、額度、停了沒做完**：照 TUI.md 對應的段落處理。Heads up 的原文只貼給出現它的那一版。
+- **說做完了**：驗收。分支上有 base 之後的新 commit（`git -C <worktree> log --oneline bake/<任務名>/base..HEAD`）、
+  `git status` 乾淨、最後一則訊息列出的產出檔都在，而且是可以直接看的形式。缺一項就叫同一個 session 補。
 
 ## 審查
 
@@ -99,24 +102,22 @@ worktree，讓每一版都從同一個乾淨的起點、拿同一份 prompt 獨�
 
 ## 收尾（使用者指示後才做）
 
-- **合併選定版**：要改的地方和要搬進來的項目，用 `send` 交給基礎版的 worker 做，它有自己的上下文。比較已經結束，
+- **合併選定版**：要改的地方和要搬進來的項目交給基礎版的子 session 做，它有自己的上下文。比較已經結束，
   獨立不再重要：訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每一項附來源檔的絕對路徑和位置。
-  你驗收它的 commit 後，先確認主目錄沒有未提交的改動、本機主分支和 origin 一致（`git fetch` 後比對）。主目錄有別人
-  的改動就先問，不要在上面合併。然後 `git merge --no-ff <它的分支>`：base 的清除 commit 會一起進來，舊產出正好被新版
-  取代。push 照使用者的授權。選的是外部版本時，它沒有 worker：在主目錄把它放到產出原本的位置，要改的和要搬進來的
-  由你自己改，再 commit。
-- **清掉 worktree**：每一版先 `orca orchestration worker-release --dispatch <dispatch id>`，再
-  `orca worktree rm --worktree path:<worktree> --force`、`git -C <repo> worktree prune`，最後 `git -C <repo> branch -d <分支>`。
-  沒合併的分支 `-d` 會拒絕刪，就留著；把留下的分支列給使用者，要刪由使用者決定。
+  你驗收它的 commit 後，在主目錄跑 `bash <TC>/preflight.sh <repo>`，再
+  `git merge --no-ff bake/<任務名>/<版號>`。base 的清除 commit 會一起進來，舊產出正好被新版取代。push 照使用者的授權。
+  選的是外部版本時，它沒有子 session：在主目錄把它放到產出原本的位置，要改的和要搬進來的由你自己改，commit。
+- **清掉 worktree**：每一版跑 `bash <TC>/close-ticket.sh <repo> <worktree>`。它只關這個 worktree 的終端、移除
+  worktree；沒合併的分支 `git branch -d` 會拒絕刪，分支就留著。把留下的分支列給使用者，要刪由使用者決定。
 
 ## 規則
 
-- 只碰自己開的 worker。worker 只在自己的分支 commit，不 push、不 merge。
+- 只碰自己開的終端。子 session 只在自己的分支 commit，不 push、不 merge。
 - 協調者自己 commit 時，`git add` 只點名自己的檔。
 - 使用者叫你做 X 就只做 X。想順手清的東西（刪分支、刪目錄）另外問。
 
 ## Ledger
 
 頂部「目前」段：repo、主分支、orca repo 選擇器、任務名、版數、base commit、清除清單、prompt.md 路徑。
-「評分項」段，以及「共同答案」段（題目 → 答案 → 依據）。每一版一段：worktree、分支、dispatch id、狀態
-（planning / working / done / blocked）、計畫摘要與給它的修正、代答、最後的 commit。
+「評分項」段，以及「共同答案」段（題目 → 答案 → 依據）。每一版一段：worktree、分支、handle、session id、狀態
+（planning / working / done / blocked）、計畫摘要與給它的修正、代答、Heads up 的處置、最後的 commit。
