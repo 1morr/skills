@@ -1,8 +1,8 @@
 ---
 name: bake-off
-description: 同一個任務開 N 個 worktree 各做一版，做完逐版比較，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來
+description: 同一個任務開 N 個 worktree 各做一版（也可以加進或只比較現成的版本），做完逐版比較，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來
 disable-model-invocation: true
-argument-hint: "[版數，預設 3] <任務 prompt 或 prompt 檔路徑>"
+argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt 或 prompt 檔路徑> [現成版本的路徑或連結…]"
 ---
 
 你是這一場 bake-off 的**協調者**，自己不做任何一版。你用 orca 為每一版開一個 worktree 和子 Claude Code session，
@@ -21,6 +21,10 @@ argument-hint: "[版數，預設 3] <任務 prompt 或 prompt 檔路徑>"
 1. 載入 `orca-cli` skill，`orca status --json` 確認 Orca 在跑；`orca repo list` 找出 repo 選擇器。
 2. 讀 prompt（參數是檔案路徑就讀檔）和專案的 CLAUDE.md / AGENTS.md，找出：主分支、任務的來源（題目、評分指引、
    需求文件）、現有的舊產出。
+   - **外部版本**：使用者附上的現成版本（檔案、資料夾、zip、claude.ai artifact 連結）都列進來。它們不開 session，
+     審查時和開出來的版本一起渲染、打分。zip 解到 `<批次目錄>/external/<名稱>/`；artifact 連結用 `read_artifact`
+     讀出來存成檔。只比較現成版本、不開新版時，版數設 0，直接跳到「審查」。
+   - **使用者的偏好**：例如「我覺得 X 比較簡潔順眼」，記進 ledger，報告裡要正面回應。
 3. 擬**清除清單**，分三類：
    - 刪：舊產出本身，以及它的輸出檔（PDF、截圖、build 產物）。
    - 改：混在一起的檔。任務原文留著，描述舊產出的段落刪掉，例如 README 裡記版面、哪張圖刪過的筆記。這些段落裡
@@ -88,18 +92,21 @@ argument-hint: "[版數，預設 3] <任務 prompt 或 prompt 檔路徑>"
 一則訊息，依序：
 
 1. **產出位置**：表格列出版號、worktree 路徑、分支、主要產出檔，以及 `review/<版號>/` 的截圖目錄，讓使用者自己打開看。
-2. **建議的基礎版**，對照評分項說明理由。
+   外部版本列原始位置。
+2. **建議的基礎版**，對照評分項說明理由。使用者說過偏好的，明確寫同不同意、依據是哪幾個評分項。
 3. **基礎版還要改的地方**：逐條列出位置和改法。
 4. **可以從別版合進來的**：逐條列出來源、內容、理由。
 5. 每一版一句話的總評。
 
-報告到這裡就停，等使用者指示。
+報告到這裡就停，等使用者指示。結尾提一句：選定、合併之後，可以用 `/1morr:review-loop` 一輪一輪審到可以交。
 
 ## 收尾（使用者指示後才做）
 
 - **合併選定版**：要改的地方和要搬進來的項目交給基礎版的子 session 做，它有自己的上下文。比較已經結束，
-  獨立不再重要：訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每一項附來源檔的絕對路徑和位置。你驗收它的 commit 後，在主目錄跑 `bash <TC>/preflight.sh <repo>`，再
+  獨立不再重要：訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每一項附來源檔的絕對路徑和位置。
+  你驗收它的 commit 後，在主目錄跑 `bash <TC>/preflight.sh <repo>`，再
   `git merge --no-ff bake/<任務名>/<版號>`。base 的清除 commit 會一起進來，舊產出正好被新版取代。push 照使用者的授權。
+  選的是外部版本時，它沒有子 session：在主目錄把它放到產出原本的位置，要改的和要搬進來的由你自己改，commit。
 - **清掉 worktree**：每一版跑 `bash <TC>/close-ticket.sh <repo> <worktree>`。它只關這個 worktree 的終端、移除
   worktree；沒合併的分支 `git branch -d` 會拒絕刪，分支就留著。把留下的分支列給使用者，要刪由使用者決定。
 
