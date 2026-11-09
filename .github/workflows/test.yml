@@ -22,11 +22,11 @@ jobs:
           git config --global user.email ci@example.invalid
       - name: showcase
         run: python -m unittest discover -s skills/showcase/tests -v
-      - name: review-loop
+      - name: doc-diff
         run: |
           # diff_html.py 的 docx 與 pdf 抽字要 python-docx 和 PyMuPDF
           pip install python-docx pymupdf
-          python -m unittest discover -s skills/review-loop/tests -v
+          python -m unittest discover -s skills/doc-diff/tests -v
       - name: ticket-coordinator
         run: bash skills/ticket-coordinator/scripts/selftest.sh
       - name: tutor

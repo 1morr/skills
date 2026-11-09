@@ -1,8 +1,8 @@
 {
   "name": "1morr",
-  "description": "bake-off：同一個任務平行做幾版、比較後建議用哪一版；review-loop：一輪一輪審一份成品到可以交，最後精簡並出總 diff；showcase：把改動實跑前後對照並產出報告；ticket-coordinator：用 Orca 逐張協調子 session 解票；tutor：照老師課件把課程、作業、考試教給零基礎的人。",
+  "description": "bake-off：同一個任務平行做幾版、比較後建議用哪一版；doc-diff：把文件的兩個版本做成逐字對照頁；review-loop：一輪一輪審一份成品到可以交，最後精簡並出總 diff；showcase：把改動實跑前後對照並產出報告；ticket-coordinator：用 Orca 逐張協調子 session 解票；tutor：照老師課件把課程、作業、考試教給零基礎的人。",
   "author": { "name": "1morr", "url": "https://github.com/1morr" },
   "repository": "https://github.com/1morr/skills",
   "license": "MIT",
-  "keywords": ["bake-off", "variants", "review-loop", "review", "showcase", "code-review", "before-after", "orca", "tickets", "tutor", "study"]
+  "keywords": ["bake-off", "variants", "review-loop", "review", "doc-diff", "diff", "showcase", "code-review", "before-after", "orca", "tickets", "tutor", "study"]
 }
