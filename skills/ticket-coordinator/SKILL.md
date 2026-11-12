@@ -56,12 +56,14 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
    不夠就 `python3 <S>/scr.py <handle> 40`。
 
-   `state=heads-up` 是子 session 還在做時跳出新的 Heads up：照 TUI.md「Heads up」展開、原文記進 ledger、收起
-   （不收起下一則出不來），再分兩級：危險的馬上查證轉給它，其他等它停下再處理。然後重新掛等待。
+   `state=heads-up` 是子 session 還在做時跳出新的 Heads up：輸出裡附著從狀態檔讀到的全文。照 TUI.md「Heads up」
+   把原文記進 ledger、送 `0` 收起（不收起下一則出不來），再分兩級：危險的馬上查證轉給它，其他等它停下再處理。
+   然後重新掛等待。
 
-   每次讀畫面都看底部有沒有 `✦ Heads up`（Claude Code 給在場的人的風險提醒）。它只在畫面上，子 session 的
-   transcript 裡沒有，所以子 session 不知道它。展開讀完整內容（按鍵見 TUI.md「Heads up」），對票、文件或程式碼查證
-   一次：屬實又該修的，把展開後的完整原文貼給**同一個 session**，開頭註明「以下是 Claude Code 給在場者的
+   Heads up 是 Claude Code 給在場的人的風險提醒，只在畫面與 mod 的狀態檔裡，子 session 的 transcript 裡沒有，
+   所以子 session 不知道它。每次被叫醒都看輸出有沒有 `headsup=`；手動查用 `python3 <S>/headsup.py <jsonl>`
+   （讀不到才照 TUI.md 展開讀畫面）。拿到全文後對票、文件或程式碼查證一次：屬實又該修的，把完整原文貼給
+   **同一個 session**，開頭註明「以下是 Claude Code 給在場者的
    Heads up 原文」，你的查證與修法另起一段，叫它修完再驗收；不屬實或不修的寫進 ledger 的
    「待使用者看」並附理由。
 

@@ -8,16 +8,21 @@
 #   done-bg      回合結束、畫面還掛著 shell / 子代理計數，而 transcript 已經 WAITBG_BG_STALE（預設 3600）秒沒動：
 #                多半是殘留的背景程序（票 22：子代理留下的 `find /` 跑了 7 小時），叫子 session 收掉
 #   no-response  見 sent
-#   heads-up     畫面底部出現一則還沒回報過的 `✦ Heads up`（子 session 可能還在做）；下一行印 headsup=<摘要>。
+#   heads-up     子 session 掛著一則還沒回報過的 Heads up（它可能還在做）；下一行印 headsup=<摘要>。
+#                先讀 You should know mod 的狀態檔（headsup.py，用 jsonl 檔名當 session id）：讀得到就以它為準，
+#                畫面不看，並在 headsup-src=file 之後印出全文（按 1 Learn more 看到的內容）；讀不到（exit 2）才退回
+#                看畫面底部的 `✦ Heads up`，印 headsup-src=screen，全文要照 TUI.md 展開讀。
 #                回報過的摘要記在 WAITBG_HU_SEEN（預設 $TMPDIR/waitbg-headsup-<handle>），同一則不再叫醒；
-#                任何 state 返回時，畫面上那則也記成回報過。WAITBG_HEADSUP=0 關掉偵測
+#                任何 state 返回時，掛著的那則也記成回報過。WAITBG_HEADSUP=0 關掉偵測
 H=$1; J=$2; SENT=${3:-}; cd "$(dirname "$0")"; . ./py.sh
 POLL=${WAITBG_POLL:-30}; BG_STALE=${WAITBG_BG_STALE:-3600}; SENT_TIMEOUT=${WAITBG_SENT_TIMEOUT:-300}
 BG='… [(]([0-9]+h )?([0-9]+m )?[0-9]+s|still running|Waiting for [0-9]+ background|· [0-9]+ (shells?|monitors?)'
 screen_bg() { PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 16 | grep -qE "$BG"; }
 quiet() { age "$J"; }
 SEEN=${WAITBG_HU_SEEN:-${TMPDIR:-/tmp}/waitbg-headsup-$H}
-hu_now() { PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 30 2>/dev/null | grep -o 'Heads up · .*' | tail -1 | sed 's/^Heads up · //; s/[[:space:]]*$//'; }
+hu_screen() { PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 30 2>/dev/null | grep -o 'Heads up · .*' | tail -1 | sed 's/^Heads up · //; s/[[:space:]]*$//'; }
+# 狀態檔讀得到（exit 0 / 1）就只信它；exit 2 才看畫面
+hu_now() { "$PY" headsup.py --summary "$J" 2>/dev/null; [ $? -eq 2 ] && hu_screen; }
 hu_seen() { grep -qxF -- "$1" "$SEEN" 2>/dev/null; }
 START=$("$PY" -c 'import time; print(int(time.time()))')
 elapsed() { echo $(( $("$PY" -c 'import time; print(int(time.time()))') - START )); }
@@ -45,5 +50,13 @@ while :; do
   sleep "$POLL"
 done
 echo "state=$st"
-hu=$(hu_now); [ -n "$hu" ] && { echo "headsup=$hu"; hu_seen "$hu" || echo "$hu" >> "$SEEN"; }
+hu=$(hu_now)
+if [ -n "$hu" ]; then
+  echo "headsup=$hu"; hu_seen "$hu" || echo "$hu" >> "$SEEN"
+  if full=$("$PY" headsup.py "$J" 2>/dev/null); then
+    echo "headsup-src=file"; echo "--- heads-up（狀態檔）---"; printf '%s\n' "$full"; echo "--- end ---"
+  else
+    echo "headsup-src=screen"
+  fi
+fi
 PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 45

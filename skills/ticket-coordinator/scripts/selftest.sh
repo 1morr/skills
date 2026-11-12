@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、headsup.py 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -34,6 +34,29 @@ ok "state recent write is busy"      "$("$PY" "$D/state.py" "$X/s.jsonl")" busy
 ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.version_info[0])')" 3
 touch "$X/a"; old "$X/a"; a=$(age "$X/a"); [ "$a" -ge 299 ] && [ "$a" -le 330 ]; ok "age of a 5-minute-old file" $? 0
 touch "$X/a"; [ "$(age "$X/a")" -le 5 ]; ok "age of a fresh file" $? 0
+
+# ---- headsup.py（讀 You should know mod 的狀態檔；只認 offer / explained 兩種帶內容的 view，而且只看自己的 session）
+HS="$X/ysk.json"
+hstore() { "$PY" -c 'import json, sys; json.dump({"sessions": json.loads(sys.argv[1]), "seen": [], "known": []}, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False)' "$1" "$HS"; }
+hu() { HEADSUP_STORE="$HS" "$PY" "$D/headsup.py" "$@" "$X/me.jsonl"; }
+OFFER='{"kind":"offer","line":"主代理刪了 tests。.","explanation":"**刪了 tests**\n- 原因一\n- 原因二","shownAt":1762900000000}'
+hstore "[{\"id\":\"other\",\"view\":$OFFER},{\"id\":\"me\",\"tag\":\"Heads up\",\"view\":$OFFER}]"
+ok "headsup offer summary"                 "$(hu --summary)" "主代理刪了 tests。."
+ok "headsup offer full text"               "$(hu | sed -n '/^text:$/,$p' | tr '\n' '|')" "text:|**刪了 tests**|- 原因一|- 原因二|"
+ok "headsup offer tag and kind"            "$(hu | grep -E '^(tag|kind)=' | tr '\n' ' ')" "tag=Heads up kind=offer "
+hstore '[{"id":"me","view":{"kind":"explained","line":"L。","text":"展開後的全文","iteration":1,"shownAt":1}}]'
+ok "headsup explained uses text"           "$(hu | tail -1)" "展開後的全文"
+hstore "[{\"id\":\"other\",\"view\":$OFFER},{\"id\":\"me\",\"askedTurn\":\"t\"}]"
+hu --summary >/dev/null; ok "headsup another session's offer is not mine" $? 1
+hstore '[{"id":"me","view":{"kind":"asked","line":"L。","shownAt":1}}]'
+hu --summary >/dev/null; ok "headsup dismissed (asked) is not open" $? 1
+hstore '[]'
+hu --summary >/dev/null; ok "headsup no entry is none"     $? 1
+HEADSUP_STORE="$X/missing.json" "$PY" "$D/headsup.py" --summary "$X/me.jsonl" >/dev/null; ok "headsup missing store is unavailable" $? 2
+echo '{"sessions": {"me": {}}}' > "$HS"
+hu --summary >/dev/null; ok "headsup unknown shape is unavailable" $? 2
+hstore '[{"id":"me","view":{"kind":"offer","explanation":"x"}}]'
+hu --summary >/dev/null; ok "headsup offer without a line is unavailable" $? 2
 
 # ---- terminals_in.py（close-ticket.sh 只關這個 worktree 的終端）
 TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
@@ -116,7 +139,8 @@ EOF
 chmod +x "$Wb/bin/orca"
 # 跑 waitbg 最多 $1 秒，印它的 state= 那一行（沒返回就印 TIMEOUT）
 wb() { secs=$1; shift
-  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
+  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" HEADSUP_STORE="${HEADSUP_STORE:-$Wb/nostore.json}" \
+    bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
   for i in $(seq 1 "$secs"); do kill -0 $p 2>/dev/null || break; sleep 1; done
   if kill -0 $p 2>/dev/null; then kill $p 2>/dev/null; wait $p 2>/dev/null; echo TIMEOUT; else wait $p; grep -m1 '^state=' "$Wb/out"; fi; }
 printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
@@ -132,7 +156,7 @@ ok "waitbg sent: old done is not this turn"        "$(WAITBG_SENT_TIMEOUT=3 wb 8
 ( sleep 2; printf '%s\n' "$A" "$TD" >> "$Wb/s.jsonl" ) & writer=$!
 ok "waitbg sent: a new turn after the send counts" "$(WAITBG_SENT_TIMEOUT=30 wb 15 sent)" "state=done"
 wait $writer 2>/dev/null
-# Heads up：子 session 還在跑工具時跳出來的新一則要叫醒；回報過的同一則不再叫醒；換一則再叫醒；可關
+# Heads up（讀不到狀態檔、退回讀畫面）：子 session 還在跑工具時跳出來的新一則要叫醒；回報過的同一則不再叫醒；換一則再叫醒；可關
 printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
 printf '%s\n' '✻ Working…' '✦ Heads up · 主代理刪了整個 tests 目錄。' '  1: Learn more   2: Knew this already   0: Dismiss' '❯' > "$SCREEN"
 ok "waitbg heads-up wakes while busy"              "$(wb 5)" "state=heads-up"
@@ -145,6 +169,20 @@ ok "waitbg heads-up detection can be turned off"   "$(WAITBG_HEADSUP=0 wb 3)" "T
 printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 ok "waitbg done with a heads-up still says done"   "$(WAITBG_HEADSUP=0 wb 5)" "state=done"
 grep -qxF '第三則' "$Wb/seen"; ok "waitbg records the heads-up shown at return" $? 0
+# Heads up（讀狀態檔）：不看畫面也叫醒、印出全文；狀態檔說沒有就不看畫面
+WS="$Wb/ysk.json"
+wstore() { "$PY" -c 'import json, sys; json.dump({"sessions": json.loads(sys.argv[1])}, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False)' "$1" "$WS"; }
+printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
+printf '%s\n' '✻ Working…' '❯' > "$SCREEN"
+wstore '[{"id":"s","tag":"Heads up","view":{"kind":"offer","line":"主代理改了公開 API。.","explanation":"**公開 API 變了**\n- 呼叫端會壞","shownAt":1}}]'
+ok "waitbg file heads-up wakes without the screen" "$(HEADSUP_STORE="$WS" wb 5)" "state=heads-up"
+ok "waitbg file heads-up prints the summary"       "$(grep -m1 '^headsup=' "$Wb/out")" "headsup=主代理改了公開 API。."
+ok "waitbg file heads-up says where it came from"  "$(grep -m1 '^headsup-src=' "$Wb/out")" "headsup-src=file"
+grep -qxF -- '- 呼叫端會壞' "$Wb/out"; ok "waitbg file heads-up prints the full text" $? 0
+ok "waitbg file same heads-up does not wake again" "$(HEADSUP_STORE="$WS" wb 3)" "TIMEOUT"
+wstore '[{"id":"s","view":{"kind":"asked","line":"主代理改了公開 API。.","shownAt":1}}]'
+printf '%s\n' '✻ Working…' '✦ Heads up · 畫面上殘留的一則' '❯' > "$SCREEN"
+ok "waitbg file says none, the screen is not used" "$(HEADSUP_STORE="$WS" wb 3)" "TIMEOUT"
 
 # ---- quota.sh（先讀狀態列存下的檔，太舊或沒有才讀畫面；同一個假的 orca）
 QF="$Wb/rl.json"
