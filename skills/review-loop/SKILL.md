@@ -22,7 +22,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 開工
 
-1. 載入 `orca-cli` skill，用 `orca status --json` 確認 Orca 在跑。呼叫 Skill 工具載入 `doc-diff`。
+1. 載入 `orca-cli` skill，用 `orca status --json` 確認 Orca 在跑。呼叫 Skill 工具載入 `diff`。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用 playwright 照實際尺寸截圖）。
@@ -37,7 +37,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
        紀錄裡只有「照你建議」「選這版當底」這類回覆的，在第 5 步重新問。
 3. 產出要在 git 裡，而且那幾個檔案沒有未提交的改動。不在 repo 裡的檔（例如桌面上手改的 docx），先問使用者
    要放在專案的哪裡，放好再 commit。記下起點 `START=$(git rev-parse HEAD)`，再用
-   用 `doc-diff` 腳本的 `--words` 記下起點字數。起點輸出用 `git show $START:<路徑>` 取出來。
+   `diff` skill 的 `scripts/diff.py <起點輸出> <起點輸出> --words`（docx、pdf 要的套件見它的 DOCUMENT.md）記下起點字數。起點輸出用 `git show $START:<路徑>` 取出來。
 4. 照 [`reviewer.md`](reviewer.md) 擬固定部分：要審的東西、依據、偏好、角度、盲做幾個（預設 2）。角度照產出的類型挑，
    每個角度只看一件事，例如：
    - 老師要求與格式
@@ -104,19 +104,16 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 1. **精簡審查**：用 Agent 工具開一個子代理，`model: "opus"`，prompt 照 [`final-review.md`](final-review.md) 寫。
    - 給它起點版和最終版的渲染圖。
-   - 給它一份沒有附說明的逐字對照：用 `doc-diff` 產出 `<批次目錄>/plain-diff.html`，不帶 `--notes`。
+   - 給它一份沒有附說明的逐字對照：照 `diff` 的 DOCUMENT.md 產出 `<批次目錄>/plain-diff.html`，不帶 `--notes`。
    - 不給它輪次紀錄。
 
    它的每一條意見照「每一輪」第 4 步查證。查證過的刪減和精簡照做，這一步不加內容，改完重建、渲染、commit。
    它指出的「改錯」算必須修：修好之後回到「每一輪」開下一輪審查，這一輪特別看那幾處，收斂後再回到這一步。
-2. **總 diff**：照 `doc-diff` 的步驟做起點輸出對最終輸出，`notes.json` 這樣寫：
-   - `notes`：每一處改動對應哪一輪、哪一條意見、依據是什麼，從 ledger 抄。
-   - `other`：不在文字裡的改動，例如版面、圖、顏色。
-   - `removed_midway`：中途加過、最後又刪掉的內容。
-   - `images`：起點和最終版的渲染圖，逐頁或整張海報並排。
+2. **總 diff**：照 `diff` 的 DOCUMENT.md 做起點輸出對最終輸出，標籤用 `--before-label 起點 --after-label 最終版`。
+   - `notes.json`：每一處改動對應哪一輪、哪一條意見、依據是什麼，從 ledger 抄。
+   - 頁面另寫三段：不在文字裡的改動（版面、圖、顏色）、中途加過又刪掉的內容、起點和最終版的渲染圖並排。
 
-   輸出到 `<產出旁邊>/<產出名> 修改對照（起點→最終版）.html`，標籤用 `--before-label 起點 --after-label 最終版`，
-   照 `doc-diff` 的檢查步驟確認。
+   輸出到 `<產出旁邊>/<產出名> 修改對照（起點→最終版）.html`，照 DOCUMENT.md 的檢查確認。
 3. **寫回定案**：使用者在這幾輪新拍板的決定，連同理由，寫進專案記錄決定的地方（例如評核資料夾的 README）。
    和總 diff 放在同一個 commit。push 照使用者的授權。
 4. **最後報告**：

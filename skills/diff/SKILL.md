@@ -1,0 +1,27 @@
+---
+name: diff
+description: Build a before/after page that shows a reader what changed - two versions of a document compared word by word, or a code change shown with run evidence. Use when asked for a diff page, to compare two versions, or to show or walk through a change (diff 的 html、前後對照、展示改動).
+---
+
+# Diff
+
+做一頁 HTML，讓沒參與修改的**讀者**只看這一頁，就知道改了什麼、能判斷改得對不對。
+
+## 選分支
+
+- 同一份文件或產出的兩個版本（docx、PDF、HTML 頁面或海報、Markdown、純文字）→ [DOCUMENT.md](DOCUMENT.md)。比讀者看到的內容，不比產生它的原始碼。
+- 程式改動（commit、範圍、分支、PR、手上的工作）→ [CODE.md](CODE.md)。改動裡有文件產出時，那部分另照 DOCUMENT.md 做一頁，從程式改動頁連過去。
+
+## 共同標準
+
+1. **改動標記全部出自計算**：文件用 `scripts/diff.py`，程式用 `git diff`。頁面裡的原文和 diff 由程式填進去，你寫的是版面和渲染邏輯，不手抄、不憑眼睛找改動。
+2. **原因有根據才寫**：commit message、審查紀錄、票、規格、對話都算根據。從內容反推的標「推斷」。沒有根據的留白，讀者會照說明判斷改得對不對，看得見的空白比合理的猜測有用。
+3. **單一檔案**：圖片內嵌、不引用外部資源，離線打開就能看。
+4. **外觀**照 [LOOK.md](LOOK.md)：每頁照內容設計，守住它的規則。
+5. **先給結論**：頁首一句話說改了幾處、最要看的是哪幾處。
+
+## 檢查與交付
+
+用 playwright 打開頁面（`file://` 被擋時先開本機 http server），寬螢幕和手機寬度各截一張讀回來看；每個切換鈕都按一次，確認畫面真的變了。
+
+輸出放在使用者或呼叫的 skill 指定的位置；沒有指定就放在 scratchpad。交出時給路徑，加一句話：改了幾處（文件再說表格改了幾格；程式再說證據等級和沒驗證到的）。

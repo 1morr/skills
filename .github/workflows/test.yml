@@ -10,23 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          # showcase 的測試要讀 git diff，淺 clone 也夠，但要有 git 身分做測試用的 commit
-          fetch-depth: 1
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: git identity for test repos
+      - name: diff
         run: |
-          git config --global user.name ci
-          git config --global user.email ci@example.invalid
-      - name: showcase
-        run: python -m unittest discover -s skills/showcase/tests -v
-      - name: doc-diff
-        run: |
-          # diff_html.py 的 docx 與 pdf 抽字要 python-docx 和 PyMuPDF
+          # diff.py 的 docx 與 pdf 抽字要 python-docx 和 PyMuPDF
           pip install python-docx pymupdf
-          python -m unittest discover -s skills/doc-diff/tests -v
+          python -m unittest discover -s skills/diff/tests -v
       - name: ticket-coordinator
         run: bash skills/ticket-coordinator/scripts/selftest.sh
       - name: tutor

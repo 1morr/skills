@@ -6,33 +6,30 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, "..", "scripts", "diff_html.py")
+SCRIPT = os.path.join(HERE, "..", "scripts", "diff.py")
+FILL = os.path.join(HERE, "..", "scripts", "fill.py")
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
-import diff_html as d  # noqa: E402
+import diff as d  # noqa: E402
+import fill  # noqa: E402
 
 
 def p(*texts):
     return [("p", t) for t in texts]
 
 
-class WordDiff(unittest.TestCase):
+class WordOps(unittest.TestCase):
     def test_marks_only_the_changed_word(self):
-        left, right, merged = d.word_diff("the trend has been removed", "most of the trend has been removed")
-        self.assertNotIn("<del>", left)
-        self.assertIn("<ins>most of </ins>", right)
-        self.assertIn("removed", merged)
+        ops = d.word_ops("the trend has been removed", "most of the trend has been removed")
+        self.assertEqual(ops, [["+", "most of "], ["=", "the trend has been removed"]])
 
-    def test_identical_text_has_no_marks(self):
-        left, right, merged = d.word_diff("r12 = −0.386 is negative", "r12 = −0.386 is negative")
-        for s in (left, right, merged):
-            self.assertNotIn("<del>", s)
-            self.assertNotIn("<ins>", s)
+    def test_identical_text_is_one_equal_op(self):
+        self.assertEqual(d.word_ops("r12 = −0.386", "r12 = −0.386"), [["=", "r12 = −0.386"]])
 
-    def test_escapes_html(self):
-        _, right, _ = d.word_diff("a < b", "a <b> b")
-        self.assertNotIn("<b>", right)
-        self.assertIn("&lt;", right)
-        self.assertIn("&gt;", right)
+    def test_ops_rebuild_both_sides(self):
+        a, b = "a < b and c", "a <b> b or c"
+        ops = d.word_ops(a, b)
+        self.assertEqual("".join(t for o, t in ops if o != "+"), a)
+        self.assertEqual("".join(t for o, t in ops if o != "-"), b)
 
 
 class Align(unittest.TestCase):
@@ -59,20 +56,24 @@ class Tables(unittest.TestCase):
     def test_counts_changed_cells_only(self):
         before = [["t", "Yt"], ["1", "-681"], ["2", "299"]]
         after = [["t", "Yt"], ["1", "−681"], ["2", "299"]]
-        self.assertEqual(d.table_changed_cells(before, after), 1)
-        self.assertEqual(d.table_changed_cells(before, before), 0)
+        t = d.table_diff(before, after)
+        self.assertEqual(t["changed_cells"], 1)
+        self.assertEqual([r["status"] for r in t["rows"]], ["same", "changed", "same"])
+        self.assertEqual(t["rows"][1]["cells"][1]["before"], "-681")
+        self.assertEqual(d.table_diff(before, before)["changed_cells"], 0)
 
     def test_inserted_column_aligns_by_header(self):
         before = [["t", "Yt", "Ŷt", "|e|"], ["2", "3828", "4509", "681"]]
         after = [["t", "Yt", "Ŷt", "Yt − Ŷt", "|e|"], ["2", "3828", "4509", "−681", "681"]]
-        self.assertEqual(d.table_changed_cells(before, after), 0)
-        self.assertIn("col-added", d.table_html(before, after))
+        t = d.table_diff(before, after)
+        self.assertEqual(t["changed_cells"], 0)
+        self.assertIn([None, 3], t["columns"])
         after[1][4] = "680"
-        self.assertEqual(d.table_changed_cells(before, after), 1)
+        self.assertEqual(d.table_diff(before, after)["changed_cells"], 1)
 
     def test_added_row_is_marked(self):
-        html = d.table_html([["a"]], [["a"], ["b"]])
-        self.assertIn("class='added'", html)
+        t = d.table_diff([["a"]], [["a"], ["b"]])
+        self.assertEqual([r["status"] for r in t["rows"]], ["same", "added"])
 
 
 class Html(unittest.TestCase):
@@ -95,18 +96,57 @@ class Words(unittest.TestCase):
 
 
 class Notes(unittest.TestCase):
-    def test_note_attaches_to_changed_row_and_unmatched_is_reported(self):
-        notes = {"notes": [{"match": "listed below", "note": "填充句", "tag": "可精簡"},
-                           {"match": "not in the document", "note": "x"}]}
-        page, unmatched = d.build(p("Intro.", "The values are listed below."), p("Intro."), notes)
-        self.assertIn("填充句", page)
+    def test_note_attaches_to_changed_block_and_unmatched_is_returned(self):
+        notes = [{"match": "listed below", "note": "填充句", "tag": "可精簡"}, {"match": "not in the document", "note": "x"}]
+        blocks, counts, unmatched = d.diff(p("Intro.", "The values are listed below."), p("Intro."), notes)
+        self.assertEqual(blocks[1]["notes"], [{"note": "填充句", "tag": "可精簡"}])
+        self.assertEqual(counts["removed"], 1)
+        self.assertEqual(counts["groups"], 1)
         self.assertEqual([u["match"] for u in unmatched], ["not in the document"])
-        self.assertIn("沒對上段落的說明", page)
 
-    def test_note_on_unchanged_row_does_not_attach(self):
-        notes = {"notes": [{"match": "Intro", "note": "x"}]}
-        _, unmatched = d.build(p("Intro.", "A."), p("Intro.", "B."), notes)
+    def test_groups_count_runs_of_changes(self):
+        _, counts, _ = d.diff(p("A.", "B.", "C.", "D.", "E."), p("A.", "X.", "Y.", "C.", "D.", "Z."))
+        self.assertEqual(counts["groups"], 2)
+
+    def test_note_on_unchanged_block_does_not_attach(self):
+        _, _, unmatched = d.diff(p("Intro.", "A."), p("Intro.", "B."), [{"match": "Intro", "note": "x"}])
         self.assertEqual(len(unmatched), 1)
+
+
+class Fill(unittest.TestCase):
+    def test_inlines_data_and_relative_media_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "a.png"), "wb") as f:
+                f.write(b"PNG")
+            tpl = ('<script type="application/json" id="d">__DATA__</script>'
+                   '<img src="a.png"><img src="https://x/y.png"><video src="data:video/mp4;base64,AA"></video>')
+            page = fill.fill(tpl, {"t": "</script><b>"}, tmp)
+        self.assertNotIn("__DATA__", page)
+        self.assertNotIn("</script><b>", page)
+        self.assertIn("data:image/png;base64,UE5H", page)
+        self.assertIn("https://x/y.png", page)
+
+    def test_missing_placeholder_fails_only_when_there_is_data(self):
+        with self.assertRaises(SystemExit):
+            fill.fill("<p>no data</p>", {"x": 1}, ".")
+        self.assertEqual(fill.fill("<p>no data</p>", {}, "."), "<p>no data</p>")
+
+    def test_cli_json_and_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out, j, t = (os.path.join(tmp, x) for x in ("p.html", "o.html", "d.json", "h.diff"))
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("<script>const D = __DATA__;</script>")
+            with open(j, "w", encoding="utf-8") as f:
+                json.dump({"counts": {"groups": 1}}, f)
+            with open(t, "w", encoding="utf-8") as f:
+                f.write("+added line\n")
+            r = subprocess.run([sys.executable, FILL, src, "-o", out, "--json", f"diff={j}", "--text", f"hunk={t}"],
+                               capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out, encoding="utf-8") as f:
+                page = f.read()
+        self.assertIn('"diff": {"counts": {"groups": 1}}', page)
+        self.assertIn('"hunk": "+added line\\n"', page)
 
 
 class Docx(unittest.TestCase):
@@ -137,20 +177,22 @@ class Docx(unittest.TestCase):
 
     def test_cli_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:
-            a, b, out, n = (os.path.join(tmp, x) for x in ("a.docx", "b.docx", "o.html", "n.json"))
+            a, b, out, n = (os.path.join(tmp, x) for x in ("a.docx", "b.docx", "o.json", "n.json"))
             self.make(a, ["Intro.", "The trend has been removed."], [["e", "MAD"], ["-681", "437.61"]])
             self.make(b, ["Intro.", "Most of the trend has been removed."], [["e", "MAD"], ["−681", "437.61"]])
             with open(n, "w", encoding="utf-8") as f:
-                json.dump({"notes": [{"match": "Most of the trend", "note": "說過頭"}]}, f)
+                json.dump([{"match": "Most of the trend", "note": "說過頭"}], f)
             r = subprocess.run([sys.executable, SCRIPT, a, b, "-o", out, "--notes", n],
                                capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertNotIn("UNMATCHED", r.stderr)
+            self.assertIn("groups=1 changed=2 added=0 removed=0 table_cells=1", r.stderr)
             with open(out, encoding="utf-8") as f:
-                page = f.read()
-        self.assertIn("改動 2 處，表格改了 1 格", page)
-        self.assertIn("說過頭", page)
-        self.assertIn("<ins>Most of the</ins>", page.replace("<ins>Most</ins><ins>", "<ins>Most"))
+                data = json.load(f)
+        changed = [b for b in data["blocks"] if b["status"] == "changed"]
+        self.assertEqual(changed[0]["kind"], "table")
+        self.assertEqual(changed[1]["notes"][0]["note"], "說過頭")
+        self.assertEqual(changed[1]["ops"][0], ["-", "The"])
 
 
 class Pdf(unittest.TestCase):
