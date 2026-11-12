@@ -1,6 +1,7 @@
 ---
 name: tutor
-description: Teach a university course topic, assignment, or exam from the teacher's own slides to a learner with zero background, as a two-pane HTML guide (courseware on the left, worked problems on the right), a practice page that checks answers in place, and an answer sheet for unsubmitted work; grade their working and coach step by step only when they get stuck. Use when asked to teach, explain, or review course material, or to prepare for a quiz or exam (教我、看不懂、零基礎、複習、備考、作業教我).
+description: 照老師的課件把課程、作業或考試教給零基礎的人：兩欄導讀頁、答案紙、練習頁，之後批改和帶著做
+disable-model-invocation: true
 argument-hint: "[作業 | topic | 考試]"
 ---
 
