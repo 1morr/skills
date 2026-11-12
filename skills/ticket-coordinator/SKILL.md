@@ -2,7 +2,7 @@
 name: ticket-coordinator
 description: 當協調者，用 orca 為每張票開一個子 Claude Code session 解票、代答它的提問、驗收、記 ledger，逐張跑完隊列
 disable-model-invocation: true
-argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
+argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額度門檻，例如 5h 80%、7d 95%] [同時最多 N 張]"
 ---
 
 你是這一批票的**協調者**：自己不寫產品程式，用 orca 為每張票開一個子 Claude Code session 跑完，
@@ -10,6 +10,11 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 （`scripts/launch.sh` 靠它排除你自己的 transcript）。
 
 參數：$ARGUMENTS
+
+參數裡可以另外給兩個上限，沒給就不限：
+- **額度門檻**（例如「5h 80%」「7d 95%」「5小時額度到80%暫停」）：到門檻就不開新票，在跑的票照常做完、驗收、合併，
+  額度刷新後接著開。
+- **同時最多幾張**（例如「同時最多 3 張」）：在跑的票到這個數就等其中一張收尾再開下一張。
 
 腳本在這個 skill 的 `scripts/`，下文的 `<S>` 指它的絕對路徑。讀畫面、按鍵、等待、額度的已知行為在
 [`TUI.md`](TUI.md)：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。`bake-off` 和 `review-loop` 兩個 skill 也用
@@ -31,12 +36,15 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 5. `bash <S>/preflight.sh <repo>`：主目錄要乾淨、本機主分支與 origin 一致。有 WARN 先查清楚是誰的（同一個 repo
    可能還有別的協調者或使用者的 session 在主目錄工作），判斷得出是殘留才處理；不明的 commit 不要跟著你的 push 上去。
    另外記下 orca 的 repo 選擇器（`orca repo list`）與專案完成標準要求每張票都動到的檔（例如 `docs/progress.md`，
-   給 `merge-ticket.sh` 的 `REQUIRE`），寫進 ledger。
+   給 `merge-ticket.sh` 的 `REQUIRE`），寫進 ledger。參數給了額度門檻或同時上限，也寫進 ledger「目前」段。
 6. 在 scratchpad 建 `<批次名>-ledger.md`（格式見「Ledger」）。你的上下文會被壓縮：**每次被叫醒先讀 ledger**。
 
 ## 每張票
 
-1. **開 session**：每張票一個自己的 worktree 與分支，主目錄不給子 session 用。
+1. **開 session**：每張票一個自己的 worktree 與分支，主目錄不給子 session 用。開之前先過兩道上限（參數有給才查）：
+   - 同時上限：ledger 裡 running 的票到上限就不開，等某張收尾後回到這一步。
+   - 額度門檻：`bash <S>/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開，背景 `sleep` 它印的秒數
+     （超過 3600 先睡 3600）再問；在跑的票的等待照掛。細節見 TUI.md「額度」。
    `bash <S>/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`：從主分支開 orca worktree，再呼叫
    `launch.sh` 在裡面開子 session。它印出 `worktree=`、`handle=`、`jsonl=`（檔名去掉 `.jsonl` 是 session id），
    並確認 skill 真的展開；印 `expanded: NO` 就中斷、關掉、查原因再重開，同一張票連兩次沒展開算卡住。
@@ -47,6 +55,9 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    （代答、叫它補、轉貼 Heads up）再掛等待時，最後加 `sent`：沒加會讀到上一輪的 done，馬上返回。
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
    不夠就 `python3 <S>/scr.py <handle> 40`。
+
+   `state=heads-up` 是子 session 還在做時跳出新的 Heads up：照 TUI.md「Heads up」分兩級，危險的馬上查證轉給它，
+   其他只記進 ledger、等它停下再處理，然後重新掛等待。
 
    每次讀畫面都看底部有沒有 `✦ Heads up`（Claude Code 給在場的人的風險提醒）。它只在畫面上，子 session 的
    transcript 裡沒有，所以子 session 不知道它。展開讀完整內容（按鍵見 TUI.md「Heads up」），對票、文件或程式碼查證
@@ -62,7 +73,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
    - **要人做事**：先判斷是不是真的只有使用者能做。它或你查得到、做得到、驗得到的，叫它自己做並告訴它怎麼做。
    - **本機環境壞了**（服務回 500、要重啟共享的容器或服務）：換一條不動共享環境的路，例如在 CI 上跑；
      使用者正在用的環境不重啟。
-   - **停在額度用完**：見 TUI.md「額度」。額度快滿不是暫停的理由，照常開下一張。
+   - **停在額度用完**：見 TUI.md「額度」。沒給額度門檻時，額度快滿不是暫停的理由，照常開下一張。
    - **停了但沒做完**：先看它是不是在等自己的背景工作（子代理、背景指令、並行審查），是就重新掛等待；
      真的停了才送「繼續完成這張票剩下的步驟，直到完成標準全部成立」。
    - **修不綠或原地打轉**：叫它用 diagnosing 類 skill 找根因，你讀程式碼與測試輸出給方向。
@@ -116,7 +127,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14]"
 
 ## Ledger
 
-頂部「目前」段：repo、orca repo 選擇器、`REQUIRE`、隊列、開工時的 HEAD、目前票、目前 handle 與 worktree。
+頂部「目前」段：repo、orca repo 選擇器、`REQUIRE`、隊列、開工時的 HEAD、目前票、目前 handle 與 worktree、
+額度門檻與同時上限（沒給寫「不限」）。
 「判斷紀錄」段：偏離隊列或規則的決定與理由（插票、自訂答案、跳過的步驟）。「偶發紀錄」表：測試名、哪張票、
 時間、本機或 CI；第二筆同名就開修復票（崩潰不記這裡，記在 crash-log）。每張票一段：
 

@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -116,7 +116,7 @@ EOF
 chmod +x "$Wb/bin/orca"
 # 跑 waitbg 最多 $1 秒，印它的 state= 那一行（沒返回就印 TIMEOUT）
 wb() { secs=$1; shift
-  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
+  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
   for i in $(seq 1 "$secs"); do kill -0 $p 2>/dev/null || break; sleep 1; done
   if kill -0 $p 2>/dev/null; then kill $p 2>/dev/null; wait $p 2>/dev/null; echo TIMEOUT; else wait $p; grep -m1 '^state=' "$Wb/out"; fi; }
 printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
@@ -132,5 +132,28 @@ ok "waitbg sent: old done is not this turn"        "$(WAITBG_SENT_TIMEOUT=3 wb 8
 ( sleep 2; printf '%s\n' "$A" "$TD" >> "$Wb/s.jsonl" ) & writer=$!
 ok "waitbg sent: a new turn after the send counts" "$(WAITBG_SENT_TIMEOUT=30 wb 15 sent)" "state=done"
 wait $writer 2>/dev/null
+# Heads up：子 session 還在跑工具時跳出來的新一則要叫醒；回報過的同一則不再叫醒；換一則再叫醒；可關
+printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
+printf '%s\n' '✻ Working…' '✦ Heads up · 主代理刪了整個 tests 目錄。' '  1: Learn more   2: Knew this already   0: Dismiss' '❯' > "$SCREEN"
+ok "waitbg heads-up wakes while busy"              "$(wb 5)" "state=heads-up"
+ok "waitbg heads-up prints the summary"            "$(grep -m1 '^headsup=' "$Wb/out")" "headsup=主代理刪了整個 tests 目錄。"
+ok "waitbg same heads-up does not wake again"      "$(wb 3)" "TIMEOUT"
+printf '%s\n' '✻ Working…' '✦ Heads up · 主代理開了 SIMD，舊瀏覽器載不起來。' '❯' > "$SCREEN"
+ok "waitbg a different heads-up wakes"             "$(wb 5)" "state=heads-up"
+printf '%s\n' '✻ Working…' '✦ Heads up · 第三則' '❯' > "$SCREEN"
+ok "waitbg heads-up detection can be turned off"   "$(WAITBG_HEADSUP=0 wb 3)" "TIMEOUT"
+printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
+ok "waitbg done with a heads-up still says done"   "$(WAITBG_HEADSUP=0 wb 5)" "state=done"
+grep -qxF '第三則' "$Wb/seen"; ok "waitbg records the heads-up shown at return" $? 0
+
+# ---- quota.sh（同一個假的 orca；讀協調者自己的狀態列）
+qt() { PATH="$Wb/bin:$PATH" bash "$D/quota.sh" "$@" term_x; }
+echo '  QIM main  ·  Opus  ·  5h 60% ↻ 17m · 7d 90% ↻ 4d16h' > "$SCREEN"
+ok "quota below the 5h gate is open"     "$(qt 80 0)" "gate=open 5h=60 5h_reset=17m 7d=90 7d_reset=4d16h sleep=0"
+ok "quota no gates is open"              "$(qt 0 0)" "gate=open 5h=60 5h_reset=17m 7d=90 7d_reset=4d16h sleep=0"
+ok "quota at the 5h gate sleeps to reset" "$(qt 60 0 | grep -o 'gate=[a-z]* .*sleep=[0-9]*' | sed 's/ 5h=.* sleep/ sleep/')" "gate=closed sleep=1200"
+ok "quota 7d gate uses the 7d reset"     "$(qt 0 85 | grep -o 'sleep=[0-9]*')" "sleep=403380"
+echo '  QIM main  ·  Opus' > "$SCREEN"
+ok "quota without a status line is unknown" "$(qt 80 0 | cut -d' ' -f1)" "gate=unknown"
 
 rm -rf "$X"; [ $fail -eq 0 ] && echo "ALL OK"; exit $fail

@@ -8,16 +8,25 @@
 #   done-bg      回合結束、畫面還掛著 shell / 子代理計數，而 transcript 已經 WAITBG_BG_STALE（預設 3600）秒沒動：
 #                多半是殘留的背景程序（票 22：子代理留下的 `find /` 跑了 7 小時），叫子 session 收掉
 #   no-response  見 sent
+#   heads-up     畫面底部出現一則還沒回報過的 `✦ Heads up`（子 session 可能還在做）；下一行印 headsup=<摘要>。
+#                回報過的摘要記在 WAITBG_HU_SEEN（預設 $TMPDIR/waitbg-headsup-<handle>），同一則不再叫醒；
+#                任何 state 返回時，畫面上那則也記成回報過。WAITBG_HEADSUP=0 關掉偵測
 H=$1; J=$2; SENT=${3:-}; cd "$(dirname "$0")"; . ./py.sh
 POLL=${WAITBG_POLL:-30}; BG_STALE=${WAITBG_BG_STALE:-3600}; SENT_TIMEOUT=${WAITBG_SENT_TIMEOUT:-300}
 BG='… [(]([0-9]+h )?([0-9]+m )?[0-9]+s|still running|Waiting for [0-9]+ background|· [0-9]+ (shells?|monitors?)'
 screen_bg() { PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 16 | grep -qE "$BG"; }
 quiet() { age "$J"; }
+SEEN=${WAITBG_HU_SEEN:-${TMPDIR:-/tmp}/waitbg-headsup-$H}
+hu_now() { PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 30 2>/dev/null | grep -o 'Heads up · .*' | tail -1 | sed 's/^Heads up · //; s/[[:space:]]*$//'; }
+hu_seen() { grep -qxF -- "$1" "$SEEN" 2>/dev/null; }
 START=$("$PY" -c 'import time; print(int(time.time()))')
 elapsed() { echo $(( $("$PY" -c 'import time; print(int(time.time()))') - START )); }
 # transcript 在開始之後有沒有新寫入（mtime 比 START 新）
 fresh() { [ "$(quiet)" -lt "$(elapsed)" ]; }
 while :; do
+  if [ "${WAITBG_HEADSUP:-1}" = 1 ]; then
+    hu=$(hu_now); [ -n "$hu" ] && ! hu_seen "$hu" && { st=heads-up; break; }
+  fi
   st=$("$PY" state.py "$J"); rc=$?
   if [ -n "$SENT" ] && { [ $rc -eq 0 ] || [ $rc -eq 2 ]; } && ! fresh; then
     [ "$(elapsed)" -ge "$SENT_TIMEOUT" ] && { st=no-response; break; }
@@ -36,4 +45,5 @@ while :; do
   sleep "$POLL"
 done
 echo "state=$st"
+hu=$(hu_now); [ -n "$hu" ] && { echo "headsup=$hu"; hu_seen "$hu" || echo "$hu" >> "$SEEN"; }
 PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 45

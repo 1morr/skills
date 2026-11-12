@@ -41,7 +41,9 @@
   （票 22 是子代理留下的 `find /` 跑了 7 小時，等待因此卡了 6 小時）。叫子 session 查清楚、收掉，確認
   `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
 - `state=no-response`：帶了 `sent`，送出後 5 分鐘 transcript 都沒新寫入。讀畫面：停在輸入框就是字被吞了，補送一次。
-- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh`、`waitbg.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
+- `state=heads-up`：畫面出現一則還沒回報過的 Heads up，子 session 多半還在做；下一行 `headsup=` 是摘要。照下面「Heads up」的分級處理，
+  處理完照原樣重新掛等待（送過訊息就加 `sent`）。同一則不會再叫醒你；任何 `state=` 返回時畫面上有 Heads up，也會多印一行 `headsup=`。
+- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh`、`waitbg.sh`、`quota.sh` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，
@@ -64,6 +66,13 @@
 - 展開：輸入框是空的時候送 `1`（不加 `--enter`），再 `scr.py <handle> 40` 讀。展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `1` 收起。看到的已經是後者，代表有人展開過，直接讀畫面上的內容；不要再按 `1`，那會把它收掉。
 - 子 session 停在 AskUserQuestion 時先答題，等它回到空輸入框再展開：題目開著時數字鍵會被當成選項。
 - 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就照 SKILL.md「每張票」第 3 步把原文貼給它。
+- `waitbg.sh` 每次輪詢都看畫面，新的一則以 `state=heads-up` 叫醒你，子 session 可能還在做。分兩級：
+  - **馬上處理**：摘要或展開後的內容涉及刪檔或丟掉改動、破壞性 git、push 或對外寫入、金鑰或個人資料外洩、改隱私或安全約定、
+    超出票的範圍。查證後屬實就把原文貼給子 session（它在忙時送出的訊息會排隊，最晚在它停下時讀到）。
+  - **其他**：只把摘要記進 ledger，等子 session 停下再展開、查證、處理。中途的 Heads up 常是它還沒定案的想法，
+    停下時多半已經自己改掉（曾有一則說「改成無痕時交出前文」，最後程式碼沒改）。
+- 子 session 在忙時，送 `1` 不一定會展開（沒實測過）。送完讀畫面：輸入框出現 `❯ 1` 就是字進了輸入框，送一次退格
+  （`$'\x7f'`）清掉，改成只依摘要判斷；不要送 Enter，會把 `1` 當訊息送出。
 
 ## 額度
 
@@ -73,3 +82,6 @@
   - 還停在同一個訊息：送一次「繼續，從中斷處接著做，保留已完成的部分」。
   - 畫面上找不到重置時間：`sleep 1800` 後照上面兩條判斷。
 - 你自己撞到上限也會停，重置後 Claude Code 會自動接著做：醒來先讀 ledger。
+- 開票前的額度門檻（SKILL.md 的參數）：`bash <S>/quota.sh <5h 門檻> <7d 門檻>` 讀你自己終端的狀態列（要顯示
+  `5h 60% ↻ 18m · 7d 90% ↻ 4d16h` 這種格式），印 `gate=open|closed|unknown … sleep=<秒>`。`closed` 就不開新票，
+  背景 `sleep` 那麼久（超過 3600 就先睡 3600）再問一次；在跑的票照常等、照常驗收合併。`unknown` 是讀不到額度，照常開票並記進 ledger。
