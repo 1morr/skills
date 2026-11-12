@@ -146,14 +146,26 @@ printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 ok "waitbg done with a heads-up still says done"   "$(WAITBG_HEADSUP=0 wb 5)" "state=done"
 grep -qxF '第三則' "$Wb/seen"; ok "waitbg records the heads-up shown at return" $? 0
 
-# ---- quota.sh（同一個假的 orca；讀協調者自己的狀態列）
-qt() { PATH="$Wb/bin:$PATH" bash "$D/quota.sh" "$@" term_x; }
+# ---- quota.sh（先讀狀態列存下的檔，太舊或沒有才讀畫面；同一個假的 orca）
+QF="$Wb/rl.json"
+qt() { PATH="$Wb/bin:$PATH" QUOTA_FILE="$QF" bash "$D/quota.sh" "$@" term_x; }
+fields() { sed -E 's/ (5h|7d)(_reset)?=[^ ]*//g'; }   # 只留 gate、src、sleep
+rl() { "$PY" -c 'import json, sys, time; n = time.time(); json.dump({"at": int(n) - int(sys.argv[1]), "rate_limits": {"five_hour": {"used_percentage": 60, "resets_at": int(n) + 1020}, "seven_day": {"used_percentage": 90, "resets_at": int(n) + 400000}}}, open(sys.argv[2], "w"))' "$1" "$QF"; }
+echo '  QIM main  ·  Opus  ·  5h 40% ↻ 17m · 7d 50% ↻ 4d16h' > "$SCREEN"
+rl 5
+ok "quota fresh file below the gate is open"  "$(qt 80 0 | fields)" "gate=open src=file sleep=0"
+ok "quota file 5h gate sleeps to its reset"   "$(qt 60 0 | fields | sed -E 's/sleep=1(19[0-9]|20[0-9])$/sleep=~1200/')" "gate=closed src=file sleep=~1200"
+ok "quota file 7d gate"                       "$(qt 0 90 | fields | cut -d' ' -f1)" "gate=closed"
+rl 3600
+ok "quota stale file falls back to the screen" "$(qt 60 0 | fields)" "gate=open src=screen sleep=0"
+rm -f "$QF"
 echo '  QIM main  ·  Opus  ·  5h 60% ↻ 17m · 7d 90% ↻ 4d16h' > "$SCREEN"
-ok "quota below the 5h gate is open"     "$(qt 80 0)" "gate=open 5h=60 5h_reset=17m 7d=90 7d_reset=4d16h sleep=0"
-ok "quota no gates is open"              "$(qt 0 0)" "gate=open 5h=60 5h_reset=17m 7d=90 7d_reset=4d16h sleep=0"
-ok "quota at the 5h gate sleeps to reset" "$(qt 60 0 | grep -o 'gate=[a-z]* .*sleep=[0-9]*' | sed 's/ 5h=.* sleep/ sleep/')" "gate=closed sleep=1200"
-ok "quota 7d gate uses the 7d reset"     "$(qt 0 85 | grep -o 'sleep=[0-9]*')" "sleep=403380"
+ok "quota screen below the 5h gate is open"   "$(qt 80 0)" "gate=open src=screen 5h=60 5h_reset=17m 7d=90 7d_reset=4d16h sleep=0"
+ok "quota no gates is open"                   "$(qt 0 0 | fields)" "gate=open src=screen sleep=0"
+ok "quota screen 5h gate sleeps to reset"     "$(qt 60 0 | fields)" "gate=closed src=screen sleep=1200"
+ok "quota screen 7d gate uses the 7d reset"   "$(qt 0 85 | fields)" "gate=closed src=screen sleep=403380"
 echo '  QIM main  ·  Opus' > "$SCREEN"
-ok "quota without a status line is unknown" "$(qt 80 0 | cut -d' ' -f1)" "gate=unknown"
+ok "quota unknown with a gate holds off"      "$(qt 80 0 | fields)" "gate=unknown src=none sleep=600"
+ok "quota unknown without gates does not wait" "$(qt 0 0 | fields)" "gate=unknown src=none sleep=0"
 
 rm -rf "$X"; [ $fail -eq 0 ] && echo "ALL OK"; exit $fail

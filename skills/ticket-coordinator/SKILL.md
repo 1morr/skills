@@ -43,8 +43,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 1. **開 session**：每張票一個自己的 worktree 與分支，主目錄不給子 session 用。開之前先過兩道上限（參數有給才查）：
    - 同時上限：ledger 裡 running 的票到上限就不開，等某張收尾後回到這一步。
-   - 額度門檻：`bash <S>/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開，背景 `sleep` 它印的秒數
-     （超過 3600 先睡 3600）再問；在跑的票的等待照掛。細節見 TUI.md「額度」。
+   - 額度門檻：`bash <S>/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 或 `unknown` 就不開，背景 `sleep`
+     它印的秒數（超過 3600 先睡 3600）再問；連續 3 次 `unknown` 停下問使用者。在跑的票的等待照掛。細節見 TUI.md「額度」。
    `bash <S>/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`：從主分支開 orca worktree，再呼叫
    `launch.sh` 在裡面開子 session。它印出 `worktree=`、`handle=`、`jsonl=`（檔名去掉 `.jsonl` 是 session id），
    並確認 skill 真的展開；印 `expanded: NO` 就中斷、關掉、查原因再重開，同一張票連兩次沒展開算卡住。
