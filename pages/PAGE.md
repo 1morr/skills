@@ -31,7 +31,7 @@
 python <P>/scripts/build.py <名稱>-src.html
 ```
 
-`build.py` 會把 Mermaid 整份內嵌（每頁約 3.6 MB），而且頁面只要從外部載入任何東西（CDN 的 script、樣式、字型、圖片）就拒絕產出。這是因為 Orca 從另一台機器打開工作區的 HTML 時走隔離預覽，對外請求一律被擋。組好之後，它會用本機的 Chrome 或 Edge 無頭打開頁面，逐張確認圖畫成了 svg、沒有語法錯誤；有問題、或找不到瀏覽器時，退出碼是 1。改頁面時改 `-src.html` 再重組；組好的檔案太大，不要直接讀或改。
+Orca 從另一台機器打開工作區的 HTML 時走隔離預覽：對外請求一律被擋，超過 512 KiB 的檔不顯示。所以頁面只要從外部載入任何東西（CDN 的 script、樣式、字型、圖片）`build.py` 就拒絕產出；有圖時，它用本機的 Chrome 或 Edge 無頭跑 Mermaid，把畫好的 svg（淺色、深色各一份）寫進頁面，不帶任何 script。圖畫不出來、找不到瀏覽器、或組好的頁超過 512 KiB 時，退出碼是 1。超過 512 KiB 就拆頁或刪圖。改頁面時改 `-src.html` 再重組；組好的檔案是一大串 svg，不要直接讀或改。
 
 ## 外觀
 
@@ -52,7 +52,7 @@ python <P>/scripts/build.py <名稱>-src.html
 ## 交出前
 
 1. **核對**：把整頁和頁上引到的來源交給一個沒看過你結論的子代理（審查用的模型），回報兩種句子：附了來源卻和來源對不上的；講了事實、預估或因果，卻沒附來源也沒標 `推斷` 的。改掉、補來源，或改標 `推斷`。頁尾寫核對紀錄：核對幾句、改了幾句、改標 `推斷` 幾句。
-2. **渲染**：`build.py` 退出碼 0、印出「N 張圖都畫出來了」就算過。它說找不到 Chrome 或 Edge 時，改用瀏覽器自動化工具（下面以 playwright 為例）：
+2. **渲染**：`build.py` 退出碼 0、印出「N 張圖都畫出來了」就算過。它說找不到 Chrome 或 Edge 時，產出的頁改成內嵌整份 Mermaid（約 3.6 MB，Orca 遠端預覽打不開，跟使用者說要在本機瀏覽器看），改用瀏覽器自動化工具檢查（下面以 playwright 為例）：
    - playwright 不開 `file://`，在 scratchpad 用背景模式開 `python -m http.server <port> --bind 127.0.0.1`。
    - 打開組好的頁，確認每張圖都畫成 svg、畫面文字（`document.body.innerText`）沒有 `Syntax error`。不要搜原始碼：內嵌的 Mermaid 自己就含這個字串。
    - 截圖的檔名用 scratchpad 的完整路徑。

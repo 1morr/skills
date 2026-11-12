@@ -1,12 +1,19 @@
-"""把解說頁的原始 HTML 組成單一檔案：不准載入外部資源，有 Mermaid 圖就把 Mermaid 整份內嵌，
-再用本機的 Chrome 或 Edge 無頭打開組好的頁，確認每張圖都畫出來。
+"""把解說頁的原始 HTML 組成單一檔案：不准載入外部資源；有 Mermaid 圖就用本機的 Chrome 或 Edge
+無頭跑 Mermaid，把畫好的 svg 直接寫進頁面，確認每張圖都畫出來。
 
     python build.py <page-src.html> [-o <page.html>]
 
-為什麼要內嵌：Orca 從另一台機器開工作區的 HTML 時走隔離預覽，CSP 只放行頁內的 script，
-其他請求一律取消，從 CDN 載入的 Mermaid 會被擋，圖就變成一段原始碼。
+成功時印出輸出檔路徑和「N 張圖都畫出來了」，退出碼 0。有問題時印到 stderr、退出碼 1：
+- 原始頁會從外部載入東西：不產出。
+- 找不到瀏覽器或圖畫不出來：產出內嵌整份 Mermaid 的頁（約 3.6 MB，本機瀏覽器看得到圖）。
+- 組好的頁超過 512 KiB：照樣產出。
 
-為什麼用瀏覽器的命令列檢查：playwright 不讓開 file://，得另開 http server，用完常忘了關，
+為什麼預先畫好：Orca 從另一台機器開工作區的 HTML 時走隔離預覽，CSP 只放行頁內的 script，
+其他請求一律取消，所以 Mermaid 不能從 CDN 載入；而且它只讀 512 KiB 以內的檔
+（Orca main/index.js 的 readDocPreviewFile 傳 maxTextBytes 524288），內嵌整份 Mermaid 也打不開。
+深色模式跟著 prefers-color-scheme，所以每張圖畫淺色（neutral）、深色（dark）兩份，用 CSS 切換。
+
+為什麼用瀏覽器的命令列：playwright 不讓開 file://，得另開 http server，用完常忘了關，
 截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。
 
 Mermaid 第一次用時從 npm registry 下載固定版本、驗 sha512，存在使用者快取目錄。
@@ -33,8 +40,18 @@ MERMAID_TARBALL = f"https://registry.npmjs.org/mermaid/-/mermaid-{MERMAID_VERSIO
 # npm registry 的 dist.integrity
 MERMAID_SHA512 = "V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg=="
 MERMAID_MEMBER = "package/dist/mermaid.min.js"
-INIT = ('mermaid.initialize({ startOnLoad: true, theme: '
-        'matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral" });')
+AUTO_THEME = 'matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral"'
+# 每張圖畫兩份：data-theme 的值 → Mermaid 主題
+THEMES = {"light": "neutral", "dark": "dark"}
+# Orca 遠端預覽讀檔的上限（main/index.js readDocPreviewFile 的 maxTextBytes）
+ORCA_REMOTE_MAX = 524288
+STATIC_CSS = (
+    "<style>pre.mermaid>[data-theme]{display:block}pre.mermaid>[data-theme=dark]{display:none}"
+    "@media (prefers-color-scheme: dark){pre.mermaid>[data-theme=light]{display:none}"
+    "pre.mermaid>[data-theme=dark]{display:block}}"
+    # 標籤的寬度是在這台機器量的；別台的字型較寬時，讓字超出方框而不是被切掉
+    "pre.mermaid foreignObject{overflow:visible}</style>"
+)
 
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 這些屬性的網址會被瀏覽器自動載入；<a href> 是讀者自己點的，不算
@@ -96,15 +113,58 @@ def inline_script(js: str) -> str:
     return "<script>" + re.sub(r"</(script)", r"<\\/\1", js, flags=re.I) + "</script>"
 
 
-def build(html: str, load_mermaid) -> str:
-    """有 <pre class="mermaid"> 才呼叫 load_mermaid() 取 Mermaid 原始碼，放在 </body> 前。"""
-    if not scan(html).diagrams:
-        return html
-    tail = inline_script(load_mermaid()) + "\n<script>\n  " + INIT + "\n</script>\n"
+def with_mermaid(html: str, js: str, theme=None) -> str:
+    """把 Mermaid 原始碼和初始化放在 </body> 前；theme 是 None 時跟著 prefers-color-scheme。"""
+    t = f'"{theme}"' if theme else AUTO_THEME
+    tail = (inline_script(js) + "\n<script>\n  mermaid.initialize({ startOnLoad: true, theme: "
+            + t + " });\n</script>\n")
     ends = [m.start() for m in re.finditer(r"</body\s*>", html, re.I)]
     if not ends:
         return html + tail
     return html[:ends[-1]] + tail + html[ends[-1]:]
+
+
+PRE = re.compile(r"(<pre\b[^>]*>)(.*?)(</pre\s*>)", re.I | re.S)
+
+
+def is_mermaid(start_tag: str) -> bool:
+    s = Scan()
+    s.feed(start_tag)
+    return s.diagrams == 1
+
+
+def mermaid_blocks(html: str) -> list:
+    """頁上每個 <pre class="mermaid"> 的 match：group 1 開始標籤、2 內容、3 結束標籤。"""
+    return [m for m in PRE.finditer(html) if is_mermaid(m.group(1))]
+
+
+def drawn(dom: str) -> list:
+    """畫好的頁上每張圖的內容（Mermaid 畫的 svg）。"""
+    return [m.group(2).strip() for m in mermaid_blocks(dom)]
+
+
+def rename(svg: str, new_id: str) -> str:
+    """換掉 svg 的 id：svg 內的樣式和 url(#…) 都以它為前綴，兩份同一張圖才不會互相套到。"""
+    m = re.search(r'<svg\b[^>]*?\sid="([^"]+)"', svg)
+    return svg.replace(m.group(1), new_id) if m else svg
+
+
+def embed(html: str, light: list, dark: list) -> str:
+    """把每個 <pre class="mermaid"> 的內容換成畫好的淺色、深色兩份 svg，前面放切換用的樣式。"""
+    blocks = mermaid_blocks(html)
+    if not (len(blocks) == len(light) == len(dark)):
+        raise ValueError(f"頁上有 {len(blocks)} 張圖，畫好的淺色 {len(light)} 張、深色 {len(dark)} 張")
+    out, pos = [], 0
+    for i, (m, l, d) in enumerate(zip(blocks, light, dark), 1):
+        out.append(html[pos:m.start()])
+        if i == 1:
+            out.append(STATIC_CSS)
+        out.append(m.group(1)
+                   + f'<span data-theme="light">{rename(l, f"diagram-{i}-light")}</span>'
+                   + f'<span data-theme="dark">{rename(d, f"diagram-{i}-dark")}</span>'
+                   + m.group(3))
+        pos = m.end()
+    return "".join(out) + html[pos:]
 
 
 def verify(tarball: bytes) -> bool:
@@ -217,6 +277,12 @@ def render_problems(dom: str, expected: int) -> list:
     return problems
 
 
+def report(path, problems, what) -> None:
+    print(f"{path}：{len(problems)} 個{what}", file=sys.stderr)
+    for p in problems:
+        print(f"  - {p}", file=sys.stderr)
+
+
 def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
@@ -227,30 +293,50 @@ def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
     src = args.src.read_text(encoding="utf-8")
     problems = lint(src)
     if problems:
-        print(f"{args.src}：{len(problems)} 個問題，沒有產出", file=sys.stderr)
-        for p in problems:
-            print(f"  - {p}", file=sys.stderr)
+        report(args.src, problems, "問題，沒有產出")
         return 1
     out = args.out or args.src.with_name(args.src.stem.removesuffix("-src") + ".html")
     if out.resolve() == args.src.resolve():
         print(f"輸出會蓋掉原始檔 {args.src}：原始檔名要以 -src.html 結尾，或用 -o 指定", file=sys.stderr)
         return 1
-    out.write_text(build(src, loader), encoding="utf-8")
-    print(out)
     diagrams = scan(src).diagrams
     if not diagrams:
-        return 0
-    dom = render(out)
-    if dom is None:
-        print("找不到 Chrome 或 Edge，沒檢查圖有沒有畫出來：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
-        return 1
-    problems = render_problems(dom, diagrams)
+        return finish(out, src, 0)
+    js = loader()
+    svgs = {}
+    with tempfile.TemporaryDirectory(prefix="pages-build-") as d:
+        for name, theme in THEMES.items():
+            draft = Path(d) / f"{name}.html"
+            draft.write_text(with_mermaid(src, js, theme), encoding="utf-8")
+            dom = render(draft)
+            if dom is None:
+                out.write_text(with_mermaid(src, js), encoding="utf-8")
+                print(out)
+                print("找不到 Chrome 或 Edge，圖沒有預先畫好：產出的頁內嵌整份 Mermaid，"
+                      "Orca 遠端預覽打不開；照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
+                return 1
+            problems = render_problems(dom, diagrams)
+            if problems:
+                out.write_text(with_mermaid(src, js), encoding="utf-8")
+                print(out)
+                report(out, problems, f"渲染問題（{theme} 主題）")
+                return 1
+            svgs[name] = drawn(dom)
+    return finish(out, embed(src, svgs["light"], svgs["dark"]), diagrams)
+
+
+def finish(out: Path, page: str, diagrams: int) -> int:
+    out.write_text(page, encoding="utf-8")
+    print(out)
+    problems = lint(page)
+    size = len(page.encode("utf-8"))
+    if size > ORCA_REMOTE_MAX:
+        problems.append(f"組好的頁 {size} bytes，超過 Orca 遠端預覽的上限 {ORCA_REMOTE_MAX}：拆頁或縮小")
     if problems:
-        print(f"{out}：{len(problems)} 個渲染問題", file=sys.stderr)
-        for p in problems:
-            print(f"  - {p}", file=sys.stderr)
+        report(out, problems, "問題")
         return 1
-    print(f"{diagrams} 張圖都畫出來了")
+    if diagrams:
+        print(f"{diagrams} 張圖都畫出來了")
     return 0
 
 
