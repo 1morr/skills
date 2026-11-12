@@ -1,4 +1,4 @@
-"""把練習頁的原始 HTML 組成單一檔案：每題下面加一張能手寫、能打字的畫布，並檢查規則；規則不過就不產出。
+"""把練習頁的原始 HTML 組成單一檔案：每題下面加一張能手寫、能打字的畫布，填答格在頁面上對答案，並檢查規則；規則不過就不產出。
 
     python practice.py <practice-src.html> -o <topicN-practice.html>
 
@@ -7,6 +7,13 @@
     data-key      畫布存檔的名字空間（同一台電腦上每份練習頁要不一樣，例如 isom3031-topic4）
     data-guide    導讀頁檔名，相對於產出的練習頁；題目裡的 §N 會連到導讀頁那一段
     data-answers  答案檔，相對於原始檔；批改用，不放進頁面
+
+填答格（頁面上馬上對答案，寫法照 Moodle 的 short answer／numerical 題型：多個可接受的答案、不分大小寫、數字可給容許誤差）：
+    <p class="fill" data-answer="2.262|2.26" data-why="df = 9、雙尾 α = 0.05，查 t 表">臨界值 =</p>
+    data-answer   可接受的答案，用 | 分開；第一個是公布的答案。兩邊都是數字時比數值
+    data-tol      數字的容許誤差（預設 0）
+    data-why      一句原因：答對或公布答案時顯示。基本功必填
+基本功錯兩次就公布答案和原因；整題的填答格只說對不對，不公布，步驟由 Claude 批改。
 
 只用標準函式庫，CI 才能直接跑測試。
 """
@@ -32,7 +39,7 @@ PAD_H = {"drill": 280, "full": 900}
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
-# 練習頁只放題目：做法和答案在答案檔，由 Claude 批改
+# 練習頁只放題目和填答格：做法在答案檔，由 Claude 批改
 ANSWER_CLASSES = {"answer", "calc", "sheet", "origin", "trap", "summary"}
 SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
@@ -49,7 +56,7 @@ class Lint(HTMLParser):
         self.problems = []
         self.body = None  # <body> 的屬性
         self.stack = []  # [(tag, classes)]
-        self.qs = []  # 每題：{"id", "drill", "differs", "title", "refs", "has_ref"}
+        self.qs = []  # 每題：{"id", "drill", "differs", "title", "refs", "fills"}
         self.figures = []  # 開著的 figure：{"zh", "none", "caption", "in_caption", "panel", "tab"}
         self.heading = None
 
@@ -71,20 +78,20 @@ class Lint(HTMLParser):
             if self.inside("q"):
                 self.problems.append("題目裡又有題目（section.q 不能巢狀）")
             self.qs.append({"id": a.get("data-id") or "", "drill": "drill" in cls, "differs": (a.get("data-differs") or "").strip(),
-                            "title": "", "refs": [], "has_ref": False})
+                            "title": "", "refs": [], "fills": 0})
             if a.get("data-h") is not None and not a["data-h"].strip().isdigit():
                 self.problems.append(f"data-h={a['data-h']!r} 要是整數：畫布的高度（畫布座標）")
         elif self.qs and self.inside("q"):
             if tag == "details" or cls & ANSWER_CLASSES:
                 what = f'<{tag} class="{" ".join(sorted(cls))}">' if cls else f"<{tag}>"
                 self.problems.append(f"題目 {self.qs[-1]['id'] or self.qs[-1]['title']!r} 裡有 {what}："
-                                     "練習頁不放做法和答案，答案寫在答案檔，做完由 Claude 批改")
+                                     "練習頁不放做法和答案；要馬上對的單一答案用 .fill 填答格，做法寫在答案檔由 Claude 批改")
             if tag == "h2":
                 self.heading = ""
-            if "ref" in cls:
-                self.qs[-1]["has_ref"] = True
             if "pad" in cls:
                 self.problems.append("不用自己放 .pad：practice.py 會在每題最後加畫布")
+        if "fill" in cls:
+            self.fill(tag, a)
         if tag == "figure":
             self.figures.append({"zh": False, "none": a.get("data-tr") == "none", "caption": "", "in_caption": False,
                                  "panel": self.inside("panel"), "tab": (a.get("data-tab") or "").strip()})
@@ -97,6 +104,22 @@ class Lint(HTMLParser):
             self.figures[-1]["in_caption"] = True
         if tag not in ("img", "br", "hr", "meta", "link", "input", "col", "wbr", "source"):
             self.stack.append((tag, cls))
+
+    def fill(self, tag, a):
+        """填答格：頁面上對答案的一格。"""
+        if not (self.qs and self.inside("q")):
+            self.problems.append(f'<{tag} class="fill"> 不在題目裡：填答格要放在 section.q 裡')
+            return
+        q = self.qs[-1]
+        q["fills"] += 1
+        name = q["id"] or q["title"]
+        if not [x for x in (a.get("data-answer") or "").split("|") if x.strip()]:
+            self.problems.append(f"題目 {name!r} 的填答格沒有 data-answer：寫可接受的答案，多個用 | 分開")
+        if q["drill"] and not (a.get("data-why") or "").strip():
+            self.problems.append(f"基本功 {name!r} 的填答格沒有 data-why：寫一句原因，答對或公布答案時顯示")
+        tol = a.get("data-tol")
+        if tol is not None and not re.fullmatch(r"\s*\d+(\.\d+)?\s*", tol):
+            self.problems.append(f"data-tol={tol!r} 要是不小於 0 的數字：數字答案的容許誤差")
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -165,6 +188,9 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
                             "不能只是編號：插題或改順序後，存在瀏覽器裡的筆跡會跑到別題")
         elif ids.count(q["id"]) > 1:
             problems.append(f"題目代號 {q['id']!r} 重複了：每題一個")
+        if q["drill"] and not q["fills"]:
+            problems.append(f'基本功「{name}」沒有填答格：加一個 class="fill" data-answer="…" data-why="…" 的元素，'
+                            "讀者填了馬上知道對錯，不用貼回對話")
         if not q["drill"]:
             if not q["refs"]:
                 problems.append(f"題目「{name}」的 .ref 沒寫對照導讀頁的 §N：寫「對照 Eg 1（導讀頁 §16）」，讀者卡住時點過去看")
@@ -324,14 +350,19 @@ def inline_images(page: str, base: Path) -> str:
 HOWTO = """<div class="howto">
 <b>怎麼用這頁</b>
 <ul>
-<li>先做最上面的「基本功」：每題只考一個判斷，錯了馬上知道錯在哪。再做下面的整題。</li>
+<li>先做最上面的「基本功」：每題只考一個判斷，填好按「對答案」馬上知道對錯；錯兩次會公布答案和原因。再做下面的整題。</li>
 <li>每題標了對照導讀頁的哪一段，點 § 會在新分頁打開；卡住時去看那題例題的做法。</li>
 <li>畫布：滑鼠按住拖曳就是寫字，觸控筆、手指也可以。按「文字」再點畫布任何地方就能打字；點已經打的字可以改，按 Esc 或點別處收起來。</li>
 <li>工具列還有換顏色、橡皮擦、復原（Ctrl+Z）、加長、清空（要連按兩下）。寫的東西自動存在這台電腦的瀏覽器裡，關掉再開還在。</li>
-<li>做完一題按「複製給 Claude」，到對話裡按 Ctrl+V 貼上，Claude 照你寫的步驟批改。這頁沒有答案。</li>
+<li>整題的做法不在這頁。有填答格的先對最後的數字；要看步驟哪裡錯，按「複製給 Claude」，到對話裡按 Ctrl+V 貼上，Claude 照你寫的步驟批改。</li>
+<li>全部做完按上面的「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
 </ul>
 </div>
 """
+
+
+REPORT = ('<p class="report"><button id="report" type="button">複製填答結果</button>'
+          '<span class="status" aria-live="polite"></span></p>\n')
 
 
 def build(src: str, base: Path) -> str:
@@ -345,7 +376,7 @@ def build(src: str, base: Path) -> str:
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
             f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
             f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}">\n<main>\n<h1>{title}</h1>\n{lead}{HOWTO}'
-            f"{nav(inner)}{inner}\n</main>\n{panel_html}"
+            f"{nav(inner)}{REPORT}{inner}\n</main>\n{panel_html}"
             f"<script>\n{JS.read_text(encoding='utf-8')}</script>\n</body>\n</html>\n")
     return inline_images(page, base)
 

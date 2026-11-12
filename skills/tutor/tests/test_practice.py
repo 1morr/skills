@@ -24,8 +24,12 @@ GUIDE = '<html><body><h2 id="s1">§1 符號</h2><h3 id="s1-2">§1.2</h3><h2 id="
 BODY = 'data-title="Topic 4 練習" data-key="isom3031-topic4" data-guide="guide.html" data-answers="ans.md"'
 
 
+FILL = '<p class="fill" data-answer="t|t 分配" data-why="σ 未知，用 t">用哪一個：</p>'
+
+
 def drill(qid, text="這題用 t 還是 Z？"):
-    return f'<section class="q drill" data-id="{qid}"><h2>基本功</h2><p>{text}</p></section>'
+    return (f'<section class="q drill" data-id="{qid}"><h2>基本功</h2><p>{text}</p>'
+            f'{FILL}</section>')
 
 
 DRILLS = drill("which-table") + drill("which-tail") + drill("critical-value")
@@ -120,6 +124,32 @@ class DrillRule(Case):
 
     def test_drills_need_no_ref_or_differs(self):
         self.assertGreen(src(DRILLS.replace("<p>", '<p class="ref">對照 §1.2</p><p>', 1) + FULL))
+
+
+class FillRule(Case):
+    def test_drill_without_fill_fails(self):
+        self.assertRed(src(DRILLS.replace(FILL, "", 1) + FULL), "沒有填答格")
+
+    def test_fill_without_answer_fails(self):
+        for bad in ('data-answer=""', 'data-answer=" | "'):
+            with self.subTest(bad=bad):
+                self.assertRed(src(DRILLS.replace('data-answer="t|t 分配"', bad, 1) + FULL), "沒有 data-answer")
+
+    def test_drill_fill_without_why_fails(self):
+        self.assertRed(src(DRILLS.replace(' data-why="σ 未知，用 t"', "", 1) + FULL), "沒有 data-why")
+
+    def test_fill_outside_question_fails(self):
+        self.assertRed(src(FILL + DRILLS + FULL), "不在題目裡")
+
+    def test_bad_tolerance_fails(self):
+        self.assertRed(src(DRILLS.replace('class="fill"', 'class="fill" data-tol="-1"', 1) + FULL), "data-tol")
+
+    def test_full_problem_fill_needs_no_why(self):
+        fill = "<span data-tol='0.005' class='final fill' data-answer='2.26'>t =</span>"
+        self.assertGreen(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", f"<p>算 t。</p>{fill}")))
+
+    def test_full_problem_needs_no_fill(self):
+        self.assertGreen(src(DRILLS + FULL))
 
 
 class RefRule(Case):
@@ -286,6 +316,11 @@ class Build(Case):
         self.assertIn('<body data-key="isom3031-topic4" data-title="Topic 4 練習">', out)
         self.assertIn(practice.JS.read_text(encoding="utf-8")[:200], out)
         self.assertNotIn("data-answers", out)
+
+    def test_fills_and_report_button_reach_the_page(self):
+        out = self.page()
+        self.assertEqual(out.count('class="fill" data-answer="t|t 分配"'), 3)
+        self.assertEqual(out.count('<button id="report"'), 1)
 
     def test_cli_writes_nothing_when_red(self):
         (self.dir / "p-src.html").write_text(src(DRILLS), encoding="utf-8")

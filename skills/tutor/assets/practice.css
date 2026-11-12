@@ -3,7 +3,7 @@
 :root {
   color-scheme: light dark;
   --paper: #fbfaf6; --card: #ffffff; --ink: #23211d; --muted: #67625a; --line: #e2ddd2; --rule: #c9c2b4;
-  --accent: #1f5f8b; --accent-soft: #e9f0f5; --tint: #f0ede5; --danger: #b3261e;
+  --accent: #1f5f8b; --accent-soft: #e9f0f5; --tint: #f0ede5; --danger: #b3261e; --ok: #2e6b3a;
   --board: #ffffff; --board-ink: #1d2433; --grid: #e9edf3; --img-filter: none;
   --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
   --serif: "STIX Two Text", Cambria, "Times New Roman", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", serif;
@@ -12,7 +12,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #1b1a18; --card: #22211e; --ink: #e8e4db; --muted: #a49e93; --line: #36332e; --rule: #4a463f;
-    --accent: #86b8dc; --accent-soft: #1e2a33; --tint: #2a2824; --danger: #e5675c; --img-filter: brightness(.88);
+    --accent: #86b8dc; --accent-soft: #1e2a33; --tint: #2a2824; --danger: #e5675c; --ok: #8cc79a; --img-filter: brightness(.88);
   }
 }
 * { box-sizing: border-box; }
@@ -69,6 +69,25 @@ section.q figure img {
   border: 1px solid var(--line); border-radius: 2px; filter: var(--img-filter);
 }
 figcaption { color: var(--muted); font-size: .84rem; margin-top: .35rem; }
+
+/* 填答格：頁面上對答案；對錯用字說，顏色只是輔助 */
+.fill { margin: .7rem 0; }
+.fill input {
+  font: inherit; width: 9em; padding: .1rem .5rem; color: var(--ink); background: var(--card);
+  border: 1px solid var(--rule); border-radius: 4px;
+}
+.fill button, .report button {
+  font: inherit; font-size: .9rem; color: var(--accent); background: transparent; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; padding: .1rem .75rem;
+}
+.fill button:hover:not(:disabled), .report button:hover { background: var(--accent-soft); }
+.fill button:disabled { opacity: .5; cursor: default; }
+.fill .result { display: block; font-size: .94rem; margin-top: .25rem; }
+.fill.ok .result { color: var(--ok); }
+.fill.no .result { color: var(--danger); }
+.report { margin: .6rem 0 0; font-size: .9rem; }
+.report .status { color: var(--muted); margin-left: .6rem; }
+.report textarea { display: block; width: 100%; margin-top: .5rem; font: .86rem/1.5 var(--mono); }
 
 /* 畫布：工具列在上、白紙方格在下 */
 .pad { border: 1px solid var(--rule); border-radius: 4px; overflow: clip; margin: 1rem 0 1.25rem; background: var(--board); }

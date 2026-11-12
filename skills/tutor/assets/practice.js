@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、右下角查表面板、點圖切換中英文。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、右下角查表面板、點圖切換中英文。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -11,6 +11,80 @@
   const TOKEN = new RegExp("[" + CJK + "]|[^\\s" + CJK + "]+\\s*|\\s+", "g");
   const measure = document.createElement("canvas").getContext("2d");
   let lastPad = null;
+  const fillLines = {};  // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
+
+  // 填答格：全形轉半形、不分大小寫、不管空白；兩邊都是數字就比數值（data-tol 是容許誤差）
+  function norm(s) {
+    return s.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[−–]/g, "-");
+  }
+  function matches(given, answers, tol) {
+    const g = norm(given);
+    return answers.some(function (ans) {
+      const a = norm(ans);
+      if (g === a) return true;
+      const x = Number(g), y = Number(a);
+      return g !== "" && a !== "" && isFinite(x) && isFinite(y) && Math.abs(x - y) <= tol + 1e-9;
+    });
+  }
+  function describe(f) {
+    if (!f.tries.length) return "還沒做";
+    const wrong = f.ok ? f.tries.slice(0, -1) : f.tries;
+    return (f.ok ? "第 " + f.tries.length + " 次答對" : "錯 " + f.tries.length + " 次") +
+      (wrong.length ? "，答錯過：" + wrong.join("、") : "");
+  }
+  // 基本功錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給 Claude 批改
+  function makeFills(section) {
+    const id = section.dataset.id;
+    const drill = section.classList.contains("drill");
+    const store = KEY + ":" + id + ":fill";
+    const els = Array.from(section.querySelectorAll(".fill"));
+    const saved = JSON.parse(localStorage.getItem(store) || "[]");
+    const state = els.map(function (_, i) { return saved[i] || { tries: [], ok: false }; });
+    fillLines[id] = function () {
+      return els.map(function (el, i) { return el.dataset.label + " " + describe(state[i]); });
+    };
+    els.forEach(function (el, i) {
+      const f = state[i];
+      const answers = el.dataset.answer.split("|").filter(function (a) { return a.trim(); });
+      const tol = parseFloat(el.dataset.tol) || 0;
+      el.dataset.label = el.textContent.trim();
+      const input = document.createElement("input");
+      input.type = "text";
+      input.autocomplete = "off";
+      input.setAttribute("aria-label", el.dataset.label || "答案");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "對答案";
+      const out = document.createElement("span");
+      out.className = "result";
+      out.setAttribute("aria-live", "polite");
+      el.append(" ", input, " ", btn, out);
+      function show() {
+        const why = el.dataset.why ? " " + el.dataset.why : "";
+        const done = f.ok || (drill && f.tries.length >= 2);
+        input.disabled = btn.disabled = done;
+        if (f.tries.length) input.value = f.tries[f.tries.length - 1];
+        el.classList.toggle("ok", f.ok);
+        el.classList.toggle("no", !f.ok && f.tries.length > 0);
+        if (f.ok) out.textContent = "對。" + why;
+        else if (!f.tries.length) out.textContent = "";
+        else if (done) out.textContent = "答案是 " + answers[0].trim() + "。" + why;
+        else if (drill || f.tries.length < 2) out.textContent = "不對，再想一次。";
+        else out.textContent = "還是不對：按下面的「複製給 Claude」貼到對話，看錯在哪一步。";
+      }
+      function check() {
+        const v = input.value.trim();
+        if (!v || input.disabled) return;
+        f.tries.push(v);
+        f.ok = matches(v, answers, tol);
+        localStorage.setItem(store, JSON.stringify(state));
+        show();
+      }
+      btn.addEventListener("click", check);
+      input.addEventListener("keydown", function (e) { if (e.key === "Enter") check(); });
+      show();
+    });
+  }
 
   // 打的字自動換行：中文一字一斷，英文整個字一起換；單一個字比一行還寬才逐字切
   function wrap(text, width) {
@@ -209,7 +283,8 @@
 
     // 複製給 Claude：題目名稱、題目代號和這張畫布合成一張圖，只裁到寫過的高度
     function snapshot() {
-      const k = 2, head = 58;
+      const notes = fillLines[id] ? fillLines[id]().map(function (s) { return "填答：" + s; }) : [];
+      const k = 2, head = 58 + notes.length * 20;
       let bottom = 0;
       for (const it of st.items) {
         if (it.tool === "text") bottom = Math.max(bottom, textBottom(it));
@@ -235,6 +310,7 @@
       oc.fillStyle = "#5b6475";
       oc.font = "13px " + FAMILY;
       oc.fillText("題目代號：" + id, 12, 46);
+      notes.forEach(function (s, i) { oc.fillText(s, 12, 66 + i * 20); });
       oc.fillRect(0, head - 1, st.w, 1);
       oc.drawImage(layer, 0, head, st.w, h);
       return new Promise(function (res) { out.toBlob(res, "image/png"); });
@@ -294,7 +370,32 @@
     return api;
   }
 
+  const sections = Array.from(document.querySelectorAll("section.q"));
+  sections.forEach(makeFills);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
+
+  // 複製填答結果：每題一行字，貼到對話讓 Claude 記進學習紀錄
+  const report = document.getElementById("report");
+  if (report) report.addEventListener("click", async function () {
+    const status = report.parentNode.querySelector(".status");
+    const lines = [TITLE + " 填答結果"];
+    sections.forEach(function (sec) {
+      const got = fillLines[sec.dataset.id]();
+      const name = sec.dataset.id + "（" + sec.querySelector("h2").textContent.trim() + "）";
+      got.forEach(function (s) { lines.push(name + "：" + s); });
+    });
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      status.textContent = "已複製：到對話裡貼上";
+    } catch (err) {
+      let box = report.parentNode.querySelector("textarea");
+      if (!box) { box = document.createElement("textarea"); box.readOnly = true; report.parentNode.append(box); }
+      box.value = lines.join("\n");
+      box.rows = lines.length;
+      box.select();
+      status.textContent = "瀏覽器不讓複製：全選下面的字自己複製";
+    }
+  });
   let timer;
   window.addEventListener("resize", function () {
     clearTimeout(timer);
