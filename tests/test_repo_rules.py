@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # 模型可以自己觸發的 skill：加進來之前先看 AGENTS.md〈結構〉
 MODEL_INVOKED = {"diff"}
 # md 裡的路徑縮寫指到哪：值是相對 repo 根的路徑，{skill} 換成那份 md 所屬的 skill
-SHORT = {"O": "orca", "P": "pages", "D": "skills/{skill}/scripts", "S": "skills/{skill}/scripts", "DIFF": "skills/diff"}
+SHORT = {"O": "orca", "P": "pages", "D": "skills/{skill}/scripts", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates",
+         "X": "skills/{skill}/tests", "DIFF": "skills/diff"}
 # 有 md 要檢查的目錄
 DOC_DIRS = ("skills", "orca", "pages")
 

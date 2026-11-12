@@ -1,0 +1,20 @@
+name: ci
+
+on:
+  push:
+    branches: [{{MAIN_BRANCH}}]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: docs
+        run: python scripts/check_docs.py
+      - name: script tests
+        run: python -m unittest discover -s scripts/tests -v
+      # M0 票 01：這個技術棧的 lint、typecheck 與 test 加在這裡，和 docs/development.md〈全部檢查〉同一組

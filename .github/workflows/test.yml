@@ -22,6 +22,8 @@ jobs:
           python -m unittest discover -s skills/diff/tests -v
       - name: pages
         run: python -m unittest discover -s pages/tests -v
+      - name: project-init
+        run: python -m unittest discover -s skills/project-init/tests -v
       - name: orca scripts
         run: bash orca/scripts/selftest.sh
       - name: tutor
