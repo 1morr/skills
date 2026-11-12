@@ -12,8 +12,6 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 
 - 腳本 source `py.sh` 選 Python：先試 `python3` 再試 `python`，都實際跑一次（macOS 沒有 `python`，Windows 的
   `python3` 可能是 Microsoft Store 的空殼）。你自己手動叫 `scr.py` / `state.py` 時同理，Windows 上沒有 `python3` 就用 `python`。
-- 腳本要在 macOS 內建的 bash 3.2 跑：變數後面緊貼中文要寫 `${var}`（3.2 會把中文吃進變數名，`set -u` 下直接退出）；
-  不用 GNU 專屬的 `stat -c`、`touch -d`、`sed -i` 等，檔案時間交給 `py.sh` 的 `age`。改完在 macOS 上跑 `selftest.sh`。
 - Claude Code 的 Bash 工具可能跑在 zsh：沒加引號的 `$var` 不分詞，`for t in "t02 a.md" "t05 b.md"; do set -- $t`
   會把整串當成一個參數，worktree 名字變成整條票路徑。開多張票就一張一行呼叫 `new-ticket.sh`。
 - 收票只關 worktree 路徑完全相同的終端（`terminals_in.py`）：比對前統一斜線、Windows 磁碟代號不分大小寫，`t07` 不會比中 `t07b`。

@@ -37,7 +37,6 @@ Heads up 是 Claude Code 給在場者的風險提醒，只在畫面和 mod 的�
 - 使用者要的是 X 就只做 X；順手想清的東西（刪目錄、刪分支、改設定）另外問。
 - 送出後讀畫面核對：`accepted: true` 只代表輸入被收下，沒反應先讀畫面再決定要不要重送。handle 失效（Orca 重啟後）用 `orca terminal list` 重找，只對新的送。
 - Git Bash 裡開頭是 `/` 的 `--text` 要加 `MSYS_NO_PATHCONV=1`。
-- 改了 `<O>/scripts/` 的腳本就跑 `bash <O>/scripts/selftest.sh`，要印 `ALL OK`；改了參數或輸出，三個 skill 的 SKILL.md 一起改。
 
 ## 回報
 

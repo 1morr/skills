@@ -50,11 +50,12 @@ claude plugin marketplace add <clone 的路徑>
 claude plugin install 1morr@1morr-skills
 ```
 
-新增 skill：建 `skills/<名稱>/SKILL.md`，plugin 會自動載入；同時在上面的表格加一列。
+新增 skill：建 `skills/<名稱>/SKILL.md`，plugin 會自動載入；同時在上面的表格加一列。寫法和其他要一起改的地方在 [`AGENTS.md`](AGENTS.md)。
 
-測試（CI 跑的就是這四條）：
+測試（CI 跑的就是這五條）：
 
 ```
+python -m unittest discover -s tests
 uv run --no-project --with python-docx --with pymupdf python -m unittest discover -s skills/diff/tests
 python -m unittest discover -s pages/tests
 bash orca/scripts/selftest.sh
