@@ -48,7 +48,7 @@ tutor 的分支：導讀頁照 SKILL.md 做好之後，讀者在練習頁上自�
 組頁：
 
 ```bash
-python <skill 目錄>/scripts/practice.py practice-src.html -o topicN-practice.html
+python <S>/practice.py practice-src.html -o topicN-practice.html
 ```
 
 practice.py 會在每題最後加畫布、產生題目導覽和「複製填答結果」按鈕，把 `.ref` 裡的 §N 連到導讀頁那一段（開新分頁，練習頁上寫到一半的不會跑掉），並內嵌圖片和程式。它檢查本節的結構規則，任何一條不過就不產出，並逐條印出原因；照訊息改到通過。

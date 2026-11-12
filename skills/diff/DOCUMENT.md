@@ -1,6 +1,6 @@
 # 文件的兩個版本
 
-`<D>` 指這個 skill 的 `scripts/`。`diff.py` 和 `fill.py` 開頭寫了完整用法和輸出格式。
+`<D>` 的定義在 SKILL.md。`diff.py` 和 `fill.py` 開頭寫了完整用法和輸出格式。
 
 ## 1. 取得兩個版本
 

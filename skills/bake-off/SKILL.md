@@ -9,7 +9,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 參數：$ARGUMENTS
 
-`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫 bake-off 獨有的部分。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`（plugin 根目錄的 `orca/`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫 bake-off 獨有的部分。
 
 **獨立**是這個 skill 的核心：每一版只收到共同 prompt、給它自己計畫的意見、和所有版本都一樣的答案。任何一版的內容、做法、評語都只留在那一版，比的才是 N 個獨立的版本。
 

@@ -11,6 +11,8 @@ argument-hint: "[作業 | topic | 考試]"
 
 老師的材料是唯一標準：講義、例題答案、過去作業的 Suggested Answers、老師的統計表。課本是第二順位；網路和模型自己的知識只用來補前置知識、講為什麼、舉現實例子，而且符號和寫法要對齊老師。老師和課本不一致時照老師，並標出來。
 
+`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`。
+
 ## 產出與對話
 
 - 產出三樣：導讀頁（§4）、還沒交的作業的答案紙（§5）、練習頁（[PRACTICE.md](PRACTICE.md)）。先交付導讀頁和答案紙，再做練習頁：趕時間的人不用等練習頁就能開始讀。
@@ -128,10 +130,10 @@ argument-hint: "[作業 | topic | 考試]"
 
 ### 截圖與組頁
 
-截圖用 `scripts/crop.py`。座標單位是 PDF point，頁碼從 1 起算：
+截圖用 `<S>/crop.py`。座標單位是 PDF point，頁碼從 1 起算：
 
 ```bash
-CROP="uv run --no-project --with pymupdf --with pillow python <skill 目錄>/scripts/crop.py"
+CROP="uv run --no-project --with pymupdf --with pillow python <S>/crop.py"
 $CROP find  講義.pdf 4 "Decision rule"         # 找文字的位置（掃描檔找不到）
 $CROP lines 講義.pdf 4                         # 列出每一行字的位置和字級（寫翻譯檔用）
 $CROP grid  表.pdf 2 grid.png [--rotate 90]     # 掃描檔：畫格線，看圖讀座標
@@ -143,10 +145,10 @@ $CROP cut   講義.pdf 4 out.png --clip 70,80,560,430 --box 90,250,540,280 [--ma
 
 每張圖都放在 `<figure>` 裡，`<figcaption>` 寫出處（檔名與 `p.頁碼`）。數字從哪來要連到的圖，給 `<figure>` 一個 `id`。
 
-頁面寫成原始 HTML，圖片用相對路徑。再用 `scripts/build.py` 組成單一檔案：
+頁面寫成原始 HTML，圖片用相對路徑。再用 `<S>/build.py` 組成單一檔案：
 
 ```bash
-python <skill 目錄>/scripts/build.py guide-src.html -o guide.html
+python <S>/build.py guide-src.html -o guide.html
 ```
 
 build 也會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3>` 編號（§1、§1.2）、在每一欄開頭產生目錄、把內文的「§3.2」變成連結。它檢查本檔的結構與寫法規則，任何一條不過就不產出，並逐條印出違反哪一條、為什麼；照訊息改到通過。
@@ -154,11 +156,11 @@ build 也會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3
 ## 5. 作業：答案紙與講解分開
 
 - 答案紙是一份要交的檔案，照老師的 Suggested Answers 格式寫：英文、簡潔，句型照講義。用 HTML 寫，再用 Chrome headless 印成 PDF（`--print-to-pdf`）。
-- 所有數字都由一支計算腳本（`calc.py`）算出來，不手打。`calc.py` 只管算，把每個值寫成 `values.json`（一層物件，值是已經四捨五入好的字串）。答案紙寫成 `answer-tpl.html`，講解頁寫成 `guide-tpl.html`，數字用 `{{名稱}}` 佔位，用 `scripts/fill.py` 填入；有一個沒填到就不產出。
+- 所有數字都由一支計算腳本（`calc.py`）算出來，不手打。`calc.py` 只管算，把每個值寫成 `values.json`（一層物件，值是已經四捨五入好的字串）。答案紙寫成 `answer-tpl.html`，講解頁寫成 `guide-tpl.html`，數字用 `{{名稱}}` 佔位，用 `<S>/fill.py` 填入；有一個沒填到就不產出。
 - 答案紙每一題包在 `<div class="part" data-part="a">…</div><!--/part-->` 裡；講解頁寫 `{{sheet:a}}`，`fill.py --sheet` 會把答案紙那一段原樣放進來。這樣兩邊不會對不上。
 
 ```bash
-FILL="python <skill 目錄>/scripts/fill.py"
+FILL="python <S>/fill.py"
 python calc.py                                                     # 寫出 values.json
 $FILL values.json answer-tpl.html -o answer.html
 $FILL values.json guide-tpl.html --sheet answer.html -o guide-src.html

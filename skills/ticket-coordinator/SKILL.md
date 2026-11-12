@@ -9,7 +9,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 參數：$ARGUMENTS
 
-`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫票獨有的部分。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`（plugin 根目錄的 `orca/`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫票獨有的部分。
 
 參數裡的兩個上限，沒給就不限：
 - **額度門檻**（例如「5h 80%」「7d 95%」）：到門檻就不開新票，在跑的票照常做完，額度刷新後接著開。沒給門檻時，額度快滿照常開。

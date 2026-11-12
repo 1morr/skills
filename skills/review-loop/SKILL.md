@@ -16,12 +16,12 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 審查員用一個全新的 session、不用你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文要乾淨，
 沒有前幾輪的東西。
 
-`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`），`<DIFF>` 是 `diff` skill 的目錄（`../diff`）。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`（plugin 根目錄的 `orca/`）。
 **先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫審查獨有的部分。
 
 ## 開工
 
-1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`。
+1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是它載入時顯示的 skill 目錄，下面提到的 DOCUMENT.md 也在那裡。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用 playwright 照實際尺寸截圖）。
