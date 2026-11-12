@@ -20,7 +20,7 @@ tutor 的分支：導讀頁照 SKILL.md 做好之後，讀者在練習頁上自�
 完整題目的來源，依序找課本章末題、In-class Exercise、過去的測驗；用過的跳過。都沒有就自己出：形式照該科的測驗，沒有測驗樣本就照作業（同樣的題型、資料給法、小題結構、答題句型）；需要軟體輸出時，用腳本算出輸出表的數字，排成老師材料的樣式。
 
 ```html
-<body data-title="ISOM3031 Topic 4 練習" data-key="isom3031-topic4"
+<body data-title="STAT101 Topic 4 練習" data-key="stat101-topic4"
       data-guide="topic4-guide.html" data-answers="practice/topic4/answers.md">
 <aside class="panel" data-label="查表">   右下角按鈕打開：統計表、要對照的課件截圖
   <figure data-tab="Z 表"><img src="assets/z.png" data-zh="assets/z.zh.png"><figcaption>Statistical Tables p.1</figcaption></figure>
@@ -61,7 +61,7 @@ practice.py 會在每題最後加畫布、產生題目導覽和「複製填答�
 - 讀者貼來填答結果（一題一行字）：不用逐題講評，只記進學習紀錄，再說哪幾個題型要再練。重做過的題以第一次的結果定狀態：重做才對不算「會做」。
 - 讀者說「卡在 §15」：講那一段，講完指一題同類的練習題讓他自己做。
 
-`學習紀錄.md` 放在課程資料夾，批改完就更新。它是一張題型清單，每列寫題型、對應的導讀頁 §、狀態、錯在哪一步、錯成什麼。再記術語第一次定下的中文譯名，之後都用同一個。狀態這樣定：
+`學習紀錄.md` 放在這門課的資料夾（沒有就放導讀頁旁邊），批改完就更新。它是一張題型清單，每列寫題型、對應的導讀頁 §、狀態、錯在哪一步、錯成什麼。再記術語第一次定下的譯名，之後都用同一個。狀態這樣定：
 
 - 會做：沒有提示就做對一題沒看過的完整題目。
 - 要提示：要提示才做對。下次做練習頁時，先替這個題型出一題沒看過的。
