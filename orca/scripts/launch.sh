@@ -3,7 +3,7 @@
 set -u
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"
 TITLE=$1; TICKET=$2; CMD=${3:-/implement}; WT=${4:-active}
-MARK='ORCH-TICKET-'"COORDINATOR"   # 協調者自己的 transcript 含這個標記（來自 SKILL.md），拆開寫免得腳本本身被當成它
+MARK='ORCH-TICKET-'"COORDINATOR"   # 協調者自己的 transcript 含這個標記（來自 ticket-coordinator 的 SKILL.md），拆開寫免得腳本本身被當成它
 H=$(orca terminal create --worktree "$WT" --title "$TITLE" --command "claude --dangerously-skip-permissions" --json | grep -o 'term_[^"]*' | head -1)
 [ -z "$H" ] && { echo "create failed"; exit 1; }
 echo "handle=$H"

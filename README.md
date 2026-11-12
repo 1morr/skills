@@ -4,11 +4,13 @@
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
-| [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務平行做幾版再挑一版：從主分支開一個刪掉舊產出的 base 分支，用 [Orca](https://www.onorca.dev) 為每一版開 worktree 和子 Claude Code session，送同一份 prompt（先提修改建議給你確認）。各版的開工計畫整理成一張表讓你一次核可，中途的需求問題，原文有明確答案的給每版同一個答案；原文有兩種讀法的（例如數據範圍）讓各版自己讀，比較時單獨列成要你決定的問題，不和選版綁在一起。數據從原始來源重新取得。也可以把現成的版本（檔案、zip、claude.ai artifact）加進來一起比，版數給 0 就只比現成版本。做完列出每版的產出位置，先定評分項再逐版實際渲染審查，建議用哪一版當基礎（你說過偏好的會正面回應）、它還要改什麼、別版有哪些能合進來（逐項註明來源）。需要 Orca，共用 ticket-coordinator 的腳本 |
+| [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方單獨交給你決定 |
 | [diff](skills/diff/SKILL.md) | 說「給我 diff 的 html」「前後對照」「展示這個改動」，或由其他 skill 呼叫 | 做一頁給讀者看的前後對照：文件（docx、PDF、HTML、海報、Markdown、文字）逐字比對，或程式改動實跑前後並附證據。比對由腳本算，頁面由模型照內容設計 |
-| [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <產出路徑> [補充]`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 [Orca](https://www.onorca.dev) 開一個新 session 當審查員（它再開分角度的子代理和盲做），只回報不改；主對話逐條查證、決定改什麼、動手改並 commit。只有採納了必須修才開下一輪，只剩建議修就改完收尾，避免多審幾輪只是在挑小毛病。定案附理由和出處，分成依據明文規定的和我們選的讀法，每輪自動帶進 prompt；出處只驗原文在不夠，還要確認它管的是本題（別份作業的規定只算讀法）。讀法上的分歧，以及盲做和成品讀法不同的地方，交給你決定。盲做從原始來源取得數據，走完整個流程。收尾時開一個 opus 子代理只看起點和最終版，找出越改越長、重複、題目沒問的內容並精簡，最後用 diff 在產出旁邊存一份起點→最終版的總 diff，每處改動附原因。需要 Orca，共用 ticket-coordinator 的腳本 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試] [read \| learn]`，或說「教我」「看不懂」「複習」 | 把大學課程、作業或考試教給沒上過課、零基礎的人：以老師課件為唯一標準，產出單一 HTML 導讀頁，左右兩欄並排、各自捲動。左欄照講義順序逐頁教（課件截圖附同版面的中文翻譯圖，點圖切換原文；術語附「怎樣才算」的定義，公式都寫全再代入數字，每段結尾有重點），右欄開頭是題型表，接著是老師的例題和這個 topic 的作業：每題把用到的定義、公式和課件截圖放在題目旁邊，只看右欄也能做，做法和答案摺起來、可一鍵全部展開；別的 topic 或別的課的前置知識在原地從零教，不叫讀者去翻；少數連回左欄的 § 連結有「回到剛才」可以跳回來；還沒交的作業另出照老師格式寫的答案紙。文科課用 `data-problems="text"`，答案是要點和句子，可放摺起來的自測。`read`（兩天內要交 / 考，或不想被問）自己讀完整頁；`learn` 用同一份頁面，在對話裡由你一步步做例題、再自己做沒看過的同類題，做對才算會，學習紀錄記每類題會不會做；另出一份練習頁：先是只考一個判斷的基本功小題，再是對照每題例題、但結論或陷阱不同的同類題，每題下面有能手寫也能打字的畫布，做完按「複製給 Claude」貼回對話批改 |
-| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 [Orca](https://www.onorca.dev) 為每張票開一個子 Claude Code session 解票、代答提問、驗收、合併，逐張跑完隊列。可設額度門檻（例如 5h 80%：到了不開新票，刷新後接著開）與同時最多幾張，預設都不限；子 session 還在做時跳出的 Heads up 會即時叫醒協調者，展開記下原文後收起（不收起下一則出不來），危險的馬上處理，其他等它停下再處理。需要 Orca |
+| [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <產出路徑> [補充]`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 開新 session 當審查員，主對話逐條查證、修改、commit，收斂後做一次精簡審查，最後出一份起點→最終版的總 diff |
+| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試] [read \| learn]`，或說「教我」「看不懂」「複習」 | 照老師課件把課程、作業或考試教給零基礎的人：左右兩欄的 HTML 導讀頁（左邊逐頁講課件、右邊逐題做例題和作業），還沒交的作業另出答案紙；`learn` 再帶著做題、出練習頁 |
+
+bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。
 
 ## 安裝
 
@@ -36,7 +38,7 @@ claude plugin install 1morr@1morr-skills
 
 ```
 uv run --no-project --with python-docx --with pymupdf python -m unittest discover -s skills/diff/tests
-bash skills/ticket-coordinator/scripts/selftest.sh
+bash orca/scripts/selftest.sh
 uv run --no-project --with pymupdf --with pillow python -m unittest discover -s skills/tutor/tests
 ```
 

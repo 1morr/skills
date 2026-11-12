@@ -1,6 +1,6 @@
 # 讀畫面、按鍵、等待、額度：已知行為
 
-`ticket-coordinator` 的參考檔。`<S>` 是 skill 的 `scripts/` 目錄。
+ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個資料夾，腳本在 `<O>/scripts/`。
 
 ## 開 session
 
@@ -20,31 +20,30 @@
 
 ## 讀畫面
 
-- 同一個 worktree 裡常有 Orca 自動開的 shell 終端（`orca terminal list` 會列出兩個），送訊息一律用 `new-ticket.sh` 印出的 `handle=`，不要用 worktree 路徑反查：查到 shell 就會把整段話當指令送進 zsh。
+- 同一個 worktree 裡常有 Orca 自動開的 shell 終端（`orca terminal list` 會列出兩個），送訊息一律用開 session 的腳本印出的 `handle=`。用 worktree 路徑反查可能查到 shell，整段話會被當指令送進 zsh。
 
-- `python3 <S>/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端
+- `python3 <O>/scripts/scr.py <handle> [行數]`：修正 mojibake、壓縮分隔線、只印非空行。`status: running` 只代表終端
   還在，不代表子 session 在忙。
 - 畫面停在捲動模式（出現 `Jump to bottom`、看不到 spinner）：送 Ctrl+End
   `orca terminal send --terminal <h> --text $'\033[1;5F' --json`。
-- 不要印子 session 的原始 jsonl 行，會灌爆你的上下文；要查就用 `grep -c` / `grep -o` 印短結果。
+- 查子 session 的 jsonl 只印短結果（`grep -c` / `grep -o`）：原始行會灌爆你的上下文。
 
 ## 等待
 
 - 以 transcript 為準，不以畫面為準：終端停在捲動模式時畫面不會更新，曾把還在跑的票誤判成做完。
-  `python3 <S>/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy`（含並行的工具
+  `python3 <O>/scripts/state.py <jsonl>` 印 `done`（回合結束、背景工作都回來了或被它自己停掉）、`busy`（含並行的工具
   只回來一部分，例如 vitest 回來了、pytest 還在跑）/ `waiting-bg`、
   `asking`（停在 AskUserQuestion 等你）、`unknown`（額度、API 錯誤、被中斷，讀畫面判斷）。
 - `waitbg.sh` 每 30 秒問一次 `state.py`，`done` 而畫面上還有 shell / monitor 計數時繼續等（Monitor 認不出來）；
   `waiting-bg` 半小時、`busy` 一小時沒動靜，畫面也沒有在跑的東西時以 `state=stalled` 返回：多半是它停了背景
   工作卻沒留紀錄，或行程卡死。
 - `state=done-bg`：回合結束，畫面卻還掛著 shell / 子代理計數、transcript 一小時沒動。多半是殘留的背景程序
-  （票 22 是子代理留下的 `find /` 跑了 7 小時，等待因此卡了 6 小時）。叫子 session 查清楚、收掉，確認
+  （曾有子代理留下的 `find /` 跑了 7 小時）。叫子 session 查清楚、收掉，確認
   `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
 - `state=no-response`：帶了 `sent`，送出後 5 分鐘 transcript 都沒新寫入。讀畫面：停在輸入框就是字被吞了，補送一次。
 - `state=heads-up`：子 session 掛著一則還沒回報過的 Heads up，它多半還在做；下一行 `headsup=` 是摘要，再下一行
   `headsup-src=file`（後面附全文）或 `headsup-src=screen`（沒有全文）。照下面「Heads up」處理，處理完照原樣重新掛等待
   （送過訊息就加 `sent`）。同一則不會再叫醒你；任何 `state=` 返回時有掛著的 Heads up，也會多印這幾行。
-- 改了 `state.py`、`run-check.sh`、`merge-ticket.sh`、`push-ci.sh`、`waitbg.sh`、`quota.sh`、`headsup.py` 就跑 `bash <S>/selftest.sh`，要印 `ALL OK`。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，
@@ -66,31 +65,28 @@
 - Claude Code 內建的 mod「You should know」在子 session 主對話每個回合第 6、12、18… 步複製一份對話，問「有沒有使用者該知道、
   卻可能沒注意到的事」。有的話在畫面底部放一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。
   摘要只有一句，完整內容（原因、推測的後果、建議）在 Learn more 裡。
-- **摘要與全文都存在 mod 的狀態檔**，用子 session 的 session id（jsonl 檔名）查：`python3 <S>/headsup.py <jsonl>`。
+- **摘要與全文都存在 mod 的狀態檔**，用子 session 的 session id（jsonl 檔名）查：`python3 <O>/scripts/headsup.py <jsonl>`。
   exit 0 印 `summary=`、`tag=`、`shown=`、`kind=` 與 `text:` 之後的全文（就是按 `1` 會顯示的那段）；exit 1 是沒有掛著的；
   exit 2 是讀不到或格式不認得（內部格式、沒有公開文件，CLI 升級可能改），這時才用下面「讀畫面」的做法。只讀不寫。
   全文只在掛著時存在：收起後狀態檔只留摘要（`seen`，全部 session 共用），所以要在收起前記進 ledger。
-- 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就照 SKILL.md「每張票」第 3 步把原文貼給它。
+- 內容不在子 session 的 transcript（`grep -c 'Heads up' <jsonl>` 是 0）：要它處理就照 COORDINATOR.md「Heads up」把原文貼給它。
 - 一則沒收掉，下一則不會出來（掛著的時候 mod 不做新的檢查）。所以每一則都要盡快收掉，不能留到子 session 停下。
 - `waitbg.sh` 每次輪詢先讀狀態檔，新的一則以 `state=heads-up` 叫醒你，子 session 可能還在做。每一則都照這個順序：
   1. 把 `headsup-src=file` 後面的全文與 `shown=` 時間記進 ledger 那張票的「Heads up」。`text:` 後面是空的（mod 沒存全文）
      或 `headsup-src=screen`，就照下面「讀畫面」展開讀。
   2. 收起：輸入框是空的、沒有 AskUserQuestion 開著時送 `0`（Dismiss，不加 `--enter`）。再跑 `headsup.py --summary <jsonl>`，
-     exit 1 才算收掉，然後重新掛等待。送 `0` 後畫面會留一行 `Dismissed.` 和回饋選項約 20 秒，這段時間不要送數字鍵。
-     不要送 `2`（Knew this already），展開後也不要送 `1`（Understood）：兩個都把這句加進狀態檔的 `known`，之後每次檢查的
-     prompt 都寫著「這個人說他已經懂這些，不要再提」，但看到的是你、不是使用者。`known` 只在這兩個鍵增加、最多留 50 則，
-     而且全機所有 session 共用：舊流程（展開後按 `1` 收起）曾把 QIM 跑票的 50 則全記進去，包括並行互蓋、閘門誤報、額度
-     這類每批票都會再遇到的主題，2026-11-12 清空。
-     `0` 不碰它；這句在跳出來時就已經進了最近提過的 `seen`（同樣放進 prompt，完全相同的句子會被程式濾掉），
-     近期不會重複。（CLI 2.1.322 讀程式碼得出）
+     exit 1 才算收掉，然後重新掛等待。送 `0` 後畫面會留一行 `Dismissed.` 和回饋選項約 20 秒，這段時間先別送數字鍵。
+     收起只用 `0`。`2`（Knew this already）和展開後的 `1`（Understood）都會把這句加進狀態檔的 `known`：全機所有 session
+     共用、最多 50 則，之後每次檢查的 prompt 都寫著「這個人已經懂這些，不要再提」，但看到的是你、不是使用者。`0` 不碰
+     `known`；這句跳出來時已經進了最近提過的 `seen`，近期不會重複。（CLI 2.1.322 讀程式碼得出）
   3. 分兩級決定什麼時候處理：
      - **馬上處理**：涉及刪檔或丟掉改動、破壞性 git、push 或對外寫入、金鑰或個人資料外洩、改隱私或安全約定、
        超出票的範圍。查證後屬實就把原文貼給子 session（它在忙時送出的訊息會排隊，最晚在它停下時讀到）。
      - **其他**：等子 session 停下（說做完或來問）時，照 ledger 的原文查證、處理。中途的 Heads up 常是它還沒定案的想法，
-       停下時多半已經自己改掉（曾有一則說「改成無痕時交出前文」，最後程式碼沒改）；改掉了就在 ledger 註明「已不適用」。
+       停下時多半已經自己改掉；改掉了就在 ledger 註明「已不適用」。
 - 子 session 停在 AskUserQuestion 時先答題，等它回到空輸入框再按 Heads up 的鍵：題目開著時數字鍵會被當成選項。
 - **讀畫面**（`headsup.py` exit 2，或 `text:` 是空的時才用）：輸入框是空的時候送 `1`（不加 `--enter`），再 `scr.py <handle> 40` 讀。
-  展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `0` 收起（理由同上，不送 `1`）。看到的已經是
+  展開後選項變成 `1: Understood   2: Chat in main session   0: Dismiss`，讀完送 `0` 收起。看到的已經是
   後者，代表有人展開過，直接讀畫面上的內容。子 session 在忙時，送一次 `1` 也會展開，展開後照樣能收起（v2.1.322 實測）。
 - 視窗太矮時展開的內容會被截斷（使用者用手機開 Orca，終端只有 27–31 列），底部只剩 `↓ N more` / `↑ N more`，看不到選項那一行：
   - 用 `orca terminal read --terminal <h> --screen --json` 讀實際畫面，從 `tail` 的索引算出面板在第幾列（從 1 起算）；
@@ -98,8 +94,7 @@
   - 往下捲送 SGR 滑鼠滾輪，座標要落在面板內：`$'\033[<65;20;<列>M'`（往上捲用 `64`）。每次捲 3 行，一次只送一個，
     等 3–4 秒再讀；連送三個會沒反應。↓、PageDown 都沒用。
   - 捲到看得見選項那一行（`1: Understood … 0: Dismiss`）後，只送一次 `0`。
-- 按鍵沒反應時不要連送：曾在面板沒反應時連送 `1`、`0`、↓、PageDown，之後面板就卡住，捲到選項再按 `1`、用滑鼠點都收不起來，
-  最後是使用者手動關掉的。沒反應就停手，原文記進 ledger，請使用者在畫面上點掉。
+- 按鍵沒反應就停手：原文記進 ledger，請使用者在畫面上點掉。連送不同的鍵會讓面板卡死，之後怎麼按都收不起來。
 
 ## 額度
 
@@ -109,10 +104,10 @@
   - 還停在同一個訊息：送一次「繼續，從中斷處接著做，保留已完成的部分」。
   - 畫面上找不到重置時間：`sleep 1800` 後照上面兩條判斷。
 - 你自己撞到上限也會停，重置後 Claude Code 會自動接著做：醒來先讀 ledger。
-- 開票前的額度門檻（SKILL.md 的參數）：`bash <S>/quota.sh <5h 門檻> <7d 門檻>`，印 `gate=open|closed|unknown src=… sleep=<秒>`。
+- 開票前的額度門檻（ticket-coordinator 的參數）：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`，印 `gate=open|closed|unknown src=… sleep=<秒>`。
   - 來源先讀 `~/.claude/rate-limits.json`：Claude Code 每次更新狀態列都把 `rate_limits`（已用百分比、刷新時間）交給狀態列指令，
     讓指令順手存檔（寫 `{"at": <現在>, "rate_limits": …}`，先寫暫存檔再改名），10 分鐘內寫過才算數。沒有這個檔或太舊，
     才退回讀你終端狀態列的畫面（要顯示 `5h 60% ↻ 18m · 7d 90% ↻ 4d16h` 這種格式）。
   - `closed`：不開新票，背景 `sleep` 它印的秒數（超過 3600 就先睡 3600）再問；在跑的票照常等、照常驗收合併。
   - `unknown`：兩個來源都讀不到。有門檻時當成不能開（`sleep=600`），連續 3 次都是 `unknown` 就停下問使用者
-    （多半是狀態列設定被改掉，例如 Orca 更新時重寫了 `statusLine`）；不要不設防地照常開票。
+    （多半是狀態列設定被改掉，例如 Orca 更新時重寫了 `statusLine`）。

@@ -13,16 +13,15 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 參數：$ARGUMENTS
 
-審查員要用一個全新的 session，而不是你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文裡
-不能有前幾輪的東西。
+審查員用一個全新的 session、不用你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文要乾淨，
+沒有前幾輪的東西。
 
-`<TC>` 指 `ticket-coordinator` skill 的 `scripts/`（和這個 skill 同一個 plugin，路徑是這個 skill 目錄的
-`../ticket-coordinator/scripts`），裡面是開 session、等待、讀畫面的腳本。代答、Heads up、額度的已知行為寫在
-`<TC>/../TUI.md`：第一次代答、第一次掛等待、或畫面跟預期不同時先讀它。
+`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`），`<DIFF>` 是 `diff` skill 的目錄（`../diff`）。
+**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫審查獨有的部分。
 
 ## 開工
 
-1. 載入 `orca-cli` skill，用 `orca status --json` 確認 Orca 在跑。呼叫 Skill 工具載入 `diff`。
+1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用 playwright 照實際尺寸截圖）。
@@ -37,7 +36,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
        紀錄裡只有「照你建議」「選這版當底」這類回覆的，在第 5 步重新問。
 3. 產出要在 git 裡，而且那幾個檔案沒有未提交的改動。不在 repo 裡的檔（例如桌面上手改的 docx），先問使用者
    要放在專案的哪裡，放好再 commit。記下起點 `START=$(git rev-parse HEAD)`，再用
-   `diff` skill 的 `scripts/diff.py <起點輸出> <起點輸出> --words`（docx、pdf 要的套件見它的 DOCUMENT.md）記下起點字數。起點輸出用 `git show $START:<路徑>` 取出來。
+   `<DIFF>/scripts/diff.py <起點輸出> <起點輸出> --words`（docx、pdf 要的套件見 DOCUMENT.md）記下起點字數。起點輸出用 `git show $START:<路徑>` 取出來。
 4. 照 [`reviewer.md`](reviewer.md) 擬固定部分：要審的東西、依據、偏好、角度、盲做幾個（預設 2）。角度照產出的類型挑，
    每個角度只看一件事，例如：
    - 老師要求與格式
@@ -49,8 +48,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 5. 用 AskUserQuestion 一次問完：依據清單、偏好、定案清單（明文和讀法分開列，讀法逐條附原文和其他讀法）、
    角度、輪數上限（預設 4），附上擬好的 prompt。
    之後這些段落每一輪都一字不改。
-6. 在 scratchpad 建批次目錄 `review-<名稱>/`，放 `ledger.md`（格式見「Ledger」）。你的上下文會被壓縮，
-   **每次被叫醒先讀 ledger**。
+6. 批次目錄 `<scratchpad>/review-<名稱>/`，ledger 放在裡面（格式見〈Ledger〉）。
 
 ## 每一輪
 
@@ -59,19 +57,15 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 之後每一輪：列出上一輪改過的地方（位置、改成什麼），附上 `git diff <上一輪起點>..<上一輪終點> -- <原始檔>`。
      寫明：這些地方最容易改錯或說過頭，要逐一確認；其他部分照常審。
 
-   **獨立**：prompt 裡不放前幾輪的意見、駁回清單，也不放你自己對成品的看法。重複出現的意見由你對照 ledger 擋掉。
-2. **開審查 session**：`bash <TC>/start-session.sh <repo 路徑> review-r<N> <批次目錄>/r<N>/prompt.md`。
-   它和你在同一個 worktree，審的就是你剛 commit 的版本；它工作時你不改檔。把印出的 `handle=`、`jsonl=` 寫進
-   ledger，再用 Bash 的 `run_in_background` 跑 `bash <TC>/waitbg.sh <handle> <jsonl>`，然後結束回合等通知，不輪詢。
-   之後每次送訊息給它再掛等待時，最後加 `sent`，否則會讀到上一輪的 done、馬上返回。
-3. **被叫醒**：先讀 ledger。背景輸出的第一行是 `state=`，後面是畫面；不夠的話跑 `python3 <TC>/scr.py <handle> 40`。
-   - 如果它在提問（按鍵見 TUI.md「回答 AskUserQuestion」）：需求類的問題照依據回答；要它判斷的問題就回
-     「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都不告訴它。
-   - Heads up、額度、停了沒做完：照 TUI.md 對應的段落處理。
-   - 如果它做完了：讀 `r<N>/report.md`，再用 `git status` 確認它沒有改到 repo。有改到，就先把改動存成
-     `r<N>/stray.patch`，再丟掉，並記進 ledger。
-   - 最後關掉它的終端，只關這個 handle：`orca terminal close --terminal <handle>`。不要用 `close-ticket.sh`，
-     它會把同一個 worktree 裡的所有終端都關掉，你自己可能就在那個 worktree 裡。
+   **獨立**：prompt 只放固定部分和這一輪的變動；前幾輪的意見、駁回清單、你對成品的看法都留在 ledger。重複出現的意見由你對照 ledger 擋掉。
+2. **開審查 session**：`bash <O>/scripts/start-session.sh <repo 路徑> review-r<N> <批次目錄>/r<N>/prompt.md`。
+   它和你在同一個 worktree，審的就是你剛 commit 的版本；它工作時你不改檔。然後照 COORDINATOR.md 掛等待。
+3. **被叫醒**：照 COORDINATOR.md「子 session 的一輪」，另外：
+   - **提問**：需求類的照依據回答；要它判斷的回「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都留在你這裡。
+   - **做完了**：讀 `r<N>/report.md`，再用 `git status` 確認它沒改到 repo。有改到就先存成 `r<N>/stray.patch`
+     再丟掉，記進 ledger。
+   - **關終端**：`orca terminal close --terminal <handle>`，只關這個 handle。`close-ticket.sh` 會關掉同一個
+     worktree 裡的所有終端，包括你自己。
 4. **查證**：每一條都由你親自查，只用一種方法：數字就重算，引用就打開依據找原文，版面就渲染出來看。
    引用要查兩件事：原文在，而且那段原文管的是**本題**（同一份題目、同一小題）。別份作業的規定抄得再準，
    放到這一題也只是讀法。
@@ -127,8 +121,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 規則
 
-- 只碰自己開的終端。審查員只讀不改；修改只由你來做。
-- 使用者叫你做 X 就只做 X。想順手清的東西另外問。
+審查員只讀不改，修改只由你來做。其餘照 COORDINATOR.md「規則」。
 
 ## Ledger
 
