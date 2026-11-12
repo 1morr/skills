@@ -2,7 +2,7 @@
 
 違規要紅；只改無關的格式（大小寫、空白、屬性順序、引號）或把網址寫在讀者讀的地方，不能紅。
 
-在 skill 目錄執行：python -m unittest discover -s tests
+在 pages/ 執行：python -m unittest discover -s tests
 """
 
 import base64

@@ -12,7 +12,7 @@
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人：左右兩欄的 HTML 導讀頁（左邊逐頁講課件、右邊逐題做例題和作業），還沒交的作業另出答案紙；再出一份練習頁，基本功在頁面上對答案，整題貼回對話批改 |
 
-bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。
+bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：解說頁的寫法與組頁腳本（`PAGE.md`、`scripts/build.py`）、頁面的配色與字體（`TOKENS.md`）。
 
 ## 安裝
 
@@ -40,7 +40,7 @@ claude plugin install 1morr@1morr-skills
 
 ```
 uv run --no-project --with python-docx --with pymupdf python -m unittest discover -s skills/diff/tests
-python -m unittest discover -s skills/explain/tests
+python -m unittest discover -s pages/tests
 bash orca/scripts/selftest.sh
 uv run --no-project --with pymupdf --with pillow python -m unittest discover -s skills/tutor/tests
 ```

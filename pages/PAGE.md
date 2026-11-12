@@ -1,6 +1,6 @@
 # 解說頁的寫法
 
-`explain` 和 `checkpoint` 的 HTML 頁共用這份。頁面是一次性的：放 scratchpad，不進 repo。
+`explain` 和 `checkpoint` 的 HTML 頁共用這份。`<P>` 是這個資料夾（plugin 根目錄的 `pages/`）。頁面是一次性的：放 scratchpad，不進 repo。
 
 ## 來源
 
@@ -28,14 +28,14 @@
 頁面寫成 `<名稱>-src.html`，再組成單一檔案 `<名稱>.html`：
 
 ```
-python <skill 目錄>/scripts/build.py <名稱>-src.html
+python <P>/scripts/build.py <名稱>-src.html
 ```
 
 `build.py` 會把 Mermaid 整份內嵌（每頁約 3.6 MB），而且頁面只要從外部載入任何東西（CDN 的 script、樣式、字型、圖片）就拒絕產出。這是因為 Orca 從另一台機器打開工作區的 HTML 時走隔離預覽，對外請求一律被擋。組好之後，它會用本機的 Chrome 或 Edge 無頭打開頁面，逐張確認圖畫成了 svg、沒有語法錯誤；有問題、或找不到瀏覽器時，退出碼是 1。改頁面時改 `-src.html` 再重組；組好的檔案太大，不要直接讀或改。
 
 ## 外觀
 
-照 [`../diff/LOOK.md`](../diff/LOOK.md) 的〈Token〉和〈字體〉。版面是一般文章：70ch 文字欄、標題和留白分段，表格只用在真正逐列比較的地方。
+照 [TOKENS.md](TOKENS.md)。版面是一般文章：70ch 文字欄、標題和留白分段，表格只用在真正逐列比較的地方。
 
 ## 寫法
 
