@@ -1,108 +1,226 @@
-/* tutor 講解頁共用樣式；build.py 會把它內嵌進每一頁 */
+/* tutor 講解頁共用樣式；build.py 會把它內嵌進每一頁。
+   走雙色教科書的路子：墨色正文、一個藍色專色（連結、§ 編號、定義、做法摺疊），
+   黃色只用在「這段記住」和最後答案的螢光筆。紅色留給課件截圖上老師的紅框，介面不用。 */
 :root {
-  --bg: #fdfcf9; --fg: #1d1d1f; --muted: #66625a; --line: #e4e0d6;
-  --accent: #b42318; --sheet-bg: #ffffff; --tr-bg: #f4f1ea;
-  --def-bg: #eef4ff; --def-line: #4f7bd9; --sum-bg: #eef7f0; --sum-line: #2f8a4c;
+  color-scheme: light dark;
+  --bg: #fbfaf6; --bg2: #f4f2ec; --fg: #23211d; --muted: #67625a; --line: #e2ddd2; --rule: #c9c2b4;
+  --accent: #1f5f8b; --accent-tint: #e9f0f5; --accent-line: #b9cfdf;
+  --sum-bg: #fbf4de; --sum-line: #e8d6a0; --sum-ink: #7a5710;
+  --tr-bg: #f0ede5; --mark: #b42318; --warn: #9c3d1f; --hl: #f6e3a1;
+  --sheet-bg: #ffffff; --sheet-fg: #161616; --img-filter: none;
+  --sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
+  /* 數學和英文原文用襯線體；中文字落到後面的黑體，不會變成細明體 */
+  --serif: "STIX Two Text", Cambria, "Times New Roman", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #18181a; --fg: #e8e6e1; --muted: #a29d93; --line: #34322e;
-    --accent: #ff7a6b; --sheet-bg: #f7f5f0; --tr-bg: #232220;
-    --def-bg: #1c2433; --def-line: #6d95e8; --sum-bg: #1a2a20; --sum-line: #5cc07e;
+    --bg: #1b1a18; --bg2: #22211e; --fg: #e8e4db; --muted: #a49e93; --line: #36332e; --rule: #4a463f;
+    --accent: #86b8dc; --accent-tint: #1e2a33; --accent-line: #33495a;
+    --sum-bg: #2a2516; --sum-line: #4d4224; --sum-ink: #e3bf66;
+    --tr-bg: #262420; --mark: #ff8f7f; --warn: #f0a07f; --hl: #5c4a17;
+    --sheet-bg: #eeeae1; --sheet-fg: #161616; --img-filter: brightness(.88);
   }
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0 auto; max-width: 46rem; padding: 0 1rem 5rem;
+  margin: 0 auto; max-width: 42rem; padding: 0 1.25rem 5rem;
   background: var(--bg); color: var(--fg);
-  font: 17px/1.75 "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  font: 17px/1.8 var(--sans); font-kerning: normal; text-rendering: optimizeLegibility;
 }
-h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 .5rem; }
-h2 { font-size: 1.3rem; margin: 3rem 0 .8rem; padding-top: 1rem; border-top: 2px solid var(--line); }
-h3 { font-size: 1.08rem; margin: 2rem 0 .5rem; }
-.num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: .2em; }
-p { margin: .6rem 0; }
-a { color: var(--accent); }
-.lead { color: var(--muted); }
-figure { margin: 1.2rem 0; }
-figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
-figcaption { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+/* 標題：§ 編號是專色，標題本身是墨色；上方留白比下方多 */
+h1 { font-size: 1.75rem; line-height: 1.3; letter-spacing: -.01em; font-weight: 700; margin: 1.5rem 0 .6rem; text-wrap: balance; }
+h2 {
+  font-size: 1.3rem; line-height: 1.45; font-weight: 700; text-wrap: balance;
+  margin: 3.5rem 0 1rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+}
+h2.recap { border-top: 3px double var(--rule); }
+h3 { font-size: 1.08rem; line-height: 1.5; font-weight: 700; margin: 2.2rem 0 .5rem; }
+.num { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums lining-nums; margin-right: .35em; }
+p { margin: .7rem 0; }
+ul, ol { padding-left: 1.5rem; }
+li { margin: .25rem 0; }
+li::marker { color: var(--muted); }
+a {
+  color: var(--accent); text-decoration-line: underline; text-decoration-thickness: 1px;
+  text-underline-offset: .22em; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+a:hover { text-decoration-color: currentColor; }
+.lead { color: var(--muted); font-size: 1.02rem; }
+/* 變數（Y、X₁、b）照教科書排成襯線斜體 */
+i, var { font-family: var(--serif); font-size: 1.06em; }
+sub, sup { line-height: 0; }
+code { font: .9em/1 ui-monospace, "SF Mono", Consolas, monospace; background: var(--tr-bg); border-radius: 3px; padding: .1em .3em; }
+
+/* 圖：細線框、不加陰影；太高的圖不超過一個畫面 */
+figure { margin: 1.4rem 0; }
+figure img {
+  display: block; max-width: 100%; max-height: 85vh; width: auto; height: auto;
+  border: 1px solid var(--line); border-radius: 2px; background: #fff; filter: var(--img-filter);
+}
+figcaption { font-size: .84rem; line-height: 1.55; color: var(--muted); margin-top: .45rem; }
 /* 翻譯圖：預設顯示中文，點圖換原文（build 把 <img data-zh> 拆成 img.zh 和 img.en） */
 figure img.en { display: none; }
 figure.show-en img.en { display: block; }
 figure.show-en img.zh { display: none; }
 figure:has(img.zh) img { cursor: pointer; }
-figure:has(img.zh) figcaption::before { content: "中文 · 點圖看原文 · "; font-weight: 600; }
-figure.show-en figcaption::before { content: "原文 · 點圖看中文 · "; }
-.tr { background: var(--tr-bg); border-radius: 4px; padding: .4rem .8rem; margin: .5rem 0; }
-.tr .en { font-family: Georgia, "Times New Roman", serif; }
-div.tr { padding: .6rem 1rem; }
-div.tr::before { content: "譯文"; display: block; font-size: .8rem; font-weight: 700; color: var(--muted); }
-div.tr p { margin: .3rem 0; }
-.tr strong { color: var(--accent); }
-/* 有底色的框只有三種：譯文（灰）、定義（藍）、這段記住（綠）。為什麼、常見錯誤只是有標籤的段落 */
-.def, .summary { border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
-.def { background: var(--def-bg); border: 1px solid color-mix(in srgb, var(--def-line) 35%, transparent); }
-.def dfn { font-style: normal; font-weight: 700; color: var(--def-line); }
-.def .test::before { content: "怎樣才算："; font-weight: 700; }
-.summary { background: var(--sum-bg); border: 1px solid color-mix(in srgb, var(--sum-line) 35%, transparent); }
-.summary::before { content: "這段記住"; display: block; font-weight: 700; color: var(--sum-line); }
-.why::before, .trap::before { display: block; font-size: .85rem; font-weight: 700; color: var(--muted); }
-.why::before { content: "為什麼"; }
-.trap::before { content: "常見錯誤"; }
-.def > :first-child, .summary > :first-child, .why > :first-child { margin-top: .2rem; }
-table.origin caption { caption-side: top; text-align: left; font-weight: 700; padding-bottom: .3rem; }
-ol.steps { padding-left: 1.4rem; }
-ol.steps li { margin: .5rem 0; }
-ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②③ 時不要再加數字 */
-.src { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 .3em; margin-left: .3em; white-space: nowrap; }
-.calc { overflow-x: auto; padding: .4rem 0; font-family: "Times New Roman", Times, serif; font-size: 1.1rem; }
-.calc .formula, .calc .subst { margin: .2rem 0; }
-.calc .subst { padding-left: 1.5em; }
-.frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; margin: 0 .2em; font-size: .95em; }
-.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .2em; }
-.frac > span:last-child { padding: 0 .2em; }
-.ans { font-weight: 700; color: var(--accent); }
-.sheet {
-  background: var(--sheet-bg); color: #111; border: 1px solid #bbb; border-radius: 2px;
-  padding: .8rem 1rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,.12);
-  font: 16px/1.5 "Times New Roman", Times, serif; overflow-x: auto;
+figure:has(img.zh) img:hover { border-color: var(--accent-line); }
+figure:has(img.zh) figcaption::before { content: "中文 · 點圖看原文 · "; font-weight: 600; color: var(--accent); }
+figure.show-en:has(img.zh) figcaption::before { content: "原文 · 點圖看中文 · "; }
+
+/* 有底色的框只有三種：譯文（灰）、定義（藍）、這段記住（黃）。為什麼、常見錯誤只是有標籤的段落 */
+.tr { background: var(--tr-bg); border-radius: 3px; padding: .5rem .9rem; margin: .7rem 0; }
+.tr .en { font-family: var(--serif); }
+div.tr { padding: .7rem 1.1rem; }
+div.tr::before, .def::before, .summary::before, .why::before, .trap::before, .sheet::before {
+  display: block; font: 600 .78rem/1.5 var(--sans); letter-spacing: .06em; margin-bottom: .15rem;
 }
-.sheet::before { content: "答案紙上寫這樣"; display: block; font: 700 .8rem/1.4 system-ui, sans-serif; color: #8a857b; margin-bottom: .4rem; }
-table { border-collapse: collapse; margin: .8rem 0; font-size: .95rem; display: block; overflow-x: auto; }
-th, td { border: 1px solid var(--line); padding: .3rem .6rem; text-align: left; vertical-align: top; }
-th { background: var(--line); }
+div.tr::before { content: "譯文"; color: var(--muted); }
+div.tr p { margin: .3rem 0; }
+.tr strong { color: var(--mark); } /* 對應課件上老師的紅框 */
+.def, .summary { border-radius: 3px; padding: .8rem 1.1rem; margin: 1.2rem 0; }
+.def { background: var(--accent-tint); border: 1px solid var(--accent-line); }
+.def::before { content: "定義"; color: var(--accent); }
+.def dfn { font-style: normal; font-weight: 700; color: var(--accent); }
+.def .test::before { content: "怎樣才算："; font-weight: 700; }
+.summary { background: var(--sum-bg); border: 1px solid var(--sum-line); }
+.summary::before { content: "這段記住"; color: var(--sum-ink); }
+.summary ul, .summary ol { margin: .2rem 0; }
+.why, .trap { margin: 1.2rem 0; }
+.why::before { content: "為什麼"; color: var(--muted); }
+.trap::before { content: "常見錯誤"; color: var(--warn); }
+.def > :first-child, .summary > :first-child, .why > :first-child, .trap > :first-child, div.tr > :first-child { margin-top: .1rem; }
+.def > :last-child, .summary > :last-child, .why > :last-child, .trap > :last-child, div.tr > :last-child { margin-bottom: 0; }
+ol.steps { padding-left: 1.5rem; }
+ol.steps li { margin: .6rem 0; }
+ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②③ 時不要再加數字 */
+.src {
+  font-size: .76rem; color: var(--muted); border: 1px solid var(--line); border-radius: 3px;
+  padding: .05em .4em; margin-left: .35em; white-space: nowrap; vertical-align: .1em;
+}
+
+/* 計算：像課本的陳列式，縮排、不加框；分數用 span.frac */
+.calc { overflow-x: auto; margin: .9rem 0; padding: .2rem 0 .2rem 1.25rem; font-family: var(--serif); font-size: 1.12rem; line-height: 2; }
+.calc i { font-size: 1em; }
+.calc .formula, .calc .subst { margin: .15rem 0; }
+.calc .subst { padding-left: 1.5em; }
+.frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; margin: 0 .2em; font-size: .92em; line-height: 1.35; }
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .25em .05em; }
+.frac > span:last-child { padding: .05em .25em 0; }
+.ans { font-weight: 700; padding: 0 .15em; background: linear-gradient(transparent 55%, var(--hl) 55%); }
+
+/* 答案紙：模擬真的紙，暗色模式也是紙 */
+.sheet {
+  background: var(--sheet-bg); color: var(--sheet-fg); border: 1px solid #d5d0c5; border-radius: 2px;
+  padding: .9rem 1.2rem 1rem; margin: 1.2rem 0; overflow-x: auto;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 6px 16px -8px rgba(0, 0, 0, .18);
+  font: 16px/1.65 var(--serif);
+}
+.sheet::before { content: "答案紙上寫這樣"; color: #7b766c; margin-bottom: .4rem; }
+.sheet p { margin: .35rem 0; }
+.sheet i { font-size: 1em; }
+
+/* 表：書籍式，上下粗線、表頭細線，沒有直線 */
+table {
+  border-collapse: collapse; margin: 1rem 0; font-size: .93rem; line-height: 1.6;
+  display: block; overflow-x: auto; width: fit-content; max-width: 100%;
+  border-top: 1.5px solid var(--fg); border-bottom: 1.5px solid var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+th, td { padding: .4rem .75rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+tr:last-child > td { border-bottom: 0; }
+th { font-weight: 600; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { padding-left: .2rem; }
+caption { caption-side: top; text-align: left; font-weight: 600; font-size: .88rem; color: var(--muted); padding: 0 0 .4rem .2rem; }
+table.types { border-top-color: var(--accent); }
+table.types caption, table.origin caption { color: var(--fg); }
+
+/* 摺疊：箭頭用 CSS 畫，打開時轉向 */
 details { margin: 1rem 0; }
-summary { cursor: pointer; font-weight: 600; }
+summary { cursor: pointer; font-weight: 600; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: ""; display: inline-block; width: .42em; height: .42em; margin: 0 .6em .15em .1em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform .15s ease-out;
+}
+details[open] > summary::before { transform: rotate(45deg); }
+details:not(.answer):not(.check):not(.toc) > summary { color: var(--muted); font-size: .92rem; }
 /* 題目欄的做法和答案：先自己做，做完再打開 */
-details.answer { border: 1px dashed var(--muted); border-radius: 6px; padding: .3rem .9rem; }
-details.answer > summary { color: var(--accent); padding: .3rem 0; }
-details.answer > summary::after { content: "（先自己做，做完再打開）"; color: var(--muted); font-weight: 400; }
+details.answer, details.check { border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); }
+details.answer > summary, details.check > summary { color: var(--accent); padding: .6rem 1rem; border-radius: 3px; }
+details.answer > summary:hover, details.check > summary:hover { background: var(--accent-tint); }
+details.answer > summary::after { content: "（先自己做，做完再打開）"; color: var(--muted); font-weight: 400; font-size: .9rem; }
 details.answer[open] > summary::after { content: none; }
-details.toc { border: 1px solid var(--line); border-radius: 6px; padding: .3rem 1rem; }
-details.toc ol { list-style: none; padding-left: 0; margin: .3rem 0; font-size: .92rem; }
-details.toc a { text-decoration: none; }
-.bar { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: .5rem 0; border-bottom: 1px solid var(--line); }
-.bar button { font: inherit; font-size: .9rem; color: var(--fg); background: var(--tr-bg); border: 1px solid var(--line); border-radius: 6px; padding: .2rem .8rem; cursor: pointer; }
+details.answer[open] > summary, details.check[open] > summary { border-bottom: 1px solid var(--line); border-radius: 3px 3px 0 0; }
+details.answer > :not(summary), details.check > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
+details.answer > :last-child, details.check > :last-child { margin-bottom: 1rem; }
+details.answer table, details.check table { max-width: calc(100% - 2rem); }
+details.check > summary { font-weight: 500; color: var(--fg); }
+details.toc { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: .35rem 0; margin: 1.5rem 0; }
+details.toc > summary { color: var(--muted); font-size: .92rem; }
+details.toc ol { list-style: none; padding-left: 1.2rem; margin: .4rem 0 .5rem; font-size: .92rem; line-height: 1.7; }
+details.toc a { text-decoration: none; color: var(--fg); }
+details.toc a:hover { color: var(--accent); }
+
+/* 每欄頂端的工具列兼欄名 */
+.bar {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+  background: var(--pane, var(--bg));
+  padding: .55rem 0; border-bottom: 1px solid var(--line);
+}
+.bar::before { font-weight: 700; font-size: .85rem; letter-spacing: .08em; color: var(--muted); margin-right: auto; }
+section.course > .bar::before { content: "課件"; }
+section.problems > .bar::before { content: "題目"; }
+.bar button {
+  font: inherit; font-size: .85rem; line-height: 1.5; color: var(--fg); background: transparent;
+  border: 1px solid var(--rule); border-radius: 4px; padding: .2rem .75rem; cursor: pointer;
+}
+.bar button:hover { border-color: var(--accent); color: var(--accent); }
 /* 跨欄跳轉後回到跳之前的位置；lesson.js 產生，只在跳過之後顯示 */
-.back { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 3; font: inherit; font-size: .95rem; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 999px; padding: .5rem 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,.25); cursor: pointer; }
+.back {
+  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 3;
+  font: 600 .95rem/1.4 var(--sans); color: var(--bg); background: var(--accent); border: 0; border-radius: 999px;
+  padding: .55rem 1.2rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0, 0, 0, .12), 0 8px 20px -6px rgba(0, 0, 0, .3);
+}
+.back:hover { filter: brightness(1.08); }
 .back[hidden] { display: none; }
-table.types caption { caption-side: top; text-align: left; font-weight: 700; padding-bottom: .3rem; }
-:target { scroll-margin-top: 3.5rem; animation: flash 2s ease-out; }
-@keyframes flash { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } to { background: transparent; } }
-section.problems { border-top: 3px solid var(--line); margin-top: 3rem; }
+:target { scroll-margin-top: 4rem; animation: flash 2s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 20%, transparent); } to { background: transparent; } }
+
+/* 窄螢幕：兩欄上下接著；題目欄換一個底色、滿版，一眼看出換欄了 */
+section.course, section.problems { --pane: var(--bg); }
+section.problems {
+  --pane: var(--bg2); background: var(--bg2); margin-top: 4rem;
+  box-shadow: 0 0 0 100vmax var(--bg2); clip-path: inset(0 -100vmax); border-top: 1px solid var(--rule);
+}
 /* 螢幕夠寬時左右並排：左邊課件、右邊題目，各自捲動；點連結會讓另一欄跳過去 */
 @media (min-width: 1100px) {
-  body { max-width: none; height: 100vh; overflow: hidden; padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
-  section.course, section.problems { overflow-y: auto; padding: 0 1.5rem 6rem; margin: 0; border-top: 0; }
-  section.course { border-right: 2px solid var(--line); }
-  section.course > *, section.problems > * { max-width: 46rem; margin-left: auto; margin-right: auto; }
+  body:has(> section.course + section.problems) { max-width: none; height: 100vh; overflow: hidden; padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  section.course, section.problems {
+    /* 欄寬固定在 42rem、置中：用左右 padding 算，表格才能靠左縮到內容寬 */
+    overflow-y: auto; padding: 0 max(2rem, calc((100% - 42rem) / 2)) 6rem; margin: 0;
+    scrollbar-color: var(--rule) transparent; scrollbar-width: thin;
+  }
+  section.problems { box-shadow: none; clip-path: none; border-top: 0; border-left: 1px solid var(--rule); }
+  section > h2:first-of-type, section > .toc + h2 { margin-top: 2.5rem; }
 }
-@media (max-width: 560px) { body { font-size: 16px; } }
+@media (max-width: 560px) {
+  body { font-size: 16px; padding: 0 1rem 5rem; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.2rem; }
+  th, td { padding: .35rem .5rem; }
+  .def, .summary, div.tr { padding-left: .9rem; padding-right: .9rem; }
+  .calc { padding-left: .5rem; }
+  details.answer > :not(summary), details.check > :not(summary) { margin-left: .75rem; margin-right: .75rem; }
+}
 @media print {
   body { display: block; height: auto; overflow: visible; max-width: none; background: #fff; color: #000; }
-  section.course, section.problems { overflow: visible; }
+  section.course, section.problems { overflow: visible; background: none; box-shadow: none; clip-path: none; }
+  figure img { filter: none; }
   .bar, .back { display: none; }
   h2 { break-before: auto; }
   figure, .sheet { break-inside: avoid; }
