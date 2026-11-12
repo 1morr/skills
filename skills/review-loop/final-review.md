@@ -8,7 +8,7 @@
 - 已定案（照做，不用重新評估）：{{SETTLED}}
 - 起點版：{{BEFORE}}，渲染圖在 {{BEFORE_RENDER}}
 - 最終版：{{AFTER}}，渲染圖在 {{AFTER_RENDER}}
-- 改動：逐字對照在 {{DIFF_HTML}}；原始碼的改動用 `git -C {{REPO}} diff {{START}}..HEAD -- {{PATHS}}` 查
+- 改動：逐字比對的資料在 {{DIFF_JSON}}（`blocks` 裡 `status` 不是 `same` 的就是改動，`ops` 標出刪掉 `-` 和加上 `+` 的字；格式寫在 {{DIFF_SCRIPT}} 開頭）；原始碼的改動用 `git -C {{REPO}} diff {{START}}..HEAD -- {{PATHS}}` 查
 
 先逐一判斷每一處改動，給一個結論：
 

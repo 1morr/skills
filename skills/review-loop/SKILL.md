@@ -35,7 +35,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
        每條寫出依據原文、其他讀法、各自的後果。讀法只有在使用者**看過原文和其他讀法**後拍板才算定案；
        紀錄裡只有「照你建議」「選這版當底」這類回覆的，在第 5 步重新問。
 3. 產出要在 git 裡，而且那幾個檔案沒有未提交的改動。不在 repo 裡的檔（例如桌面上手改的 docx），先問使用者
-   要放在專案的哪裡，放好再 commit。記下起點 `START=$(git rev-parse HEAD)`，再用
+   要放在專案的哪裡，放好再 commit。記下目前分支 `BASE_BR` 和起點 `START=$(git rev-parse HEAD)`，再用
    `<DIFF>/scripts/diff.py <起點輸出> <起點輸出> --words`（docx、pdf 要的套件見 DOCUMENT.md）記下起點字數。起點輸出用 `git show $START:<路徑>` 取出來。
 4. 照 [`reviewer.md`](reviewer.md) 擬固定部分：要審的東西、依據、偏好、角度、盲做幾個（預設 2）。角度照產出的類型挑，
    每個角度只看一件事，例如：
@@ -46,9 +46,11 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 寫法像不像學生寫的
    - 視覺層次與可讀性（海報）
 5. 用 AskUserQuestion 一次問完：依據清單、偏好、定案清單（明文和讀法分開列，讀法逐條附原文和其他讀法）、
-   角度、輪數上限（預設 4），附上擬好的 prompt。
+   角度、輪數上限（預設 4）、收尾時直接合併回 `BASE_BR` 還是先給使用者看過，附上擬好的 prompt。
    之後這些段落每一輪都一字不改。
-6. 批次目錄 `<scratchpad>/review-<名稱>/`，ledger 放在裡面（格式見〈Ledger〉）。
+6. 批次目錄 `<scratchpad>/review-<名稱>/`，ledger 放在裡面（格式見〈Ledger〉）。`<名稱>` 用英文 kebab-case，會出現在分支名裡。
+7. **開你的 worktree**：`git -C <repo> worktree add -b review/<名稱> <批次目錄>/work $START`。之後修改、重建、
+   渲染、commit 都在 `<批次目錄>/work` 裡做，使用者的主目錄從頭到尾保持原樣；重建要的依賴照專案指令在這裡裝一次。
 
 ## 每一輪
 
@@ -58,15 +60,19 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
      寫明：這些地方最容易改錯或說過頭，要逐一確認；其他部分照常審。
 
    **獨立**：prompt 只放固定部分和這一輪的變動；前幾輪的意見、駁回清單、你對成品的看法都留在 ledger。重複出現的意見由你對照 ledger 擋掉。
-2. **開審查 session**：`bash <O>/scripts/start-session.sh <repo 路徑> review-r<N> <批次目錄>/r<N>/prompt.md`。
-   它和你在同一個 worktree，審的就是你剛 commit 的版本；它工作時你不改檔。然後照 COORDINATOR.md 掛等待。
+2. **開審查 session**：先把要審的版本 commit 好，再
+   `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱> review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。
+   它從你最新的 commit 開一個審查專用的 worktree 和子 session，審查員在那裡渲染、跑腳本，碰不到你的檔。
+   然後照 COORDINATOR.md 掛等待。
 3. **被叫醒**：照 COORDINATOR.md「子 session 的一輪」，另外：
    - **提問**：需求類的照依據回答；要它判斷的回「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都留在你這裡。
-   - **做完了**：讀 `r<N>/report.md`，再用 `git status` 確認它沒改到 repo。有改到就先存成 `r<N>/stray.patch`
-     再丟掉，記進 ledger。
-   - **關終端**：`orca terminal close --terminal <handle>`，只關這個 handle。`close-ticket.sh` 會關掉同一個
-     worktree 裡的所有終端，包括你自己。
-4. **查證**：每一條都由你親自查，只用一種方法：數字就重算，引用就打開依據找原文，版面就渲染出來看。
+   - **Heads up**：照 COORDINATOR.md 記下原文、收起，但不轉給審查員：把它當成這一輪多出來的一條意見，跟報告一起
+     進第 4 步查證。只有內容是審查員自己在改檔、做 git 或對外動作時，才馬上叫它停。
+   - **做完了**：讀 `r<N>/report.md`。`git -C <審查 worktree> status --short` 有東西或多了 commit，代表它違反只讀：
+     記進 ledger，它改的不會進你的分支。
+   - **收掉**：`bash <O>/scripts/close-worktree.sh <repo> <審查 worktree>`：關終端、移除 worktree、刪掉沒有新 commit
+     的分支。審查員有 commit 時分支會留著，收尾時列給使用者。
+4. **查證**：報告的每一條和這一輪的 Heads up 都由你親自查，只用一種方法：數字就重算，引用就打開依據找原文，版面就渲染出來看。
    引用要查兩件事：原文在，而且那段原文管的是**本題**（同一份題目、同一小題）。別份作業的規定抄得再準，
    放到這一題也只是讀法。
    - 每一條只有兩種結果：採納（附證據）或駁回（附理由）。
@@ -77,8 +83,8 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
      （要改哪些數字、表格、結論），在回報裡列給使用者。使用者看過原文後已經拍板的同一條讀法，引用那次決定駁回。
 5. **修改**：只改採納的必須修和建議修。
    - 每一條都用能消除問題的最小改動，以刪除和替換優先。要加內容時，先在 ledger 寫明不加的話會錯在哪。
-   - 改原始檔、重建，再把改到的地方渲染出來看。
-   - 在本地 commit，例如 `fix(<scope>): apply review round <N>`，再記下字數。
+   - 在 `<批次目錄>/work` 改原始檔、重建，再把改到的地方渲染出來看。
+   - 在 `review/<名稱>` 上 commit，例如 `fix(<scope>): apply review round <N>`，再記下字數。
    - 以下幾種情況先停下來問使用者：要改數字、數據或表格內容；要推翻定案；依據沒有規定、使用者也沒說過偏好的取捨；
      這次要改的地方，前幾輪已經往相反方向改過（來回擺盪）。
 6. **回報**：發一則短訊息。沒有待決的讀法就不必等使用者回覆，直接照第 7 步走：
@@ -96,9 +102,10 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 收尾
 
-1. **精簡審查**：用 Agent 工具開一個子代理，`model: "opus"`，prompt 照 [`final-review.md`](final-review.md) 寫。
+1. **精簡審查**：用 Agent 工具開一個子代理，`model: "opus"`，prompt 照 [`final-review.md`](final-review.md) 寫（`{{REPO}}` 填 `<批次目錄>/work`）。
    - 給它起點版和最終版的渲染圖。
-   - 給它一份沒有附說明的逐字對照：照 `diff` 的 DOCUMENT.md 產出 `<批次目錄>/plain-diff.html`，不帶 `--notes`。
+   - 給它沒有附說明的比對資料：`<DIFF>/scripts/diff.py <起點輸出> <最終輸出> -o <批次目錄>/plain-diff.json`
+     （不帶 `--notes`；格式寫在 `diff.py` 開頭）。它讀資料比讀頁面準，這一步不做給人看的頁面。
    - 不給它輪次紀錄。
 
    它的每一條意見照「每一輪」第 4 步查證。查證過的刪減和精簡照做，這一步不加內容，改完重建、渲染、commit。
@@ -107,27 +114,32 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - `notes.json`：每一處改動對應哪一輪、哪一條意見、依據是什麼，從 ledger 抄。
    - 頁面另寫三段：不在文字裡的改動（版面、圖、顏色）、中途加過又刪掉的內容、起點和最終版的渲染圖並排。
 
-   輸出到 `<產出旁邊>/<產出名> 修改對照（起點→最終版）.html`，照 DOCUMENT.md 的檢查確認。
+   輸出到 `<批次目錄>/work` 裡產出旁邊的 `<產出名> 修改對照（起點→最終版）.html`，照 DOCUMENT.md 的檢查確認。
 3. **寫回定案**：使用者在這幾輪新拍板的決定，連同理由，寫進專案記錄決定的地方（例如評核資料夾的 README）。
-   和總 diff 放在同一個 commit。push 照使用者的授權。
-4. **最後報告**：
+   和總 diff 放在同一個 commit。
+4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑
+   `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱> -m "merge: review <名稱>"`。
+   主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後
+   `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>`。push 照使用者的授權。
+5. **最後報告**：
    - 結論：能不能交
    - 跑了幾輪，每輪採納和駁回各幾條
    - 起點和最終版的字數
    - 剩下的可不修項目
    - 使用者交件前要自己手動做的事
-   - 總 diff 的路徑和 commit
+   - 總 diff 的路徑、合併 commit（或還沒合併、在等使用者）、留下的分支
    - 每一輪審查 session 的 session id，可以用 `claude --resume` 回看
 
 ## 規則
 
-審查員只讀不改，修改只由你來做。其餘照 COORDINATOR.md「規則」。
+審查員只讀不改；修改只由你來做，而且只在 `<批次目錄>/work` 裡做。其餘照 COORDINATOR.md「規則」。
 
 ## Ledger
 
-- **頂部「目前」段**：repo、原始檔與輸出檔、重建指令、渲染指令、`START`、輪數上限、固定 prompt 的路徑。
+- **頂部「目前」段**：repo、orca repo 選擇器、`BASE_BR`、`START`、你的 worktree（`<批次目錄>/work`，分支 `review/<名稱>`）、
+  收尾要直接合併還是先給使用者看、原始檔與輸出檔、重建指令、渲染指令、輪數上限、固定 prompt 的路徑。
 - **「定案」段**：每一條寫決定、類別（明文或讀法）、理由、出處、由誰拍板；讀法再寫使用者拍板時看過的原文和其他讀法。
 - **「駁回紀錄」段**：意見摘要 → 理由 → 第幾輪。
 - **「字數」表**：起點和每一輪結束時的字數。
-- **每一輪一段**：handle、session id、報告路徑、逐條處置表（意見 → 採納或駁回 → 證據或理由 → 改法）、commit、
+- **每一輪一段**：審查 worktree、handle、session id、報告路徑、Heads up 原文、逐條處置表（意見 → 採納或駁回 → 證據或理由 → 改法）、commit、
   有沒有開下一輪，以及理由。

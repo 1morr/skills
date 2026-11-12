@@ -27,7 +27,7 @@ Heads up 是 Claude Code 給在場者的風險提醒，只在畫面和 mod 的�
 
 1. 把 `waitbg.sh` 附的全文記進 ledger，送 `0` 收起（不收起下一則出不來）；細節和讀不到檔案時的做法見 TUI.md「Heads up」。手動查用 `python3 <O>/scripts/headsup.py <jsonl>`。
 2. 分兩級：涉及刪檔、破壞性 git、對外寫入、外洩、超出範圍的**馬上**查證處理；其他等子 session 停下再處理。
-3. 對任務來源、文件或程式碼查證一次。屬實又該修的，把完整原文貼給**同一個 session**，開頭註明「以下是 Claude Code 給在場者的 Heads up 原文」，你的查證與修法另起一段。不屬實或不修的，寫進 ledger 的「待使用者看」並附理由。
+3. 對任務來源、文件或程式碼查證一次（各 skill 另有規定的照它，例如 review-loop 把它當成審查意見）。屬實又該修的，把完整原文貼給**同一個 session**，開頭註明「以下是 Claude Code 給在場者的 Heads up 原文」，你的查證與修法另起一段。不屬實或不修的，寫進 ledger 的「待使用者看」並附理由。
 
 ## 規則
 
