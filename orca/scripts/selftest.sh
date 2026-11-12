@@ -58,7 +58,7 @@ hu --summary >/dev/null; ok "headsup unknown shape is unavailable" $? 2
 hstore '[{"id":"me","view":{"kind":"offer","explanation":"x"}}]'
 hu --summary >/dev/null; ok "headsup offer without a line is unavailable" $? 2
 
-# ---- terminals_in.py（close-ticket.sh 只關這個 worktree 的終端）
+# ---- terminals_in.py（close-worktree.sh 只關這個 worktree 的終端）
 TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
 ok "terminals: exact worktree only"     "$(echo "$TL" | W=/w/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_a term_c "
 ok "terminals: sibling with same prefix" "$(echo "$TL" | W=/w/t07b "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_b "

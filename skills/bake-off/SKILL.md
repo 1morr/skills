@@ -9,7 +9,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 參數：$ARGUMENTS
 
-`<S>` 是這個 skill 的 `scripts/`，`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫 bake-off 獨有的部分。
+`<O>` 是本 plugin 的 `orca/`（這個 skill 目錄的 `../../orca`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫 bake-off 獨有的部分。
 
 **獨立**是這個 skill 的核心：每一版只收到共同 prompt、給它自己計畫的意見、和所有版本都一樣的答案。任何一版的內容、做法、評語都只留在那一版，比的才是 N 個獨立的版本。
 
@@ -34,7 +34,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 ## 開版
 
-每一版一行呼叫一次：`bash <S>/new-variant.sh <repo 選擇器> <任務名> <版號> <批次目錄>/prompt.md`。它從 base 開 worktree `<任務名>-<版號>` 和分支 `bake/<任務名>/<版號>`，開子 session 讀 prompt.md。印 `started: NO` 就讀畫面查原因。每一版各掛一個等待。
+每一版一行呼叫一次：`bash <O>/scripts/open-worktree.sh <repo 選擇器> <任務名>-<版號> bake/<任務名>/base bake/<任務名>/<版號> <批次目錄>/prompt.md`。它從 base 開 worktree 和分支，開子 session 讀 prompt.md。印 `started: NO` 就讀畫面查原因。每一版各掛一個等待。
 
 ## 計畫關卡
 
@@ -79,7 +79,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 - **合併選定版**：要改的和要搬進來的交給基礎版的子 session 做。比較已經結束，訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每項附來源的絕對路徑和位置。驗收它的 commit 後，在主目錄跑 `preflight.sh`，再 `git merge --no-ff bake/<任務名>/<版號>`（base 的清除 commit 一起進來，舊產出正好被取代）。push 照授權。選的是外部版本時，由你把它放到產出原本的位置、改好、commit。
 - **寫回讀法**：使用者拍板的讀法連同原文、其他讀法、拍板的回覆，寫進專案記錄決定的地方（例如評核資料夾的 README），和合併同一個 commit。之後 review-loop 會把它當成定案。
-- **清 worktree**：每一版跑 `bash <O>/scripts/close-ticket.sh <repo> <worktree>`。沒合併的分支會留著，列給使用者決定要不要刪。
+- **清 worktree**：每一版跑 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`。沒合併的分支會留著，列給使用者決定要不要刪。
 
 ## Ledger
 

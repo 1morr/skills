@@ -49,7 +49,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
    - **push**：`bash <O>/scripts/push-ci.sh <repo>`（`run_in_background`）。它先等主分支上還在跑的 run，push 後等這個 commit 的 CI，印 `ci=`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
 
    **偶發紅燈**：子 session 附註「既有紅燈，在前一個 commit 上也紅」可以接受一次，記進「偶發紀錄」。同一條紅燈第二次出現（不論哪張票、本機或 CI）或變成穩定紅：插一張修復票 `<NN>b-<slug>.md` 排在下一張之前並 commit。原因不明時票上寫明：先分清是產品還是測試的問題、要有會紅的 repro、只拉長逾時而說不出原因的不收。修復票的驗收包含回頭補勾被它卡住的票。使用者在場就先問再插。
-4. **收尾**：CI 綠了才 `bash <O>/scripts/close-ticket.sh <repo> <worktree>`：關掉開在那個 worktree 的終端、移除 worktree、刪已合併的分支。寫 ledger，回報這張票，開下一張。
+4. **收尾**：CI 綠了才 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`：關掉開在那個 worktree 的終端、移除 worktree、刪已合併的分支。寫 ledger，回報這張票，開下一張。
 
 ## 真的卡住
 

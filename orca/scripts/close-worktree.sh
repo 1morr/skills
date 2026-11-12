@@ -1,4 +1,4 @@
-# 用法：bash close-ticket.sh <主 repo 路徑> <票的 worktree 路徑>  —— merge、push、CI 都綠之後才跑
+# 用法：bash close-worktree.sh <主 repo 路徑> <worktree 路徑>  —— 那個 worktree 的工作都收進分支（或確定不要）之後才跑
 # 關掉開在這個 worktree 的終端、移除 worktree、prune、刪已合併的分支（git branch -d：沒合併就拒絕，不會丟東西）。
 # jsonl 與 session 歷史不動，使用者用 claude --resume <session id> 回看。
 R=$1; W=$2; D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"
