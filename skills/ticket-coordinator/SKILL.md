@@ -1,6 +1,6 @@
 ---
 name: ticket-coordinator
-description: 當協調者，用 orca 為每張票開一個子 Claude Code session 解票、代答它的提問、驗收、合併，逐張跑完隊列
+description: 用 Orca 逐張開子 session 解票、代答、驗收、合併，跑完整個隊列
 disable-model-invocation: true
 argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額度門檻，例如 5h 80%、7d 95%] [同時最多 N 張]"
 ---

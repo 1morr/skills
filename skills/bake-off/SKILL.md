@@ -1,6 +1,6 @@
 ---
 name: bake-off
-description: 同一個任務開 N 個 worktree 各做一版（也可以加進或只比較現成的版本），做完逐版比較，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來
+description: 同一個任務平行做幾版（也可以加進現成的版本），比較後建議用哪一版當基礎
 disable-model-invocation: true
 argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt 或 prompt 檔路徑> [現成版本的路徑或連結…]"
 ---

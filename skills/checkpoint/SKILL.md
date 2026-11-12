@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: 一個里程碑做完、拆下一個之前：回顧剛做完的做了什麼、為什麼、對不對、留下什麼，說明下一個打算做什麼、為什麼、怎麼做，和使用者對話對齊計畫，把定案寫回 repo 原有的文件
+description: 里程碑之間：回顧上一段做得對不對，和你對齊下一段的計畫
 disable-model-invocation: true
 argument-hint: "[剛做完的里程碑或 commit 範圍] [想問的事、用起來遇到的問題]"
 ---

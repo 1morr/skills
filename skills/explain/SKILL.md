@@ -1,6 +1,6 @@
 ---
 name: explain
-description: 解說這個 repo 的某個東西現在怎麼運作：一個功能、流程、頁面、機制、里程碑或名詞，出一頁附圖、每句附來源的臨時 HTML，再在對話裡回答追問；不寫進 repo
+description: 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、附來源的臨時頁，加對話追問
 disable-model-invocation: true
 argument-hint: "<要解說的東西> [想知道的事]"
 ---

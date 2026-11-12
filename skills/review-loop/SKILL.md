@@ -1,6 +1,6 @@
 ---
 name: review-loop
-description: 一輪一輪審一份成品（作業、海報、報告）：每輪開新 session 審查，主對話查證後修改，審到只剩可改可不改的小問題，再做一次精簡審查，產出起點到最終版的總 diff
+description: 一輪一輪審一份成品，審到只剩可改可不改的小問題
 disable-model-invocation: true
 argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充]"
 ---

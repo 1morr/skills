@@ -1,6 +1,6 @@
 ---
 name: diff
-description: Build a before/after page that shows a reader what changed - two versions of a document compared word by word, or a code change shown with run evidence. Use when asked for a diff page, to compare two versions, or to show or walk through a change (diff 的 html、前後對照、展示改動).
+description: 做一頁前後對照的 HTML：文件兩版逐字比對，或程式改動附實跑證據。使用者要 diff 頁、前後對照、展示或講解一個改動時用。
 ---
 
 # Diff
