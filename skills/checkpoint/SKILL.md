@@ -15,7 +15,7 @@ argument-hint: "[剛做完的里程碑或 commit 範圍] [想問的事、用起�
 
 ## 1. 範圍與來源
 
-1. 讀 CLAUDE.md / AGENTS.md，找出計畫、進度、票、決定紀錄（ADR、偏差紀錄）、名詞表放在哪裡，以及 session 結尾的規定。
+1. 讀 CLAUDE.md / AGENTS.md，找出計畫、進度、票、決定紀錄（ADR、偏差紀錄）、名詞表放在哪裡，以及 session 結尾的規定。repo 沒有其中某一樣時，從 git log、PR、README 和程式碼裡的註解取，並在頁面上說明這部分沒有文件可引。
 2. 定範圍：
    - 參數是里程碑：它的 spec、票、進度紀錄（含封存檔）；commit 範圍從它第一個 commit 的前一個到驗收 commit。
    - 參數是 commit 範圍：照用。
