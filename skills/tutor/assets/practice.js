@@ -26,11 +26,16 @@
       return g !== "" && a !== "" && isFinite(x) && isFinite(y) && Math.abs(x - y) <= tol + 1e-9;
     });
   }
-  function describe(f) {
-    if (!f.tries.length) return "還沒做";
-    const wrong = f.ok ? f.tries.slice(0, -1) : f.tries;
-    return (f.ok ? "第 " + f.tries.length + " 次答對" : "錯 " + f.tries.length + " 次") +
+  function round(r) {
+    if (!r.tries.length) return "還沒做";
+    const wrong = r.ok ? r.tries.slice(0, -1) : r.tries;
+    return (r.ok ? "第 " + r.tries.length + " 次答對" : "錯 " + r.tries.length + " 次") +
       (wrong.length ? "，答錯過：" + wrong.join("、") : "");
+  }
+  // 重做不丟掉之前的紀錄：第一次錯在哪才是 Claude 要記的
+  function describe(f) {
+    const past = (f.rounds || []).map(round);
+    return past.length ? "重做第 " + past.length + " 次：" + round(f) + "；之前：" + past.join("；") : round(f);
   }
   // 基本功錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給 Claude 批改
   function makeFills(section) {
@@ -58,12 +63,16 @@
       const out = document.createElement("span");
       out.className = "result";
       out.setAttribute("aria-live", "polite");
-      el.append(" ", input, " ", btn, out);
+      const redo = document.createElement("button");
+      redo.type = "button";
+      redo.textContent = "再做一次";
+      el.append(" ", input, " ", btn, " ", redo, out);
       function show() {
         const why = el.dataset.why ? " " + el.dataset.why : "";
         const done = f.ok || (drill && f.tries.length >= 2);
         input.disabled = btn.disabled = done;
-        if (f.tries.length) input.value = f.tries[f.tries.length - 1];
+        redo.hidden = !done;
+        input.value = f.tries.length ? f.tries[f.tries.length - 1] : "";
         el.classList.toggle("ok", f.ok);
         el.classList.toggle("no", !f.ok && f.tries.length > 0);
         if (f.ok) out.textContent = "對。" + why;
@@ -81,6 +90,14 @@
         show();
       }
       btn.addEventListener("click", check);
+      redo.addEventListener("click", function () {
+        f.rounds = (f.rounds || []).concat({ tries: f.tries, ok: f.ok });
+        f.tries = [];
+        f.ok = false;
+        localStorage.setItem(store, JSON.stringify(state));
+        show();
+        input.focus();
+      });
       input.addEventListener("keydown", function (e) { if (e.key === "Enter") check(); });
       show();
     });
