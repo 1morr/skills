@@ -1,7 +1,7 @@
 ---
 name: tutor
-description: Teach a university course topic, assignment, or exam from the teacher's own slides to a learner with zero background, as a two-pane HTML guide (courseware on the left, worked problems on the right) plus an answer sheet for unsubmitted work; optionally coach them through problems until they can solve them alone. Use when asked to teach, explain, or review course material, or to prepare for a quiz or exam (教我、看不懂、零基礎、複習、備考、作業教我).
-argument-hint: "[作業 | topic | 考試] [read | learn]"
+description: Teach a university course topic, assignment, or exam from the teacher's own slides to a learner with zero background, as a two-pane HTML guide (courseware on the left, worked problems on the right), a practice page that checks answers in place, and an answer sheet for unsubmitted work; grade their working and coach step by step only when they get stuck. Use when asked to teach, explain, or review course material, or to prepare for a quiz or exam (教我、看不懂、零基礎、複習、備考、作業教我).
+argument-hint: "[作業 | topic | 考試]"
 ---
 
 # Tutor
@@ -10,14 +10,13 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 
 老師的材料是唯一標準：講義、例題答案、過去作業的 Suggested Answers、老師的統計表。課本是第二順位；網路和模型自己的知識只用來補前置知識、講為什麼、舉現實例子，而且符號和寫法要對齊老師。老師和課本不一致時照老師，並標出來。
 
-## 叫用與模式
+## 產出與對話
 
-兩個模式用**同一份導讀頁**，差別只在對話：
-
-- `read`（自己讀）：做好導讀頁就交付，**全程不提問、不出練習**。範圍不確定時自己選最可能的，寫在頁尾的維護者註解。適用於交件或考試在兩天內，或使用者說「趕」「明天交」「今晚要考」「不要問我」「直接給我看」。
-- `learn`（帶著做）：導讀頁當課本，照 [LEARN.md](LEARN.md) **同時做好練習頁**，在對話裡帶使用者做題。使用者說沒空回答問題時，就讓他自己做練習頁，做完把畫布貼回對話再批改。適用於時間充足、想自己會做。
-- 導讀頁已經存在、材料沒變時，直接用，**不要重做也不要改**（換模式不改頁面）。材料有更新才重做。
-- 沒指定時：先看使用者有沒有說不想被問，有就選 `read`。再查 repo 裡的日程表或評核說明找截止日：兩天內選 `read`，否則選 `learn`。找不到日期就選 `read`，因為使用者通常是要交了才來問。開頭說一句選了哪個模式、為什麼。
+- 產出三樣：導讀頁（§4）、還沒交的作業的答案紙（§5）、練習頁（[PRACTICE.md](PRACTICE.md)）。先交付導讀頁和答案紙，再做練習頁。
+- **趕的時候不做練習頁**：交件或考試在兩天內（查 repo 裡的日程表或評核說明），或使用者說「趕」「明天交」「今晚要考」「直接給我看」。開頭說一句這次做不做練習頁、為什麼。找不到日期就照常做。
+- 製作過程不提問。範圍不確定時自己選最可能的，寫在頁尾的維護者註解。
+- 交付之後，讀者自己讀、自己做練習頁，對話是被動的：批改他貼回來的畫布、回答「卡在 §15」、他開口或同一題型錯兩次才逐步帶著做。這三件事照 PRACTICE.md。
+- 導讀頁已經存在、材料沒變時，直接用，**不要重做也不要改**。材料有更新才重做。之前趕時間沒做練習頁的，使用者回來要練習時補做。
 
 ## 1. 找材料，找出「怎樣才算答對」
 
@@ -59,7 +58,7 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
 
 ## 4. 導讀頁：左欄課件、右欄題目
 
-頁面分兩欄，螢幕夠寬時左右並排、各自捲動：讀者學到課件哪裡就看右欄對應的題目。**右欄要能單獨做題**：每題用到的定義、公式、規則在題目旁邊原地再寫一次，並把課件那一塊截過來；不叫讀者跳去左欄找。§ 連結只留「想看完整推導再點」的，每題最多連到左欄 3 段；點了會讓左欄跳過去，畫面右下角出現「回到剛才」，按一下兩欄都回到跳之前的位置。
+頁面分兩欄，螢幕夠寬時左右並排、各自捲動：讀者學到課件哪裡就看右欄對應的題目。**右欄要能單獨做題**，不叫讀者跳去左欄找（每題要寫全什麼，見下面骨架第 1 步）。§ 連結只留「想看完整推導再點」的，每題最多連到左欄 3 段；點了會讓左欄跳過去，畫面右下角出現「回到剛才」，按一下兩欄都回到跳之前的位置。
 
 ```html
 <body data-pages="..." data-problems="calc">
@@ -83,7 +82,7 @@ argument-hint: "[作業 | topic | 考試] [read | learn]"
    - 定義框（§3 第 2 條）。
    - 這塊的截圖，附翻譯圖（紅框圈出要看的地方）。
    - 講解：公式為什麼長這樣，從讀者已經懂的東西一步步推，每一塊（分子、分母、平方、減 1）在做什麼、拿掉會怎樣；算出來的數字大代表什麼、小代表什麼。用直覺推，不寫證明；推導不考時說一句「看懂就好，不會考」。
-   - 課件上有門檻或常數（例如 |*r*| ≥ 0.7、DW 1.5–2.5）時，用「數字從哪來」表交代（格式見下面第 4 步）。
+   - 課件上有門檻或常數（例如 |*r*| ≥ 0.7、DW 1.5–2.5）時，用「數字從哪來」表交代（格式見題目骨架第 4 步）。
 4. **這段記住**（`.summary`）。
 
 用到這頁的例題和作業題，在講解裡寫一句「Eg 2（§15）就是在算這個」，讓讀者能跳到右欄。
@@ -149,13 +148,21 @@ $CROP cut   講義.pdf 4 out.png --clip 70,80,560,430 --box 90,250,540,280 [--ma
 python <skill 目錄>/scripts/build.py guide-src.html -o guide.html
 ```
 
-
 build 也會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3>` 編號（§1、§1.2）、在每一欄開頭產生目錄、把內文的「§3.2」變成連結。它檢查本檔的結構與寫法規則，任何一條不過就不產出，並逐條印出違反哪一條、為什麼；照訊息改到通過。
 
 ## 5. 作業：答案紙與講解分開
 
 - 答案紙是一份要交的檔案，照老師的 Suggested Answers 格式寫：英文、簡潔，句型照講義。用 HTML 寫，再用 Chrome headless 印成 PDF（`--print-to-pdf`）。
-- 所有數字都由一支計算腳本（`calc.py`）算出來，不手打。答案紙寫成 `answer-tpl.html`，講解頁寫成 `guide-tpl.html`，數字用 `{{名稱}}` 佔位，由 `calc.py` 填入。答案紙每一題包在 `<div class="part" data-part="a">…</div><!--/part-->` 裡；講解頁寫 `{{sheet:a}}`，`calc.py` 會把答案紙那一段原樣放進來。這樣兩邊不會對不上。
+- 所有數字都由一支計算腳本（`calc.py`）算出來，不手打。`calc.py` 只管算，把每個值寫成 `values.json`（一層物件，值是已經四捨五入好的字串）。答案紙寫成 `answer-tpl.html`，講解頁寫成 `guide-tpl.html`，數字用 `{{名稱}}` 佔位，用 `scripts/fill.py` 填入；有一個沒填到就不產出。
+- 答案紙每一題包在 `<div class="part" data-part="a">…</div><!--/part-->` 裡；講解頁寫 `{{sheet:a}}`，`fill.py --sheet` 會把答案紙那一段原樣放進來。這樣兩邊不會對不上。
+
+```bash
+FILL="python <skill 目錄>/scripts/fill.py"
+python calc.py                                                     # 寫出 values.json
+$FILL values.json answer-tpl.html -o answer.html
+$FILL values.json guide-tpl.html --sheet answer.html -o guide-src.html
+```
+
 - 題目本身有給、也能自己算出來的數字（例如表上已有的 MSE、F），在 `calc.py` 裡用 assert 對一次，對不上表示抄錯題。
 
 ## 6. 驗證
@@ -165,11 +172,11 @@ build 也會內嵌圖片、加上共用樣式和切換按鈕、替 `<h2>` / `<h3
 - 查表值要對照截圖上框住的那一格。
 - `build.py` 通過。
 - 用瀏覽器打開導讀頁，在寬螢幕（≥ 1100px，兩欄並排）和窄螢幕各看一次：圖片和翻譯圖有顯示、點圖能切換、右欄的 § 連結能讓左欄跳過去、「回到剛才」能回到跳之前的位置、「展開全部做法」有作用。答案 PDF 也打開看一次。
-- 挑右欄任何一題，遮住左欄只讀那一題：定義、公式、截圖、數字來源都在，讀者不用往左看就能做。缺什麼就補進「為什麼」。
-
+- 挑右欄任何一題，遮住左欄只讀那一題，確認不用往左看就能做。缺什麼就補進「為什麼」。
+- 練習頁照 PRACTICE.md 的驗證做。
 
 ## 7. 交付
 
 產出放在 repo 既有的位置（例如評核資料夾）；沒有慣例時，放在評核資料夾底下的 `tutor/`（原始 HTML、截圖、翻譯檔、計算腳本），組好的頁面放在評核資料夾。
 
-最後跟使用者說：先讀哪個檔、大約要讀多久、答案紙在哪、交之前要做什麼（印、簽名、檔名）。`learn` 再說練習頁在哪、做完怎麼貼回來批改，然後照 LEARN.md 開始第一個題型。
+最後跟使用者說：先讀哪個檔、大約要讀多久、答案紙在哪、交之前要做什麼（印、簽名、檔名）。有練習頁時再說：練習頁在哪、基本功在頁面上就能對答案、整題做完按「複製給 Claude」貼回來批改、卡住就說 § 編號。
