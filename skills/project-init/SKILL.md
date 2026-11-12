@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔、brief / plan / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
 `/grill-with-docs` 填 brief → 寫 plan → `/to-tickets` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
@@ -17,17 +17,19 @@ argument-hint: "[專案一句話]"
 
 1. 目前目錄不是 git repo：問使用者要不要 `git init`。查預設分支名。
 2. 已經有 `docs/progress.md`、`docs/plan.md` 或 `.scratch/`：這個 skill 只管新專案，停下來告訴使用者哪些檔已經在，不覆蓋。
-3. 已有的指令檔（`CLAUDE.md`、`AGENTS.md`）、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
-4. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
+3. 已有的 `AGENTS.md`、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
+4. 找**擋路檔**：專案目錄和它上面每一層的 `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`（`~/.claude/CLAUDE.md` 不算）。有任何一個，Claude Code 就只讀它們、不讀 `AGENTS.md`。
+5. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
 
-完成條件：說得出預設分支、指令檔現況、有沒有技術棧、`docs/agents/` 在不在。
+完成條件：說得出預設分支、有沒有技術棧、`docs/agents/` 在不在，以及每個擋路檔的位置和內容。
 
 ## 2. 問一次
 
 用 AskUserQuestion 一次問完，探查已經知道的不問：
 
 - 專案一句話（參數沒給時）。
-- 指令檔：`CLAUDE.md`（只用 Claude Code），或 `AGENTS.md` 加一個內容是 `@AGENTS.md` 的 `CLAUDE.md`（也用別的 agent）。
+- 專案裡的擋路檔：只有 `@AGENTS.md` 一行的直接刪，不用問；其餘的問要把內容併進 `AGENTS.md` 後刪掉，還是保留它並在第一行加 `@AGENTS.md`。
+- 專案外（上層目錄）的擋路檔不動。問使用者要在專案根目錄放一個只有 `@AGENTS.md` 一行的 `CLAUDE.md`，還是自己把 `~/.claude/settings.json` 的 `pluginConfigs` → `cc-plugin-agents-md@builtin` → `options.instructionFiles` 設成 `claude-md-and-agents-md`。
 - repo 公開還是私有。
 - 有沒有 UI。
 
@@ -37,7 +39,7 @@ argument-hint: "[專案一句話]"
 
 | 範本 | 寫到 |
 | --- | --- |
-| `instructions.md` | 第 2 步選的指令檔 |
+| `instructions.md` | `AGENTS.md` |
 | `design-brief.md` | `docs/design-brief.md` |
 | `plan.md` | `docs/plan.md` |
 | `progress.md` | `docs/progress.md` |
@@ -52,9 +54,9 @@ argument-hint: "[專案一句話]"
 
 另外建空目錄的佔位：`docs/adr/`、`docs/research/`、`docs/archive/`、`scripts/experiments/` 各放一個 `.gitkeep`。
 
-佔位：`{{PROJECT}}` 專案名稱，`{{ONE_LINE}}` 專案一句話（句號結尾），`{{DATE}}` 今天（`YYYY-MM-DD`），`{{MAIN_BRANCH}}` 預設分支。`instructions.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪；所有 `<!-- -->` 註解，除了寫明留給 M0 票 01 的，都刪掉。
+佔位：`{{PROJECT}}` 專案名稱，`{{ONE_LINE}}` 專案一句話（句號結尾），`{{DATE}}` 今天（`YYYY-MM-DD`），`{{MAIN_BRANCH}}` 預設分支。`instructions.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪；所有 `<!-- -->` 註解，除了寫明留給 M0 票 01 的，都刪掉。擋路檔照第 2 步的回答處理。
 
-完成條件：專案裡 `grep -rn '{{' docs .github .githooks <指令檔>` 沒有結果；表上每個目的地都有檔。
+完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md` 沒有結果；表上每個目的地都有檔；Claude Code 讀得到 `AGENTS.md`：專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`。
 
 ## 4. 票的慣例
 
