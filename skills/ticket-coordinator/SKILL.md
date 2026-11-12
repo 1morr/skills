@@ -56,8 +56,8 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 3. **被叫醒**：讀 ledger。背景輸出的第一行是 `state=`（以 transcript 判斷，見 TUI.md「等待」），後面是畫面；
    不夠就 `python3 <S>/scr.py <handle> 40`。
 
-   `state=heads-up` 是子 session 還在做時跳出新的 Heads up：照 TUI.md「Heads up」分兩級，危險的馬上查證轉給它，
-   其他只記進 ledger、等它停下再處理，然後重新掛等待。
+   `state=heads-up` 是子 session 還在做時跳出新的 Heads up：照 TUI.md「Heads up」展開、原文記進 ledger、收起
+   （不收起下一則出不來），再分兩級：危險的馬上查證轉給它，其他等它停下再處理。然後重新掛等待。
 
    每次讀畫面都看底部有沒有 `✦ Heads up`（Claude Code 給在場的人的風險提醒）。它只在畫面上，子 session 的
    transcript 裡沒有，所以子 session 不知道它。展開讀完整內容（按鍵見 TUI.md「Heads up」），對票、文件或程式碼查證
@@ -77,7 +77,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
    - **停了但沒做完**：先看它是不是在等自己的背景工作（子代理、背景指令、並行審查），是就重新掛等待；
      真的停了才送「繼續完成這張票剩下的步驟，直到完成標準全部成立」。
    - **修不綠或原地打轉**：叫它用 diagnosing 類 skill 找根因，你讀程式碼與測試輸出給方向。
-   - **說做完了**：Heads up 處理完，進第 4 步。
+   - **說做完了**：畫面上與 ledger 裡記著、還沒處理的 Heads up 都處理完，進第 4 步。
 4. **驗收與合併**，全部成立才算完成；缺一項就在同一個 session 叫它補，你不動手改產品程式：
    - a–c、e 交給腳本：先 `bash <S>/preflight.sh <repo>`，再
      `REQUIRE="<完成標準要求的檔>" bash <S>/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。
