@@ -25,6 +25,22 @@ bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者�
 
 plugin 不釘版本，`/plugin update 1morr@1morr-skills` 會更新到最新 commit；也可以在 `/plugin` 的 Marketplaces 分頁打開自動更新。
 
+## 用 Orca 的三個 skill 要知道的事
+
+bake-off、review-loop、ticket-coordinator 會用 [Orca](https://www.onorca.dev) 開子 Claude Code session，需要裝好 Orca 和它的 `orca` 指令。
+
+- **子 session 以免確認模式啟動**（`claude --dangerously-skip-permissions`），這樣才能無人值守；它在自己的 worktree 和分支上工作，合併與 push 由協調者照你開工時給的授權做。要換啟動指令，在啟動協調者的環境設 `CHILD_CLAUDE`，例如 `CHILD_CLAUDE="claude --permission-mode acceptEdits"`。
+- **腳本預設主分支是 `main`、CI workflow 是 `ci.yml`**；不一樣時 ticket-coordinator 會在開工時查出來並帶給腳本。
+
+### 額度門檻
+
+ticket-coordinator 的額度門檻（例如「5h 80%」）要讀得到目前的用量。Claude Code 只把用量交給狀態列指令，所以要在狀態列指令裡多接一段存檔：
+
+1. 把 [`orca/scripts/save-rate-limits.sh`](orca/scripts/save-rate-limits.sh) 複製到 `~/.claude/`（plugin 的安裝路徑每次更新都會變，不要直接指過去）。
+2. 在 `~/.claude/settings.json` 的 `statusLine.command` 前面接上它：`sh ~/.claude/save-rate-limits.sh | <你原本的狀態列指令>`；沒有狀態列指令就寫 `sh ~/.claude/save-rate-limits.sh >/dev/null`。
+
+它把用量存到 `~/.claude/rate-limits.json`。沒設定時，給了門檻的協調者讀不到用量，會停下來問你；沒給門檻就不受影響。
+
 ## 開發
 
 把 clone 下來的目錄加成 marketplace，plugin 會直接從這個目錄載入：改完檔案，開新 session 或執行 `/reload-plugins` 就生效，不用 push、不用重裝。

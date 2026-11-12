@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、headsup.py 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh、headsup.py 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -205,5 +205,14 @@ ok "quota screen 7d gate uses the 7d reset"   "$(qt 0 85 | fields)" "gate=closed
 echo '  QIM main  ·  Opus' > "$SCREEN"
 ok "quota unknown with a gate holds off"      "$(qt 80 0 | fields)" "gate=unknown src=none sleep=600"
 ok "quota unknown without gates does not wait" "$(qt 0 0 | fields)" "gate=unknown src=none sleep=0"
+
+# ---- save-rate-limits.sh（狀態列指令裡的一段：存 rate_limits、原樣轉交 JSON；quota.sh 讀得回來）
+SF="$X/saved.json"; PAY='{"model":"x","rate_limits":{"five_hour":{"used_percentage":61,"resets_at":'$(( $(date +%s) + 600 ))'}}}'
+ok "save-rate-limits passes the payload through" "$(printf '%s' "$PAY" | QUOTA_FILE="$SF" sh "$D/save-rate-limits.sh")" "$PAY"
+ok "save-rate-limits output is read by quota.sh"  "$(PATH="$Wb/bin:$PATH" QUOTA_FILE="$SF" bash "$D/quota.sh" 60 0 term_x | fields | cut -d' ' -f1-2)" "gate=closed src=file"
+before=$(cat "$SF")
+ok "save-rate-limits passes a payload without limits" "$(printf '%s' '{"model":"x"}' | QUOTA_FILE="$SF" sh "$D/save-rate-limits.sh")" '{"model":"x"}'
+ok "save-rate-limits keeps the old file without limits" "$(cat "$SF")" "$before"
+ok "save-rate-limits survives junk input"            "$(printf 'not json' | QUOTA_FILE="$SF" sh "$D/save-rate-limits.sh"; echo " rc=$?")" "not json rc=0"
 
 rm -rf "$X"; [ $fail -eq 0 ] && echo "ALL OK"; exit $fail
