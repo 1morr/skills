@@ -1,7 +1,7 @@
 # 用法：bash merge-ticket.sh <主 repo 路徑> <票的 worktree 路徑> <票路徑（相對 repo 根）> <merge message>
 # 環境變數 REQUIRE="docs/progress.md ..."：專案完成標準要求每張票都動到的檔（照專案 CLAUDE.md 填）
 # 驗收 a–c 與 commit 格式全部成立才 `git merge --no-ff`；任何一項不成立就列出來、exit 1、什麼都不動。
-# 衝突時停在合併中（exit 3）交給協調者解。不跑測試、不 push：測試範圍見 ticket-coordinator 的 SKILL.md 第 4 步 d，push 用 push-ci.sh。
+# 衝突時停在合併中（exit 3）交給協調者解。不跑測試、不 push：push 用 push-ci.sh。
 set -u
 R=$1; W=$2; T=$3; MSG=$4; B=${BASE:-main}
 BR=$(git -C "$W" rev-parse --abbrev-ref HEAD) || exit 1
