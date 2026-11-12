@@ -45,7 +45,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 版面（逐頁渲染來看）
    - 寫法像不像學生寫的
    - 視覺層次與可讀性（海報）
-5. 用 AskUserQuestion 一次問完：依據清單、偏好、讀者、定案清單（明文和讀法分開列，讀法逐條附原文和其他讀法）、
+5. 用 AskUserQuestion 一次問完：COORDINATOR.md 的授權、依據清單、偏好、讀者、定案清單（明文和讀法分開列，讀法逐條附原文和其他讀法）、
    角度、輪數上限（預設 4）、收尾時直接合併回 `BASE_BR` 還是先給使用者看過，附上擬好的 prompt。
    之後這些段落每一輪都一字不改。
 6. 批次目錄 `<scratchpad>/review-<名稱>/`，ledger 放在裡面（格式見〈Ledger〉）。`<名稱>` 用英文 kebab-case，會出現在分支名裡。
@@ -122,7 +122,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑
    `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。
    主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後
-   `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照使用者的授權。
+   `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照 COORDINATOR.md「規則」，分支是 `BASE_BR`。
 5. **最後報告**：
    - 結論：能不能交
    - 跑了幾輪，每輪採納和駁回各幾條

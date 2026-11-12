@@ -8,6 +8,10 @@ ticket-coordinator、bake-off、review-loop 的協調者都照這份做；各 sk
 
 1. 載入 `orca-cli` skill，`orca status --json` 確認 Orca 在跑；要開 worktree 時用 `orca repo list` 找 repo 選擇器。
 2. 在 scratchpad 建 **ledger**（格式見各 skill）。你的上下文會被壓縮：**每次被叫醒先讀 ledger**，每個決定當下寫進去。
+3. 查**主分支**（`git symbolic-ref --short refs/remotes/origin/HEAD`；沒有 remote 就是使用者目前的分支）和 **CI**（`.github/workflows/` 裡 push 主分支時會跑的 workflow 檔名；沒有就記「沒有 CI」），寫進 ledger 的「目前」段。腳本預設 `main` 和 `ci.yml`，不是的話每次呼叫都帶上：`new-ticket.sh`、`merge-ticket.sh` 前面加 `BASE=<主分支>`，`preflight.sh <repo> <主分支>`，`push-ci.sh <repo> <workflow 檔名> <分支>`。
+4. 問**授權**，和各 skill 開工要問的事放在同一次 AskUserQuestion，答案寫進 ledger：
+   - push 和其他對外動作（開 PR、issue、release、部署）：可以直接做，還是每次先給使用者看。
+   - 破壞性 git 操作前：「建備份」還是「直接執行」。
 
 ## 子 session 的一輪
 
@@ -33,7 +37,8 @@ Heads up 是 Claude Code 給在場者的風險提醒，只在畫面和 mod 的�
 
 - 只碰自己開的終端。使用者手動關掉的不重開。
 - 子 session 只在自己的分支 commit，push 和合併由你照各 skill 做。
-- 你自己 commit 前跑 `bash <O>/scripts/preflight.sh <repo>`，`git add` 只點名自己的檔。
+- 你自己 commit 前跑 `bash <O>/scripts/preflight.sh <repo> <主分支>`，`git add` 只點名自己的檔。
+- push 照開工問到的授權。有 CI：`bash <O>/scripts/push-ci.sh <repo> <workflow 檔名> <分支>`（`run_in_background`），它等前一個 run 跑完、push、再等這個 commit 的 CI，印 `ci=`；不是 `success` 就還沒完成，照各 skill 處理，各 skill 沒寫的就把失敗的 job 回報使用者。沒有 CI：`git push origin <分支>`。
 - 使用者要的是 X 就只做 X；順手想清的東西（刪目錄、刪分支、改設定）另外問。
 - 送出後讀畫面核對：`accepted: true` 只代表輸入被收下，沒反應先讀畫面再決定要不要重送。handle 失效（Orca 重啟後）用 `orca terminal list` 重找，只對新的送。
 - Git Bash 裡開頭是 `/` 的 `--text` 要加 `MSYS_NO_PATHCONV=1`。
