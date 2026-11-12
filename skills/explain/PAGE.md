@@ -20,14 +20,17 @@
 - 節點標籤加雙引號，寫使用者看得懂的話；程式名稱放括號裡，例如 `A["送下載（submit_job）"]`。
 - 每張圖下面一兩句說這張圖在講什麼、從哪裡讀起。
 
-圖寫在 `<pre class="mermaid">` 裡，頁尾載入：
+圖寫在 `<pre class="mermaid">` 裡，不用自己載入 Mermaid，〈組頁〉會放。
 
-```html
-<script type="module">
-  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-  mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral" });
-</script>
+## 組頁
+
+頁面寫成 `<名稱>-src.html`，再組成單一檔案 `<名稱>.html`：
+
 ```
+python <skill 目錄>/scripts/build.py <名稱>-src.html
+```
+
+`build.py` 會把 Mermaid 整份內嵌（每頁約 3.6 MB），而且頁面只要從外部載入任何東西（CDN 的 script、樣式、字型、圖片）就拒絕產出。這是因為 Orca 從另一台機器打開工作區的 HTML 時走隔離預覽，對外請求一律被擋。改頁面時改 `-src.html` 再重組；組好的檔案太大，不要直接讀或改。
 
 ## 外觀
 
@@ -44,7 +47,7 @@
 ## 交出前
 
 1. **核對**：把頁上每一句附來源的說法和它的來源，交給一個沒看過你結論的子代理（審查用的模型）逐句對照，回報對不上的句子。改掉，或改標 `推斷`。
-2. **渲染**：用 playwright 打開，確認每張圖都畫成 svg、頁面上沒有 `Syntax error`。
-3. 用預設瀏覽器打開（macOS `open`、Windows `start`、Linux `xdg-open`），在對話給完整路徑。
+2. **渲染**：組頁後用 playwright 打開組好的檔案，確認每張圖都畫成 svg、畫面文字（`document.body.innerText`）沒有 `Syntax error`。不要搜原始碼：內嵌的 Mermaid 自己就含這個字串。
+3. 用預設瀏覽器打開組好的檔案（macOS `open`、Windows `start`、Linux `xdg-open`），在對話給它的完整路徑。
 
-完成條件：核對回報的每一句都處理了；每張圖都畫得出來。
+完成條件：核對回報的每一句都處理了；`build.py` 通過；每張圖都畫得出來。

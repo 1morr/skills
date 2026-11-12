@@ -18,6 +18,8 @@ jobs:
           # diff.py 的 docx 與 pdf 抽字要 python-docx 和 PyMuPDF
           pip install python-docx pymupdf
           python -m unittest discover -s skills/diff/tests -v
+      - name: explain
+        run: python -m unittest discover -s skills/explain/tests -v
       - name: orca scripts
         run: bash orca/scripts/selftest.sh
       - name: tutor
