@@ -80,3 +80,17 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論摘進 brief〈查證過的事實〉並連結。
 - 每張票與里程碑收尾：`mattpocock-skills:code-review`（Spec 軸讀票，Standards 軸讀本檔）；難 bug 或效能退化：`mattpocock-skills:diagnosing-bugs`。
 - 改本檔或 progress.md 的流程段：`mattpocock-skills:writing-for-agents`。
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown：票以檔案存在 `.scratch/<里程碑>/issues/`。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+五個預設角色標籤，字串與角色名相同。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context：根目錄 `GLOSSARY.md` + `docs/adr/`。See `docs/agents/domain.md`.
