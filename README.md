@@ -5,6 +5,7 @@
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
 | [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方單獨交給你決定 |
+| [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [里程碑或 commit 範圍] [想問的事]`（只能手動叫用） | 一段開發做完、開始下一段之前：回顧做了什麼、為什麼、對不對、遺留什麼，說明下一段的打算，更新 repo 裡給人看的導覽（`docs/overview/`，Markdown 加 Mermaid），對話確認後把定案寫回文件 |
 | [diff](skills/diff/SKILL.md) | 說「給我 diff 的 html」「前後對照」「展示這個改動」，或由其他 skill 呼叫 | 做一頁給讀者看的前後對照：文件（docx、PDF、HTML、海報、Markdown、文字）逐字比對，或程式改動實跑前後並附證據。比對由腳本算，頁面由模型照內容設計 |
 | [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <產出路徑> [補充]`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：在自己的 worktree 和分支上改，每輪用 Orca 從最新 commit 另開 worktree 和新 session 當審查員，主對話逐條查證、修改、commit，收斂後做一次精簡審查，最後出一份起點→最終版的總 diff，照授權合併回原分支 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
