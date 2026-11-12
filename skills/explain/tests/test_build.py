@@ -130,18 +130,70 @@ class Build(unittest.TestCase):
             build.MERMAID_SHA512 = orig
 
 
+DRAWN = '<pre class="mermaid" data-processed="true"><svg id="m1"><g><text>開始</text></g></svg></pre>'
+BROKEN = ('<pre class="mermaid" data-processed="true"><div id="dm2"><svg id="m2">'
+          '<text class="error-text">Syntax error in text</text></svg></div></pre>')
+UNDRAWN = '<pre class="mermaid">\nflowchart TB\n  A --> B\n</pre>'
+
+
+def drawn(n=1):
+    return lambda out: page(DRAWN * n)
+
+
+class Render(unittest.TestCase):
+    def test_all_drawn(self):
+        self.assertEqual(build.render_problems(page(DRAWN + DRAWN), 2), [])
+
+    def test_unrelated_markup_is_fine(self):
+        # 屬性順序、class 大小寫與多餘空白、svg 外多包一層、頁上文字提到語法錯誤
+        dom = page('<p>Syntax error 是 Mermaid 的錯誤訊息</p>'
+                   '<PRE data-processed="true" class=" x  mermaid "><div><svg><text>甲</text></svg></div></PRE>'
+                   '<pre class="code">Syntax error</pre>')
+        self.assertEqual(build.render_problems(dom, 1), [])
+
+    def test_not_drawn(self):
+        problems = build.render_problems(page(DRAWN + UNDRAWN), 2)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("第 2 張", problems[0])
+
+    def test_syntax_error(self):
+        problems = build.render_problems(page(BROKEN + DRAWN), 2)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("第 1 張", problems[0])
+        self.assertIn("語法錯誤", problems[0])
+
+    def test_diagram_count_mismatch(self):
+        self.assertEqual(len(build.render_problems(page(DRAWN), 2)), 1)
+
+
 class Cli(unittest.TestCase):
-    def run_main(self, name, html, *extra):
+    def run_main(self, name, html, *extra, render=drawn()):
         d = Path(tempfile.mkdtemp())
         src = d / name
         src.write_text(html, encoding="utf-8")
-        code = build.main([str(src), *extra], loader=lambda: FAKE_LIB)
+        code = build.main([str(src), *extra], loader=lambda: FAKE_LIB, render=render)
         return code, d
 
     def test_writes_page_without_src_suffix(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM))
         self.assertEqual(code, 0)
         self.assertIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+
+    def test_render_problem_fails_but_keeps_page(self):
+        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: page(BROKEN))
+        self.assertEqual(code, 1)
+        self.assertTrue((d / "m0.html").exists())
+
+    def test_no_browser_fails(self):
+        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: None)
+        self.assertEqual(code, 1)
+        self.assertTrue((d / "m0.html").exists())
+
+    def test_no_diagram_skips_render(self):
+        def boom(out):
+            raise AssertionError("沒有圖就不該開瀏覽器")
+        code, _ = self.run_main("m0-src.html", page("<p>沒有圖</p>"), render=boom)
+        self.assertEqual(code, 0)
 
     def test_problems_write_nothing(self):
         code, d = self.run_main("m0-src.html", page('<script src="https://cdn.x/y.js"></script>'))
@@ -152,6 +204,27 @@ class Cli(unittest.TestCase):
         code, d = self.run_main("m0.html", page(DIAGRAM))
         self.assertEqual(code, 1)
         self.assertNotIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+
+
+
+@unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")
+class RealBrowser(unittest.TestCase):
+    """用真的 Mermaid 和瀏覽器跑：錯誤圖示的樣子是 Mermaid 決定的，假 DOM 驗不到。"""
+
+    def check(self, body, diagrams):
+        d = Path(tempfile.mkdtemp())
+        out = d / "p.html"
+        out.write_text(build.build(page(body), build.load_mermaid), encoding="utf-8")
+        return build.render_problems(build.render_dom(out), diagrams)
+
+    def test_good_diagram_passes(self):
+        self.assertEqual(self.check(DIAGRAM, 1), [])
+
+    def test_broken_diagram_is_caught(self):
+        broken = '<pre class="mermaid">\nflowchart TB\n  A["開始" --> \n</pre>'
+        problems = self.check(DIAGRAM + broken, 2)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("第 2 張", problems[0])
 
 
 if __name__ == "__main__":

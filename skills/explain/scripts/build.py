@@ -1,9 +1,13 @@
-"""把解說頁的原始 HTML 組成單一檔案：不准載入外部資源，有 Mermaid 圖就把 Mermaid 整份內嵌。
+"""把解說頁的原始 HTML 組成單一檔案：不准載入外部資源，有 Mermaid 圖就把 Mermaid 整份內嵌，
+再用本機的 Chrome 或 Edge 無頭打開組好的頁，確認每張圖都畫出來。
 
     python build.py <page-src.html> [-o <page.html>]
 
 為什麼要內嵌：Orca 從另一台機器開工作區的 HTML 時走隔離預覽，CSP 只放行頁內的 script，
 其他請求一律取消，從 CDN 載入的 Mermaid 會被擋，圖就變成一段原始碼。
+
+為什麼用瀏覽器的命令列檢查：playwright 不讓開 file://，得另開 http server，用完常忘了關，
+截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。
 
 Mermaid 第一次用時從 npm registry 下載固定版本、驗 sha512，存在使用者快取目錄。
 只用標準函式庫，CI 才能直接跑測試。
@@ -15,8 +19,11 @@ import hashlib
 import io
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
@@ -129,7 +136,88 @@ def load_mermaid() -> str:
     return js
 
 
-def main(argv=None, loader=load_mermaid) -> int:
+# 依序找；第一個找得到的就用
+BROWSER_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "msedge"]
+MAC_APPS = ["Google Chrome", "Microsoft Edge", "Chromium"]
+WIN_EXES = [("Google", "Chrome", "chrome.exe"), ("Microsoft", "Edge", "msedge.exe")]
+
+
+def find_browser():
+    for name in BROWSER_NAMES:
+        found = shutil.which(name)
+        if found:
+            return found
+    candidates = []
+    for app in MAC_APPS:
+        for root in (Path("/Applications"), Path.home() / "Applications"):
+            candidates.append(root / f"{app}.app" / "Contents" / "MacOS" / app)
+    for env in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        if os.environ.get(env):
+            for vendor, product, exe in WIN_EXES:
+                candidates.append(Path(os.environ[env]) / vendor / product / "Application" / exe)
+    return next((str(c) for c in candidates if c.is_file()), None)
+
+
+def render_dom(page: Path):
+    """用無頭瀏覽器打開 page、跑完 JS，回傳畫好的 DOM；找不到瀏覽器回傳 None。"""
+    browser = find_browser()
+    if not browser:
+        return None
+    # 自己的 profile：使用者的瀏覽器開著也不會搶同一個 profile
+    profile = tempfile.mkdtemp(prefix="explain-render-")
+    try:
+        r = subprocess.run(
+            [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+             f"--user-data-dir={profile}", "--virtual-time-budget=15000", "--dump-dom", page.resolve().as_uri()],
+            capture_output=True, timeout=120)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+    return r.stdout.decode("utf-8", "replace")
+
+
+class Rendered(HTMLParser):
+    """收集畫好的頁上每個 <pre class="mermaid">：裡面有沒有 svg、svg 裡寫了什麼字。"""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.diagrams = []
+        self.depth = 0  # 在 mermaid 的 <pre> 裡面幾層
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "pre":
+            if self.depth:
+                self.depth += 1
+            elif "mermaid" in (dict(attrs).get("class") or "").split():
+                self.diagrams.append({"svg": False, "text": []})
+                self.depth = 1
+        elif tag == "svg" and self.depth:
+            self.diagrams[-1]["svg"] = True
+
+    def handle_endtag(self, tag):
+        if tag == "pre" and self.depth:
+            self.depth -= 1
+
+    def handle_data(self, data):
+        if self.depth:
+            self.diagrams[-1]["text"].append(data)
+
+
+def render_problems(dom: str, expected: int) -> list:
+    r = Rendered()
+    r.feed(dom)
+    r.close()
+    if len(r.diagrams) != expected:
+        return [f"原始頁有 {expected} 張圖，畫好的頁上找到 {len(r.diagrams)} 張：頁面的 JS 可能出錯了"]
+    problems = []
+    for i, d in enumerate(r.diagrams, 1):
+        if not d["svg"]:
+            problems.append(f"第 {i} 張圖沒畫出來，還是原始碼：Mermaid 沒執行或被擋")
+        elif "Syntax error" in "".join(d["text"]):
+            problems.append(f"第 {i} 張圖有語法錯誤，Mermaid 畫出的是錯誤圖示")
+    return problems
+
+
+def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -149,6 +237,20 @@ def main(argv=None, loader=load_mermaid) -> int:
         return 1
     out.write_text(build(src, loader), encoding="utf-8")
     print(out)
+    diagrams = scan(src).diagrams
+    if not diagrams:
+        return 0
+    dom = render(out)
+    if dom is None:
+        print("找不到 Chrome 或 Edge，沒檢查圖有沒有畫出來：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
+        return 1
+    problems = render_problems(dom, diagrams)
+    if problems:
+        print(f"{out}：{len(problems)} 個渲染問題", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        return 1
+    print(f"{diagrams} 張圖都畫出來了")
     return 0
 
 
