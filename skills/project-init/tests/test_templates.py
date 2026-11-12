@@ -6,6 +6,7 @@
 - 範本的票改成 done、勾完驗收，通得過協調者的 orca/scripts/merge-ticket.sh；沒做完的被擋。
 - check_commit_msg.py 和 merge-ticket.sh 收同一組 commit type。
 - 範本裡沒有留給模型刪、卻不在清單上的佔位。
+- docs/agents/ 的三個範本和這台機器裝的 mattpocock-skills 種子範本沒有走樣（沒裝就跳過）。
 """
 
 import importlib.util
@@ -87,6 +88,50 @@ class CommitTypesTest(unittest.TestCase):
         line = next(l for l in MERGE.read_text(encoding="utf-8").split("\n") if l.startswith("CC="))
         types = re.search(r"\^\(([a-z|]+)\)", line).group(1).split("|")
         self.assertEqual(tuple(types), check_commit_msg.TYPES)
+
+
+# templates/ 的檔名 → 它改自 setup-matt-pocock-skills 的哪個種子範本（出處與授權見 NOTICE.md）
+SEEDS = {"issue-tracker.md": "issue-tracker-local.md", "triage-labels.md": "triage-labels.md", "domain.md": "domain.md"}
+CONVENTIONS = re.compile(r"(^## Conventions[ \t]*\n)(.*?)(?=^## )", re.S | re.M)
+# 種子範本裡我們改掉的那一句
+PUBLISH = ("`.scratch/<feature-slug>/` (creating", "`.scratch/<milestone>/issues/` (creating")
+
+
+def outside_conventions(text: str) -> str:
+    """去掉〈Conventions〉底下的清單：那一段是我們自己的，其餘要和種子範本相同。"""
+    return CONVENTIONS.sub(lambda m: m.group(1), text, count=1)
+
+
+def installed_seed():
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    found = [d for d in config.glob("plugins/cache/*/mattpocock-skills/*/skills/*/setup-matt-pocock-skills")
+             if all((d / s).is_file() for s in SEEDS.values())]
+    return max(found, key=lambda d: d.stat().st_mtime) if found else None
+
+
+class AgentDocsTest(unittest.TestCase):
+    def test_issue_tracker_states_what_the_other_skills_rely_on(self):
+        text = (TEMPLATES / "issue-tracker.md").read_text(encoding="utf-8")
+        for needle in ("`.scratch/<milestone>/issues/<NN>-<slug>.md`", "`<NN>-<milestone>-acceptance.md`", "`Status: done`",
+                       "`Blocked by:`", "`## Comments`", "docs/agents/ticket-template.md", "目標, 範圍, 共同規則, 驗收, 票序"):
+            self.assertIn(needle, text)
+
+    def test_only_the_list_is_ignored_when_comparing(self):
+        ours = "# T\n\n## Conventions\n\n- 我們的\n\n## Other\n\n原文\n"
+        self.assertEqual(outside_conventions(ours), outside_conventions(ours.replace("- 我們的", "- theirs\n- more")))
+        self.assertNotEqual(outside_conventions(ours), outside_conventions(ours.replace("原文", "改過")))
+        self.assertNotEqual(outside_conventions(ours), outside_conventions(ours.replace("## Other", "## Other\n\n## New section")))
+
+    @unittest.skipUnless(installed_seed(), "這台機器沒有裝 mattpocock-skills")
+    def test_copies_match_the_installed_seed(self):
+        seed = installed_seed()
+        for ours, theirs in SEEDS.items():
+            with self.subTest(ours):
+                mine = (TEMPLATES / ours).read_text(encoding="utf-8")
+                upstream = (seed / theirs).read_text(encoding="utf-8")
+                if ours == "issue-tracker.md":
+                    mine, upstream = outside_conventions(mine), outside_conventions(upstream.replace(*PUBLISH))
+                self.assertEqual(mine, upstream, f"{seed / theirs} 和 templates/{ours} 不一樣了：把上游的改動同步過來，並更新 NOTICE.md 的版本")
 
 
 @unittest.skipUnless(shutil.which("git") and shutil.which("bash"), "要 git 和 bash")

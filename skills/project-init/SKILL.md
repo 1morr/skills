@@ -46,7 +46,9 @@ argument-hint: "[專案一句話]"
 | `gitattributes` | `.gitattributes` |
 | `ci.yml` | `.github/workflows/ci.yml` |
 | `commit-msg` | `.githooks/commit-msg`（`chmod +x`） |
-| `issue-tracker-conventions.md` | 第 4 步的腳本用，不必自己複製 |
+| `issue-tracker.md` | `docs/agents/issue-tracker.md` |
+| `triage-labels.md` | `docs/agents/triage-labels.md` |
+| `domain.md` | `docs/agents/domain.md` |
 
 另外建空目錄的佔位：`docs/adr/`、`docs/research/`、`docs/archive/`、`scripts/experiments/` 各放一個 `.gitkeep`。
 
@@ -56,15 +58,12 @@ argument-hint: "[專案一句話]"
 
 ## 4. 票的慣例
 
-mattpocock 的工程 skill（`/to-tickets`、`/implement`、`code-review`）要先知道票放哪、狀態怎麼寫、名詞表在哪，平常由使用者執行 `/setup-matt-pocock-skills` 設定。這裡替他做掉：答案固定是 local markdown、預設標籤、單一名詞表，再換上里程碑的慣例。
+`docs/agents/` 的三個檔告訴 mattpocock 的工程 skill（`/to-tickets`、`/implement`、`code-review`）票放哪、狀態怎麼寫、名詞表在哪。第 3 步寫的是他的 `/setup-matt-pocock-skills` 選「local markdown、預設標籤、單一名詞表」時的結果，加上里程碑的慣例，使用者不必再跑那個指令。
 
-```
-python3 <S>/write_agent_docs.py <專案根目錄>
-```
+探查時 `docs/agents/issue-tracker.md` 就在的（使用者之前設定過）：
 
-- exit 0：`docs/agents/` 的 `issue-tracker.md`、`triage-labels.md`、`domain.md` 寫好了；指令檔結尾的 `## Agent skills` 段範本已經帶著。
-- 印「已存在，沒動」的檔：使用者之前設定過。`issue-tracker.md` 是 local markdown 的，就把它〈Conventions〉底下的清單換成 `<T>/issue-tracker-conventions.md` 的內容（註解那行不要）；是 GitHub 或別的 tracker，停下來告訴使用者：這套流程和 `/1morr:ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
-- exit 2（找不到已安裝的 mattpocock-skills，或它的種子範本格式變了）：請使用者執行 `/setup-matt-pocock-skills`，issue tracker 選 local markdown，做完回來說一聲。這個指令只有使用者能下；他回來後照上一條換清單。
+- 是 local markdown 的：把它〈Conventions〉底下的清單換成 `<T>/issue-tracker.md` 同一段的清單，其餘不動。
+- 是 GitHub 或別的 tracker：停下來告訴使用者，這套流程和 `/1morr:ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
 
 完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`；`triage-labels.md`、`domain.md` 都在。
 
