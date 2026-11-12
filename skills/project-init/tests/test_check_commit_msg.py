@@ -6,6 +6,10 @@
 import contextlib
 import importlib.util
 import io
+import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +76,54 @@ class FileTest(unittest.TestCase):
         self.assertEqual(m.main(["--subject", "fix: handle empty input"]), 0)
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(m.main(["--subject", "Fix stuff"]), 1)
+
+
+@unittest.skipUnless(shutil.which("git"), "要 git")
+class HookTest(unittest.TestCase):
+    """在真的 repo 裝上 commit-msg hook：一般 commit 照規則擋，合併票的訊息放行。"""
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp(prefix="commit-msg-hook-")).resolve()
+        self.addCleanup(shutil.rmtree, self.repo, ignore_errors=True)
+        self.git("init", "-q", "-b", "main")
+        hooks = self.repo / "hooks"
+        hooks.mkdir()
+        hook = hooks / "commit-msg"
+        hook.write_text('#!/bin/sh\nexec "%s" "%s" "$1"\n' % (sys.executable, SCRIPT), encoding="utf-8")
+        hook.chmod(0o755)
+        self.git("config", "core.hooksPath", str(hooks))
+        self.commit("a.txt", "docs: start")
+
+    def git(self, *args, check=True):
+        env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+        return subprocess.run(["git", "-C", str(self.repo), *args], env=env, capture_output=True, text=True, check=check)
+
+    def commit(self, name, message, check=True):
+        (self.repo / name).write_text(name, encoding="utf-8")
+        self.git("add", name)
+        return self.git("commit", "-q", "-m", message, check=check)
+
+    def branch_with_a_commit(self):
+        self.git("checkout", "-q", "-b", "t01")
+        self.commit("b.txt", "feat: add b")
+        self.git("checkout", "-q", "main")
+
+    def test_ticket_merge_message_is_accepted(self):
+        self.branch_with_a_commit()
+        r = self.git("merge", "--no-ff", "-m", "merge: ticket 01 b", "t01", check=False)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s").stdout.strip(), "merge: ticket 01 b")
+
+    def test_same_message_outside_a_merge_is_rejected(self):
+        r = self.commit("c.txt", "merge: ticket 01 b", check=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.git("log", "-1", "--format=%s").stdout.strip(), "docs: start")
+
+    def test_ordinary_commits_still_follow_the_rule_after_a_merge(self):
+        self.branch_with_a_commit()
+        self.git("merge", "--no-ff", "-m", "merge: ticket 01 b", "t01")
+        self.assertNotEqual(self.commit("d.txt", "Add d", check=False).returncode, 0)
+        self.assertEqual(self.commit("d.txt", "feat: add d").returncode, 0)
 
 
 if __name__ == "__main__":
