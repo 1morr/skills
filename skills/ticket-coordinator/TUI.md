@@ -75,9 +75,12 @@
 - `waitbg.sh` 每次輪詢先讀狀態檔，新的一則以 `state=heads-up` 叫醒你，子 session 可能還在做。每一則都照這個順序：
   1. 把 `headsup-src=file` 後面的全文與 `shown=` 時間記進 ledger 那張票的「Heads up」。`text:` 後面是空的（mod 沒存全文）
      或 `headsup-src=screen`，就照下面「讀畫面」展開讀。
-  2. 收起：輸入框是空的、沒有 AskUserQuestion 開著時送 `0`（Dismiss，不加 `--enter`）。不要送 `2`：Knew this already
-     會把這句記成「使用者已經知道」，之後的檢查會跳過同類的事。再跑 `headsup.py --summary <jsonl>`，exit 1 才算收掉，
-     然後重新掛等待。送 `0` 後畫面會留一行 `Dismissed.` 和回饋選項約 20 秒，這段時間不要送數字鍵。
+  2. 收起：輸入框是空的、沒有 AskUserQuestion 開著時送 `0`（Dismiss，不加 `--enter`）。再跑 `headsup.py --summary <jsonl>`，
+     exit 1 才算收掉，然後重新掛等待。送 `0` 後畫面會留一行 `Dismissed.` 和回饋選項約 20 秒，這段時間不要送數字鍵。
+     不要送 `2`（Knew this already）：它把這句加進狀態檔的 `known`，之後每次檢查的 prompt 都寫著「這個人說他已經懂這些，
+     不要再提」，但看到的是你、不是使用者。`known` 只有按 `2` 才增加、留得久，而且全機所有 session 共用。
+     `0` 不碰它；這句在跳出來時就已經進了最近提過的 `seen`（同樣放進 prompt，完全相同的句子會被程式濾掉），
+     近期不會重複。（CLI 2.1.322 讀程式碼得出）
   3. 分兩級決定什麼時候處理：
      - **馬上處理**：涉及刪檔或丟掉改動、破壞性 git、push 或對外寫入、金鑰或個人資料外洩、改隱私或安全約定、
        超出票的範圍。查證後屬實就把原文貼給子 session（它在忙時送出的訊息會排隊，最晚在它停下時讀到）。
