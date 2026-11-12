@@ -49,7 +49,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    角度、輪數上限（預設 4）、收尾時直接合併回 `BASE_BR` 還是先給使用者看過，附上擬好的 prompt。
    之後這些段落每一輪都一字不改。
 6. 批次目錄 `<scratchpad>/review-<名稱>/`，ledger 放在裡面（格式見〈Ledger〉）。`<名稱>` 用英文 kebab-case，會出現在分支名裡。
-7. **開你的 worktree**：`git -C <repo> worktree add -b review/<名稱> <批次目錄>/work $START`。之後修改、重建、
+7. **開你的 worktree**：`git -C <repo> worktree add -b review/<名稱>/work <批次目錄>/work $START`。之後修改、重建、
    渲染、commit 都在 `<批次目錄>/work` 裡做，使用者的主目錄從頭到尾保持原樣；重建要的依賴照專案指令在這裡裝一次。
 
 ## 每一輪
@@ -61,7 +61,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
    **獨立**：prompt 只放固定部分和這一輪的變動；前幾輪的意見、駁回清單、你對成品的看法都留在 ledger。重複出現的意見由你對照 ledger 擋掉。
 2. **開審查 session**：先把要審的版本 commit 好，再
-   `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱> review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。
+   `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱>/work review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。
    它從你最新的 commit 開一個審查專用的 worktree 和子 session，審查員在那裡渲染、跑腳本，碰不到你的檔。
    然後照 COORDINATOR.md 掛等待。
 3. **被叫醒**：照 COORDINATOR.md「子 session 的一輪」，另外：
@@ -84,7 +84,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 5. **修改**：只改採納的必須修和建議修。
    - 每一條都用能消除問題的最小改動，以刪除和替換優先。要加內容時，先在 ledger 寫明不加的話會錯在哪。
    - 在 `<批次目錄>/work` 改原始檔、重建，再把改到的地方渲染出來看。
-   - 在 `review/<名稱>` 上 commit，例如 `fix(<scope>): apply review round <N>`，再記下字數。
+   - 在 `review/<名稱>/work` 上 commit，例如 `fix(<scope>): apply review round <N>`，再記下字數。
    - 以下幾種情況先停下來問使用者：要改數字、數據或表格內容；要推翻定案；依據沒有規定、使用者也沒說過偏好的取捨；
      這次要改的地方，前幾輪已經往相反方向改過（來回擺盪）。
 6. **回報**：發一則短訊息。沒有待決的讀法就不必等使用者回覆，直接照第 7 步走：
@@ -118,9 +118,9 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 3. **寫回定案**：使用者在這幾輪新拍板的決定，連同理由，寫進專案記錄決定的地方（例如評核資料夾的 README）。
    和總 diff 放在同一個 commit。
 4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑
-   `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱> -m "merge: review <名稱>"`。
+   `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。
    主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後
-   `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>`。push 照使用者的授權。
+   `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照使用者的授權。
 5. **最後報告**：
    - 結論：能不能交
    - 跑了幾輪，每輪採納和駁回各幾條
@@ -136,7 +136,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## Ledger
 
-- **頂部「目前」段**：repo、orca repo 選擇器、`BASE_BR`、`START`、你的 worktree（`<批次目錄>/work`，分支 `review/<名稱>`）、
+- **頂部「目前」段**：repo、orca repo 選擇器、`BASE_BR`、`START`、你的 worktree（`<批次目錄>/work`，分支 `review/<名稱>/work`）、
   收尾要直接合併還是先給使用者看、原始檔與輸出檔、重建指令、渲染指令、輪數上限、固定 prompt 的路徑。
 - **「定案」段**：每一條寫決定、類別（明文或讀法）、理由、出處、由誰拍板；讀法再寫使用者拍板時看過的原文和其他讀法。
 - **「駁回紀錄」段**：意見摘要 → 理由 → 第幾輪。
