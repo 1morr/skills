@@ -10,7 +10,7 @@
 | [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西> [想知道的事]`（只能手動叫用） | 解說 repo 裡某個功能、流程、頁面、機制或里程碑現在怎麼運作：一頁附 Mermaid 圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <產出路徑> [補充]`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：在自己的 worktree 和分支上改，每輪用 Orca 從最新 commit 另開 worktree 和新 session 當審查員，主對話逐條查證、修改、commit，收斂後做一次精簡審查，最後出一份起點→最終版的總 diff，照授權合併回原分支 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或說「教我」「看不懂」「複習」 | 照老師課件把課程、作業或考試教給零基礎的人：左右兩欄的 HTML 導讀頁（左邊逐頁講課件、右邊逐題做例題和作業），還沒交的作業另出答案紙；再出一份練習頁，基本功在頁面上對答案，整題貼回對話批改（趕時間時不做） |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或說「教我」「看不懂」「複習」 | 照老師課件把課程、作業或考試教給零基礎的人：左右兩欄的 HTML 導讀頁（左邊逐頁講課件、右邊逐題做例題和作業），還沒交的作業另出答案紙；再出一份練習頁，基本功在頁面上對答案，整題貼回對話批改 |
 
 bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。
 
