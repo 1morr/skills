@@ -195,19 +195,25 @@ def check_manifests_match(root: Path) -> list:
 
 
 def check_usage_header(root: Path) -> list:
-    """orca/scripts/ 每支腳本的前兩行寫用法（第一行可以是 shebang）。"""
+    """腳本開頭寫用法：orca/scripts/ 的前兩行有「用法」（第一行可以是 shebang）；skills/*/scripts/ 和 pages/scripts/ 的 .py 以 docstring 開頭。"""
     out = []
     for f in sorted(list((root / "orca/scripts").glob("*.sh")) + list((root / "orca/scripts").glob("*.py"))):
         if "用法" not in "\n".join(read(f).split("\n")[:2]):
             out.append(f"{f.relative_to(root)} 開頭沒有寫用法")
+    for f in sorted(list(root.glob("skills/*/scripts/*.py")) + list((root / "pages/scripts").glob("*.py"))):
+        lines = [line for line in read(f).split("\n") if not line.startswith("#!")]
+        if not lines or lines[0][:3] not in (DOUBLE, SINGLE):
+            out.append(f"{f.relative_to(root)} 要以 docstring 開頭，寫用法和輸出格式")
     return out
 
 
-OPENS_FOR_USER = re.compile(r"xdg-open|orca tab create")
+DOUBLE, SINGLE = '"' * 3, "'" * 3
+# 反引號裡以 open 開頭的指令（macOS）；內文裡的英文字 open 不算
+OPENS_FOR_USER = re.compile(r"xdg-open|orca tab create|`open\s[^`]*`")
 
 
 def check_no_opening_for_user(root: Path) -> list:
-    """skill 不替使用者開瀏覽器或分頁：交付照 pages/HANDOFF.md，給網址和完整路徑。"""
+    """skill 不替使用者開瀏覽器或分頁（`open …`、xdg-open、orca tab create）：交付照 pages/HANDOFF.md，給網址和完整路徑。"""
     return [f"{md.relative_to(root)} 叫執行者替使用者開瀏覽器或分頁：改照 pages/HANDOFF.md 給網址和完整路徑"
             for md in docs(root) if OPENS_FOR_USER.search(read(md))]
 
@@ -251,7 +257,7 @@ class Fixture(unittest.TestCase):
         write(r, "skills/diff/SKILL.md", "---\nname: diff\ndescription: 對照頁。使用者要 diff 頁時用。\n---\n\n"
               "`<S>` 是腳本目錄。跑 `python <S>/diff.py a b`，細節見 [LOOK.md](LOOK.md)。\n")
         write(r, "skills/diff/LOOK.md", "# 外觀\n\n照 `<P>/TOKENS.md`。\n")
-        write(r, "skills/diff/scripts/diff.py", "")
+        write(r, "skills/diff/scripts/diff.py", DOUBLE + "比對兩個版本。\n\n    python diff.py a b\n" + DOUBLE + "\n")
         write(r, "skills/diff/tests/test_diff.py", "")
         write(r, "skills/notes/SKILL.md", "---\nname: notes\ndescription: 記筆記\ndisable-model-invocation: true\n---\n\n"
               "先讀 `<O>/COORDINATOR.md`，再跑 `bash <O>/scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
@@ -392,7 +398,7 @@ class TestedTest(Fixture):
         self.red(check_tested)
 
     def test_new_scripts_folder_needs_all_three(self):
-        write(self.root, "pages/scripts/build.py", "")
+        write(self.root, "pages/scripts/build.py", DOUBLE + "組頁。" + DOUBLE + "\n")
         self.red(check_tested)
         write(self.root, "pages/tests/test_build.py", "")
         self.red(check_tested)
@@ -502,8 +508,15 @@ class UsageHeaderTest(Fixture):
     def test_shebang_python_and_wording_do_not_matter(self):
         write(self.root, "orca/scripts/wait.sh", "#!/bin/sh\n# 用法（掛在背景）：sh wait.sh <handle> [sent]\n")
         write(self.root, "orca/scripts/scr.py", "# 用法：python3 scr.py <handle>\n")
-        write(self.root, "skills/diff/scripts/diff.py", "import sys\n")
+        write(self.root, "skills/diff/scripts/diff.py", "#!/usr/bin/env python3\n" + SINGLE + "換一種引號、換一種說法。" + SINGLE + "\nimport sys\n")
         self.clean(check_usage_header)
+
+    def test_skill_or_pages_script_without_docstring(self):
+        for rel in ("skills/diff/scripts/diff.py", "pages/scripts/build.py"):
+            with self.subTest(rel):
+                write(self.root, rel, "import sys\n# 用法寫在後面不算\n")
+                self.red(check_usage_header)
+                write(self.root, rel, DOUBLE + "有了。" + DOUBLE + "\n")
 
 
 class NoOpeningForUserTest(Fixture):
@@ -515,8 +528,13 @@ class NoOpeningForUserTest(Fixture):
         sub(self.root, "pages/TOKENS.md", "# 配色", "# 配色\n\n`orca tab create --url <網址> --json`。")
         self.red(check_no_opening_for_user)
 
+    def test_opening_with_the_macos_command(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "做完跑 `open page.html`。先讀")
+        self.red(check_no_opening_for_user)
+
     def test_checking_with_browser_automation_is_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "用瀏覽器自動化工具打開頁面截圖，再在對話給網址；`orca terminal create` 照用。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "用瀏覽器自動化工具打開頁面截圖，再在對話給網址；`orca terminal create` 照用；"
+            "open source 的套件、`openssl dgst`、`with open(path) as f` 都不算。先讀")
         self.clean(check_no_opening_for_user)
 
 
