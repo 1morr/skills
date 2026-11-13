@@ -60,11 +60,11 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 ## 真的卡住
 
-只有三類才停下等使用者：需要使用者本人才有的東西；對別人的 repo 或第三方做公開動作；同一個問題你和子 session 用盡辦法（包括 diagnosing）仍解不了。停下時子 session 保持原狀，ledger 與最後一則訊息寫清楚卡在哪張、卡在什麼、試過什麼、需要使用者做什麼。整個隊列暫停，不跳票。
+只有四類才停下等使用者：需要使用者本人才有的東西；對別人的 repo 或第三方做公開動作；同一個問題你和子 session 用盡辦法（包括 diagnosing）仍解不了；給了額度門檻卻連續 3 次讀不到用量（`gate=unknown`）。停下時子 session 保持原狀，ledger 與最後一則訊息寫清楚卡在哪張、卡在什麼、試過什麼、需要使用者做什麼。整個隊列暫停，不跳票。
 
 ## 協調者自己的 commit
 
-開票、寫紀錄檔、合併後的小修照 COORDINATOR.md 的 commit 規則。新票號先 `git fetch`，取 origin 主分支與所有 worktree 分支裡最大的號碼加一。
+開票、寫紀錄檔、合併後的小修照 COORDINATOR.md〈規則〉：commit 前跑 `preflight.sh`，`git add` 只點名自己的檔。新票號先 `git fetch`，取 origin 主分支與所有 worktree 分支裡最大的號碼加一。
 
 ## Ledger
 

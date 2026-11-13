@@ -10,6 +10,7 @@ SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的
    - **照抄檔**（`scripts/` 下的四支腳本與 `scripts/tests/` 的四個測試、`.githooks/commit-msg`、`.githooks/pre-commit`（專案已有自己的 pre-commit 時，把文件檢查接進去，不覆蓋）、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則列出來，保留。專案用自己的工具做同樣的檢查時（規則寫進專案的測試或 lint，不用 `check_docs.py`）：不複製腳本，改成逐條對 `<S>/check_docs.py` 開頭列的規則，專案沒擋的各列一條。
    - **指令檔**：照 `<T>/instructions.md` 的 `##` 段逐段比對。範本有而專案沒有的規則、專案還在用的舊說法各列一條；專案自己的段落（架構規則、帳號、舊版）原樣保留。
    - **內容檔**（brief、架構、roadmap、progress、decisions、CHANGELOG）：只看結構，內容照舊。
+   - **專案檔**（`.gitattributes`、`.github/workflows/ci.yml`、`docs/development.md`、`docs/agents/domain.md`、`docs/agents/triage-labels.md`）：專案沒有的列一條「照範本建」；已有的是專案自己的，保留。
 
 完成條件：每條檢查違規、每個不同的段落都歸到第 2 步的某一項，或標成「專案自己的，保留」。
 
@@ -32,7 +33,7 @@ SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的
 | 文件的位置 | 檢查報「指令檔沒有提到它」或「日期放在檔名最後」 | 還在用的：在指令檔〈文件〉加一行。不再維護的（舊版的文件、審計快照）：搬進 `docs/legacy/`，連到它的地方跟著改。`docs/development.md` 被舊文件佔用時先把舊的搬走，新的才用這個名字。`docs/research/` 裡日期不在最後的改名 |
 | 里程碑狀態 | 檢查報「狀態要以…其中一個開頭」 | 改寫每列狀態開頭的詞（「完成，已封存」→「已驗收，封存在 …」），其餘照舊 |
 | 沒列的工作 | 檢查報「里程碑表沒有列它」 | 在里程碑表加一列，「里程碑」欄以目錄名開頭 |
-| 擋路檔 | 指令檔是 `CLAUDE.md` | 照 SKILL.md 第 2 步問 |
+| 擋路檔 | 指令檔是 `CLAUDE.md` | 照 SKILL.md〈問一次〉講擋路檔的那兩項問，照〈寫骨架〉第 4 步處理 |
 
 ## 3. 問一次
 

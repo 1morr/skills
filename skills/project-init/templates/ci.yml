@@ -17,4 +17,4 @@ jobs:
         run: python scripts/check_docs.py
       - name: script tests
         run: python -m unittest discover -s scripts/tests -v
-      # M0 票 01：這個技術棧的 lint、typecheck 與 test 加在這裡，和 docs/development.md〈全部檢查〉同一組
+      # M0 的第一張票：這個技術棧的 lint、typecheck 與 test 加在這裡，和 docs/development.md〈全部檢查〉同一組
