@@ -3,7 +3,7 @@
 # M0 的第一張票把這個技術棧的 format、lint、typecheck 接在最後一行之前。
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
-# git 給 hook 的 GIT_DIR、GIT_INDEX_FILE 會被檢查裡用到的 git 指令繼承，測試在暫存目錄開的 repo 會寫錯地方。
+# git 給 hook 的 GIT_DIR、GIT_INDEX_FILE 會被後面接的工具繼承（例如 flutter 把自己的版本讀成 0.0.0-unknown）；scripts/tests 自己也會清。
 for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
   unset "$name"
 done
