@@ -66,6 +66,8 @@ bash orca/scripts/selftest.sh
 uv run --no-project --with pymupdf --with pillow python -m unittest discover -s skills/tutor/tests
 ```
 
+量某個專案的文件實際被 agent 讀了幾次（調整文件結構前後各跑一次）：`python skills/project-init/scripts/doc_reads.py <repo> [--since YYYY-MM-DD]`。
+
 檢查 manifest：`claude plugin validate .`。manifest 刻意不寫 `version`（寫了會把使用者釘在那個版本），所以 validator 會提醒缺 `version`，那條可以忽略。
 
 ## 授權
