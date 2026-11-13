@@ -7,7 +7,7 @@
     {
       "name": "1morr",
       "source": "./",
-      "description": "bake-off：同一個任務平行做幾版、比較後建議用哪一版；checkpoint：里程碑之間回顧上一段、對齊下一段；diff：文件逐字對照或程式改動實跑前後的對照頁；explain：附圖、附來源地解說 repo 裡某個東西怎麼運作；project-init：替新專案搭好文件、票與閘門的骨架；review-loop：一輪一輪審一份成品到可以交；ticket-coordinator：用 Orca 逐張協調子 session 解票；tutor：照老師課件把課程、作業、考試教給零基礎的人。",
+      "description": "bake-off：同一個任務平行做幾版、比較後建議用哪一版；checkpoint：里程碑之間回顧上一段、對齊下一段；diff：文件逐字對照或程式改動實跑前後的對照頁；explain：附圖、附來源地解說 repo 裡某個東西怎麼運作；project-init：替新專案搭好文件、票與閘門的骨架，或把已有的骨架對齊最新範本；review-loop：一輪一輪審一份成品到可以交；ticket-coordinator：用 Orca 逐張協調子 session 解票；tutor：照老師課件把課程、作業、考試教給零基礎的人。",
       "category": "productivity"
     }
   ]
