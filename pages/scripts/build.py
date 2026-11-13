@@ -15,6 +15,12 @@ diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本
     curl -sL <網址> | openssl dgst -sha384 -binary | openssl base64 -A
 算，並對一次 npm registry 上同版本 tarball 裡的那個檔。
 
+為什麼從 CDN 載入：頁面照 HANDOFF.md 經 localhost 網址交付，做的人和讀的人當下都連著網路。
+走過又放棄的做法（要改回去之前先看理由還在不在）：
+- 內嵌整套 Mermaid（eb01d56）：為了 Orca 遠端的檔案預覽，它的 CSP 擋掉所有外部請求。一頁 3.6 MB。
+- 組頁時預先畫成 svg（5b70244）：那個預覽只讀 512 KiB 以內的檔。圖一多照樣超過，也不能縮放拖動。
+- 經 localhost 網址看（906498f、c9f2fed）之後，頁面不再走檔案預覽，上面兩個限制都碰不到。
+
 為什麼用瀏覽器的命令列檢查：playwright 不讓開 file://，得另開 http server，用完常忘了關，
 截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。
 
