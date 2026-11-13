@@ -2,7 +2,7 @@
 
     python -m unittest discover -s tests
 
-每條規則是一個 check_*(root) 函式，回傳違規清單。測試分兩種：
+每條規則是一個 check_*(root) 函式，回傳違規清單；它的 docstring 就是那條規則，AGENTS.md 指到這裡、不另抄一份。測試分兩種：
 - RepoTest：這個 repo 現在每條都過。
 - 其餘各 class：在暫存目錄造一個最小的 repo，證明違規會紅、無關的改動不紅。
 只用標準函式庫。
@@ -57,6 +57,7 @@ def docs(root: Path):
 
 
 def check_names(root: Path) -> list:
+    """SKILL.md 的 name 等於資料夾名。"""
     out = []
     for name in skills(root):
         got = frontmatter(read(root / "skills" / name / "SKILL.md")).get("name")
@@ -106,11 +107,13 @@ def check_paths(root: Path) -> list:
 
 
 def check_no_cross_links(root: Path) -> list:
+    """md 裡沒有 ../：skill 之間不互連，共用的檔放 orca/ 或 pages/。"""
     return [f"{md.relative_to(root)} 有 ../：共用的檔放 orca/ 或 pages/，或用 Skill 工具載入對方"
             for md in docs(root) if "../" in read(md)]
 
 
 def check_invocation(root: Path, allowed=frozenset(MODEL_INVOKED)) -> list:
+    """沒設 disable-model-invocation: true 的 skill 恰好是 MODEL_INVOKED 裡那幾個。"""
     out = []
     for name in skills(root):
         fm = frontmatter(read(root / "skills" / name / "SKILL.md"))
@@ -185,6 +188,7 @@ def check_shell_portable(root: Path) -> list:
 
 
 def check_manifests_match(root: Path) -> list:
+    """plugin.json 和 marketplace.json 的 description 相同。"""
     a = json.loads(read(root / ".claude-plugin/plugin.json"))["description"]
     b = json.loads(read(root / ".claude-plugin/marketplace.json"))["plugins"][0]["description"]
     return [] if a == b else ["plugin.json 和 marketplace.json 的 description 不一樣"]
@@ -218,6 +222,11 @@ class RepoTest(unittest.TestCase):
         for check in CHECKS:
             with self.subTest(check.__name__):
                 self.assertEqual(check(ROOT), [])
+
+    def test_every_rule_states_itself(self):
+        for check in CHECKS:
+            with self.subTest(check.__name__):
+                self.assertTrue((check.__doc__ or "").strip(), "docstring 寫這條規則：AGENTS.md 不另抄")
 
 
 def write(root: Path, rel: str, text: str):
