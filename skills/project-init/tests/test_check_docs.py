@@ -42,7 +42,7 @@ PROGRESS = """# 進度
 
 ## 偏差與決定
 
-- 2026-01-02 M1 票 01：改用另一個套件，見 ADR 0003。
+- 2026-01-02 M1 票 01（使用者同意）：改用另一個套件，見 ADR 0003。
 """ % ("長" * 300)
 
 SPEC = "# M1\n\n## 目標\n\n## 範圍（做 / 不做）\n\n## 共同規則\n\n## 驗收\n\n## 票序\n"
@@ -173,8 +173,23 @@ class DeviationsTest(Repo):
         self.sub("docs/progress.md", "見 ADR 0003。", "見 ADR 0003。" + "字" * 200)
         self.red("上限 200")
 
+    def test_entry_without_a_decider(self):
+        self.sub("docs/progress.md", "（使用者同意）：", "：")
+        self.red("決定者")
+
+    def test_entry_with_two_deciders(self):
+        self.sub("docs/progress.md", "（使用者同意）：", "（使用者同意）（Agent 定）：")
+        self.red("決定者")
+
+    def test_any_decider_anywhere_in_the_entry(self):
+        for tag in m.DECIDERS:
+            with self.subTest(tag):
+                self.setUp()
+                self.sub("docs/progress.md", "（使用者同意）：改用另一個套件，見 ADR 0003。", f"：換了套件，見 ADR 0003（{tag}）。")
+                self.clean()
+
     def test_empty_section_is_fine(self):
-        self.sub("docs/progress.md", "- 2026-01-02 M1 票 01：改用另一個套件，見 ADR 0003。\n", "")
+        self.sub("docs/progress.md", "- 2026-01-02 M1 票 01（使用者同意）：改用另一個套件，見 ADR 0003。\n", "")
         self.clean()
 
 

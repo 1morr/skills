@@ -24,6 +24,13 @@
 | `.githooks/` | git hook，啟用方式見 `docs/development.md` |
 | `.github/` | CI，跑什麼見 `docs/development.md`〈全部檢查〉 |
 
+## 使用者確認
+
+- brief、plan、ADR、`GLOSSARY.md` 裡的決定：草稿先給使用者看，確認後才寫入；訪談中也一樣。
+- 做票時要推翻已定的決定（brief、plan、ADR、spec、先前的偏差）：停下來問使用者。同意後，同一個 commit 改文件，並在 progress.md〈偏差與決定〉記一行。
+- 使用者回「照建議」，只算同意這一則訊息裡列出來的那幾題。
+- 偏差每條標**決定者**：`（使用者定）` 使用者自己定的、`（使用者同意）` agent 提議而使用者同意的、`（Agent 定）` 使用者沒看過的。票內的取捨可以是 `（Agent 定）`；`/1morr:checkpoint` 會把它們拿給使用者看。
+
 ## 每個 session 的流程
 
 工作單位是**票**：`.scratch/<里程碑>/issues/NN-slug.md`，由使用者在新 session 下 `/to-tickets docs/plan.md 拆 <里程碑> 的票` 產生（見〈Skills〉）。一個 session 只做一張票，在自己的分支上做。
@@ -31,7 +38,7 @@
 1. 讀 `docs/progress.md` 的 session 紀錄與偏差、該里程碑的 spec，再讀票；只讀票列出的 plan / brief 章節，其他按需讀。
 2. `/implement <票路徑>`：tdd、定期 typecheck、結尾 `/code-review <開工時的 commit>`、commit。
 3. 驗證：`docs/development.md`〈全部檢查〉加 test；貼指令輸出。
-4. 實作若推翻 plan、brief 或先前的決定，同一 commit 改文件，並在 progress.md〈偏差與決定〉記一行。只在票內的取捨記到票的 `## Comments`；影響架構的另寫 ADR。
+4. 只在票內的取捨記到票的 `## Comments`；影響架構的另寫 ADR；要推翻已定的決定照〈使用者確認〉。
 5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；progress.md 加一列 session 紀錄（做了什麼、下一步，細節留在票裡）；驗收票多一步：照 progress.md〈寫法與封存〉封存這個里程碑；commit。
 6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。
 
@@ -69,7 +76,7 @@ commit、文件、票、fixture、log 摘錄與截圖：
 
 ## Skills
 
-- 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR），結論寫回 brief。
+- 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR，照〈使用者確認〉先給草稿），結論寫回 brief。
 - 里程碑開工：入口是使用者在新 session 下 `/to-tickets docs/plan.md 拆 <里程碑> 的票`。這個 session 依序做完三步，第 3 步 commit 後才算完成：
   1. 把 plan〈里程碑任務〉裡它的那一節，依最新的 brief、plan 與上一個里程碑的結果細化成 `.scratch/<里程碑>/spec.md`，plan 那一節縮成一行連結。文件不足以寫出 spec 時，問使用者並補進文件。
   2. 照 skill 提出切法，使用者同意後寫票，每張票寫明「讀：plan §x、brief §y」與驗收條件。最後一張固定是**驗收票** `NN-<里程碑>-acceptance`，被其他所有票擋：從開工的 commit 起跑里程碑 code-review、spec〈驗收〉逐條對到證據、乾淨 checkout 跑全部檢查、各票 Comments 沒處理的發現逐條歸到修掉、延後（寫進 plan）或不做，最後封存里程碑；`scripts/check_docs.py` 守它存在。

@@ -7,7 +7,7 @@
     - `##` 段依序各一次：寫法與封存、里程碑與閱讀指引、Session 紀錄、偏差與決定
     - 〈Session 紀錄〉整段是一張表（表外沒有別的字），每列不超過 200 字元
     - 最後一列的「下一步」給得出指令（含 `/…` 的行內程式碼），或以「等使用者：」開頭，或是「由協調者決定」
-    - 〈偏差與決定〉每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元
+    - 〈偏差與決定〉每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元、標一個決定者：（使用者定）（使用者同意）（Agent 定）
     - 里程碑表的備註以「進行中」開頭的最多一個
   .scratch/
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
@@ -32,6 +32,8 @@ ACTIVE = "進行中"
 
 COMMAND = re.compile(r"`/[^`\s][^`]*`")
 DEVIATION = re.compile(r"^- \d{4}-\d{2}-\d{2} \S")
+DECIDERS = ("使用者定", "使用者同意", "Agent 定")
+DECIDER = re.compile("（(?:%s)）" % "|".join(DECIDERS))
 MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$")
 STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
@@ -125,6 +127,8 @@ def check_progress(text: str) -> list:
                 continue
             if not DEVIATION.match(l):
                 out.append(f"{PROGRESS}:{n}：〈{DEVIATIONS}〉每條一行，寫成「- YYYY-MM-DD <里程碑> …」")
+            elif len(DECIDER.findall(l)) != 1:
+                out.append(f"{PROGRESS}:{n}：這一條要標一個決定者：" + "".join(f"（{d}）" for d in DECIDERS))
             if len(l) > MAX_CHARS:
                 out.append(f"{PROGRESS}:{n}：這一條 {len(l)} 字元，上限 {MAX_CHARS}。細節放票、brief、plan 或 ADR")
     return out
