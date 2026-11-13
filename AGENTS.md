@@ -37,4 +37,4 @@
 
 ## 由測試強制的規則
 
-`python -m unittest discover -s tests` 檢查：`name` 等於資料夾名；每個 skill 都在 README 表格和兩份 manifest 裡、沒有多出來的；md 裡的相對連結和縮寫路徑指得到檔案；md 裡沒有 `../`；model-invoked 的 skill 都在 `MODEL_INVOKED`；有 Python 腳本的目錄有測試，而且 CI 和 README 都跑它；project-init 的範本搭出來的 repo 走完一輪里程碑，每一站都過 `check_docs.py`，dashboard 也全部讀得到（`tests/test_skeleton_contract.py`）。其餘規則靠改的人自查。
+`python -m unittest discover -s tests` 檢查：`name` 等於資料夾名；每個 skill 都在 README 表格和兩份 manifest 裡、沒有多出來的；md 裡的相對連結和縮寫路徑指得到檔案；md 裡沒有 `../`；model-invoked 的 skill 都在 `MODEL_INVOKED`；有 Python 腳本的目錄有測試，而且 CI 和 README 都跑它；`SKILL.md` 用 `${CLAUDE_…}` 定義的縮寫都在 `SHORT`；`${CLAUDE_…}` 只出現在 `SKILL.md`；shell 腳本的非註解行沒有緊貼中文的 `$var`，也沒有 `stat -c`、`touch -d`、`sed -i`；兩份 manifest 的 description 相同；`orca/scripts/` 每支腳本前兩行寫了用法；project-init 的範本搭出來的 repo 走完一輪里程碑，每一站都過 `check_docs.py`，dashboard 也全部讀得到（`tests/test_skeleton_contract.py`）。其餘規則靠改的人自查。

@@ -1,4 +1,4 @@
-# 給其他腳本 source：選一個跑得起來的 Python 3 放進 $PY，並提供跨平台的 age()。
+# 用法：在腳本裡 `. "$D/py.sh"`（D 是這個資料夾）—— 選一個跑得起來的 Python 3 放進 $PY，並提供跨平台的 age()。
 # macOS 只有 python3；Windows 的 python3 可能是 Microsoft Store 的空殼（跑了只印訊息、不是 0），所以每個都實際跑一次。
 PY=
 for c in python3 python; do

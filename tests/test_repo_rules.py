@@ -143,7 +143,75 @@ def check_tested(root: Path) -> list:
     return out
 
 
-CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested)
+SHORT_DEF = re.compile(r"`<([A-Z]+)>` 是 `\$\{CLAUDE_")
+
+
+def check_short_declared(root: Path, short=frozenset(SHORT)) -> list:
+    """SKILL.md 用 ${CLAUDE_…} 定義的縮寫都在 SHORT 裡，check_paths 才查得到它的路徑。"""
+    out = []
+    for name in skills(root):
+        for key in SHORT_DEF.findall(read(root / "skills" / name / "SKILL.md")):
+            if key not in short:
+                out.append(f"skills/{name}/SKILL.md 定義了 <{key}>，SHORT 裡沒有")
+    return out
+
+
+def check_vars_in_skill_md_only(root: Path) -> list:
+    """Claude Code 只替換 SKILL.md 裡的 ${CLAUDE_…}；寫在別的 md 會原樣留著。"""
+    return [f"{md.relative_to(root)} 寫了 ${{CLAUDE_…}}：只有 SKILL.md 會被替換，改用 SKILL.md 定義的縮寫"
+            for md in docs(root) if md.name != "SKILL.md" and "${CLAUDE_" in read(md)]
+
+
+BARE_VAR_THEN_CJK = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
+GNU_ONLY = re.compile(r"\bstat -c\b|\btouch -d\b|\bsed -i\b")
+
+
+def shell_scripts(root: Path) -> list:
+    return sorted(list((root / "orca").rglob("*.sh")) + list((root / "skills").rglob("*.sh")))
+
+
+def check_shell_portable(root: Path) -> list:
+    """shell 腳本要在 macOS 內建的 bash 3.2 跑：變數緊貼中文要加大括號，不用 GNU 專屬的參數。註解行不查。"""
+    out = []
+    for sh in shell_scripts(root):
+        for n, line in enumerate(read(sh).split("\n"), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            where = f"{sh.relative_to(root)}:{n}"
+            if BARE_VAR_THEN_CJK.search(line):
+                out.append(f"{where} 變數後面緊貼中文：寫成 ${{var}}，bash 3.2 會把中文吃進變數名")
+            if GNU_ONLY.search(line):
+                out.append(f"{where} 用了 GNU 專屬的 stat -c / touch -d / sed -i，macOS 沒有")
+    return out
+
+
+def check_manifests_match(root: Path) -> list:
+    a = json.loads(read(root / ".claude-plugin/plugin.json"))["description"]
+    b = json.loads(read(root / ".claude-plugin/marketplace.json"))["plugins"][0]["description"]
+    return [] if a == b else ["plugin.json 和 marketplace.json 的 description 不一樣"]
+
+
+def check_usage_header(root: Path) -> list:
+    """orca/scripts/ 每支腳本的前兩行寫用法（第一行可以是 shebang）。"""
+    out = []
+    for f in sorted(list((root / "orca/scripts").glob("*.sh")) + list((root / "orca/scripts").glob("*.py"))):
+        if "用法" not in "\n".join(read(f).split("\n")[:2]):
+            out.append(f"{f.relative_to(root)} 開頭沒有寫用法")
+    return out
+
+
+OPENS_FOR_USER = re.compile(r"xdg-open|orca tab create")
+
+
+def check_no_opening_for_user(root: Path) -> list:
+    """skill 不替使用者開瀏覽器或分頁：交付照 pages/HANDOFF.md，給網址和完整路徑。"""
+    return [f"{md.relative_to(root)} 叫執行者替使用者開瀏覽器或分頁：改照 pages/HANDOFF.md 給網址和完整路徑"
+            for md in docs(root) if OPENS_FOR_USER.search(read(md))]
+
+
+CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
+          check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
+          check_usage_header)
 
 
 class RepoTest(unittest.TestCase):
@@ -180,8 +248,8 @@ class Fixture(unittest.TestCase):
         write(r, "skills/notes/SKILL.md", "---\nname: notes\ndescription: 記筆記\ndisable-model-invocation: true\n---\n\n"
               "先讀 `<O>/COORDINATOR.md`，再跑 `bash <O>/scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
         write(r, "orca/COORDINATOR.md", "# 流程\n")
-        write(r, "orca/scripts/wait.sh", "")
-        write(r, "orca/scripts/selftest.sh", "")
+        write(r, "orca/scripts/wait.sh", "# 用法：bash wait.sh <handle>\necho \"${H}沒有回應\"\n")
+        write(r, "orca/scripts/selftest.sh", "# 用法：bash selftest.sh\n")
         write(r, "pages/TOKENS.md", "# 配色\n")
         write(r, "tests/test_repo_rules.py", "")
         write(r, "README.md", "| Skill | 做什麼 |\n|---|---|\n| [diff](skills/diff/SKILL.md) | 對照 |\n| [notes](skills/notes/SKILL.md) | 筆記 |\n\n"
@@ -345,6 +413,103 @@ class TestedTest(Fixture):
         write(self.root, "skills/notes/frame.md", "# 外框\n")
         sub(self.root, ".github/workflows/test.yml", "steps:", "name: test\nsteps:")
         self.clean(check_tested)
+
+
+class ShortDeclaredTest(Fixture):
+    DEFINE = "`<Z>` 是 `${CLAUDE_SKILL_DIR}/zed`。先讀"
+
+    def test_abbreviation_missing_from_the_list(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", self.DEFINE)
+        self.red(check_short_declared)
+
+    def test_the_list_decides(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", self.DEFINE)
+        self.clean(check_short_declared, short=frozenset({"Z"}))
+
+    def test_placeholders_that_are_not_definitions_do_not_matter(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "寫成 `<批次目錄>/r<N>/prompt.md`，`<N>` 是輪次。先讀")
+        self.clean(check_short_declared)
+
+
+class VarsInSkillMdOnlyTest(Fixture):
+    def test_variable_in_a_companion_file(self):
+        sub(self.root, "skills/diff/LOOK.md", "# 外觀", "# 外觀\n\n腳本在 `${CLAUDE_SKILL_DIR}/scripts`。")
+        self.red(check_vars_in_skill_md_only)
+
+    def test_variable_in_a_shared_file(self):
+        sub(self.root, "orca/COORDINATOR.md", "# 流程", "# 流程\n\n`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。")
+        self.red(check_vars_in_skill_md_only)
+
+    def test_variable_in_skill_md_is_fine(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`，環境變數 `$HOME` 照寫。先讀")
+        self.clean(check_vars_in_skill_md_only)
+
+
+class ShellPortableTest(Fixture):
+    SH = "orca/scripts/wait.sh"
+
+    def test_bare_variable_followed_by_cjk(self):
+        sub(self.root, self.SH, "${H}沒有回應", "$H沒有回應")
+        self.red(check_shell_portable)
+
+    def test_gnu_only_flags(self):
+        for line in ("stat -c %Y f", "touch -d '-5 minutes' f", "sed -i s/a/b/ f"):
+            with self.subTest(line):
+                original = read(self.root / self.SH)
+                write(self.root, self.SH, original + line + "\n")
+                self.red(check_shell_portable)
+                write(self.root, self.SH, original)
+
+    def test_comments_braces_and_ascii_do_not_matter(self):
+        sub(self.root, self.SH, "echo", "# 存到 $LOG（預設在家目錄），GNU 的 touch -d 在 macOS 不認\n"
+            "stat -f %m \"$H\"; sed -e s/a/b/ f; echo \"$H: ${H}號\"\necho")
+        self.clean(check_shell_portable)
+
+    def test_scripts_inside_a_skill_are_checked_too(self):
+        write(self.root, "skills/notes/scripts/run.sh", "echo \"$H沒有\"\n")
+        self.red(check_shell_portable)
+
+
+class ManifestsMatchTest(Fixture):
+    def test_one_manifest_reworded(self):
+        sub(self.root, ".claude-plugin/plugin.json", "記筆記", "寫筆記")
+        self.red(check_manifests_match)
+
+    def test_both_reworded_and_other_keys_do_not_matter(self):
+        for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
+            sub(self.root, rel, "記筆記", "寫筆記")
+        sub(self.root, ".claude-plugin/plugin.json", '"name": "x"', '"name": "another"')
+        self.clean(check_manifests_match)
+
+
+class UsageHeaderTest(Fixture):
+    def test_script_without_usage(self):
+        write(self.root, "orca/scripts/wait.sh", "set -u\necho hi\n")
+        self.red(check_usage_header)
+
+    def test_usage_too_far_down(self):
+        write(self.root, "orca/scripts/wait.sh", "set -u\necho hi\n# 用法：bash wait.sh\n")
+        self.red(check_usage_header)
+
+    def test_shebang_python_and_wording_do_not_matter(self):
+        write(self.root, "orca/scripts/wait.sh", "#!/bin/sh\n# 用法（掛在背景）：sh wait.sh <handle> [sent]\n")
+        write(self.root, "orca/scripts/scr.py", "# 用法：python3 scr.py <handle>\n")
+        write(self.root, "skills/diff/scripts/diff.py", "import sys\n")
+        self.clean(check_usage_header)
+
+
+class NoOpeningForUserTest(Fixture):
+    def test_opening_the_default_browser(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "用預設瀏覽器打開（Linux `xdg-open`）。先讀")
+        self.red(check_no_opening_for_user)
+
+    def test_opening_an_orca_tab(self):
+        sub(self.root, "pages/TOKENS.md", "# 配色", "# 配色\n\n`orca tab create --url <網址> --json`。")
+        self.red(check_no_opening_for_user)
+
+    def test_checking_with_browser_automation_is_fine(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "用瀏覽器自動化工具打開頁面截圖，再在對話給網址；`orca terminal create` 照用。先讀")
+        self.clean(check_no_opening_for_user)
 
 
 if __name__ == "__main__":
