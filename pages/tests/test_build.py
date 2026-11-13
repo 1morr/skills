@@ -125,8 +125,13 @@ UNDRAWN = '<pre class="mermaid">\nflowchart TB\n  A --> B\n</pre>'
 NO_ZOOM = '<pre class="mermaid" data-processed="true"><svg id="m3"><text>開始</text></svg></pre>'
 
 
+MEASURED = '<meta name="overflow-report" content="[]">'
+WIDE = ('<meta name="overflow-report" content="[{&quot;box&quot;:&quot;整頁&quot;,&quot;over&quot;:120,&quot;items&quot;:'
+        '[{&quot;el&quot;:&quot;span.src&quot;,&quot;over&quot;:120,&quot;text&quot;:&quot;很長的來源&quot;}]}]">')
+
+
 def drawn(n=1):
-    return lambda out: page(DRAWN * n)
+    return lambda out, width=1440: page(DRAWN * n, MEASURED)
 
 
 class Render(unittest.TestCase):
@@ -178,21 +183,38 @@ class Cli(unittest.TestCase):
         self.assertIn(build.MERMAID.url, (d / "m0.html").read_text(encoding="utf-8"))
 
     def test_render_problem_fails_but_keeps_page(self):
-        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: page(BROKEN))
+        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out, width=1440: page(BROKEN, MEASURED))
         self.assertEqual(code, 1)
         self.assertTrue((d / "m0.html").exists())
 
     def test_no_browser_fails(self):
-        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: None)
+        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out, width=1440: None)
         self.assertEqual(code, 1)
         self.assertTrue((d / "m0.html").exists())
 
-    def test_no_diagram_skips_render(self):
-        def boom(out):
-            raise AssertionError("沒有圖就不該開瀏覽器")
-        code, d = self.run_main("m0-src.html", page("<p>沒有圖</p>"), render=boom)
+    def test_no_diagram_is_still_measured_at_every_width(self):
+        seen = []
+
+        def render(out, width):
+            seen.append(width)
+            return page("<p>沒有圖</p>", MEASURED)
+        code, d = self.run_main("m0-src.html", page("<p>沒有圖</p>"), render=render)
         self.assertEqual(code, 0)
+        self.assertEqual(seen, list(build.overflow.WIDTHS))
         self.assertEqual((d / "m0.html").read_text(encoding="utf-8"), page("<p>沒有圖</p>"))
+
+    def test_overflow_at_any_width_writes_nothing(self):
+        for bad in build.overflow.WIDTHS:
+            with self.subTest(bad):
+                code, d = self.run_main("m0-src.html", page(DIAGRAM),
+                                        render=lambda out, width, bad=bad: page(DRAWN, WIDE if width == bad else MEASURED))
+                self.assertEqual(code, 1)
+                self.assertFalse((d / "m0.html").exists())
+
+    def test_measurement_that_never_ran_writes_nothing(self):
+        code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out, width=1440: page(DRAWN))
+        self.assertEqual(code, 1)
+        self.assertFalse((d / "m0.html").exists())
 
     def test_problems_write_nothing(self):
         code, d = self.run_main("m0-src.html", page('<script src="https://cdn.x/y.js"></script>'))
@@ -224,6 +246,45 @@ class RealBrowser(unittest.TestCase):
         problems = self.check(DIAGRAM + broken, 2)
         self.assertEqual(len(problems), 1)
         self.assertIn("第 2 張", problems[0])
+
+
+@unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")
+class RealOverflow(unittest.TestCase):
+    """溢出要在真的瀏覽器裡量：版面是瀏覽器排的。"""
+
+    LONG = "來源" * 300
+    STYLE = "<style>main{max-width:40rem;margin:0 auto}.src{white-space:nowrap}.pane{height:100vh;overflow-y:auto}</style>"
+
+    def measure(self, body):
+        d = Path(tempfile.mkdtemp())
+        out = d / "p.html"
+        out.write_text(page(f"<main>{body}</main>", self.STYLE), encoding="utf-8")
+        return build.overflow.measure(out)
+
+    def test_unbreakable_label_is_caught_and_named(self):
+        found = self.measure(f'<p>前文 <span class="src">{self.LONG}</span></p>')
+        self.assertTrue(found)
+        self.assertIn("span.src", found[0])
+
+    def test_wide_content_in_its_own_scroller_is_fine(self):
+        self.assertEqual(self.measure(f'<div style="overflow-x:auto"><span class="src">{self.LONG}</span></div>'), [])
+        self.assertEqual(self.measure(f"<p>{self.LONG}</p>" * 3), [])
+
+    def test_folded_details_are_opened_before_measuring(self):
+        self.assertTrue(self.measure(f'<details><summary>摺起來</summary><span class="src">{self.LONG}</span></details>'))
+
+    def test_pane_that_scrolls_vertically_is_caught(self):
+        tall = "<p>一段</p>" * 200
+        found = self.measure(f'<div class="pane">{tall}<span class="src">{self.LONG}</span></div>')
+        self.assertTrue(any("div.pane" in p for p in found), found)
+
+    def test_probe_is_not_left_in_the_page(self):
+        d = Path(tempfile.mkdtemp())
+        out = d / "p.html"
+        out.write_text(page("<p>短</p>"), encoding="utf-8")
+        build.overflow.measure(out)
+        self.assertEqual(out.read_text(encoding="utf-8"), page("<p>短</p>"))
+        self.assertEqual([f.name for f in d.iterdir()], ["p.html"])
 
 
 if __name__ == "__main__":

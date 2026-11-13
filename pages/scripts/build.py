@@ -1,12 +1,13 @@
 """把解說頁的原始 HTML 組成可以交付的頁：原始頁自己不准載入外部資源；有 Mermaid 圖就在頁尾放上
 從 jsDelivr 載入 Mermaid、Panzoom 的 <script>（固定版本、附 integrity），再內嵌同資料夾的 diagram.js、
 diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本機的 Chrome 或 Edge 無頭打開，確認每張圖
-都畫出來、縮放按鈕都掛上了。
+都畫出來、縮放按鈕都掛上了，並在寬螢幕和手機寬各量一次水平溢出（overflow.py）。
 
     python build.py <page-src.html> [-o <page.html>]
 
 成功時印出輸出檔路徑和「N 張圖都畫出來了」，退出碼 0。有問題時印到 stderr、退出碼 1：
 - 原始頁會從外部載入東西：不產出。外部資源只有這支放的兩個函式庫。
+- 有水平溢出：不產出，逐條印出哪個元素在哪個寬度超出幾 px。
 - 找不到瀏覽器或圖畫不出來：照樣產出。
 
 打開組好的頁和這裡的檢查都要連得到 cdn.jsdelivr.net。寫法照 jsDelivr 的建議：網址釘完整版本號，
@@ -28,15 +29,15 @@ diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本
 """
 
 import argparse
-import os
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import overflow  # noqa: E402  同資料夾的 overflow.py：找瀏覽器、無頭打開、量水平溢出
 
 class Pkg(NamedTuple):
     name: str
@@ -57,7 +58,6 @@ MERMAID = Pkg("mermaid", "11.17.2", "dist/mermaid.min.js",
               "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2")
 PANZOOM = Pkg("@panzoom/panzoom", "4.6.2", "dist/panzoom.min.js",
               "sha384-irdz3GZoyr9anVd5nSLy63Z39tLtMTNQFFKxhx/KM08C8NkKpZre6M/m4QCUeeB3")
-HERE = Path(__file__).resolve().parent
 
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 這些屬性的網址會被瀏覽器自動載入；<a href> 是讀者自己點的，不算
@@ -140,43 +140,8 @@ def build(html: str) -> str:
     ]))
 
 
-# 依序找；第一個找得到的就用
-BROWSER_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "msedge"]
-MAC_APPS = ["Google Chrome", "Microsoft Edge", "Chromium"]
-WIN_EXES = [("Google", "Chrome", "chrome.exe"), ("Microsoft", "Edge", "msedge.exe")]
-
-
-def find_browser():
-    for name in BROWSER_NAMES:
-        found = shutil.which(name)
-        if found:
-            return found
-    candidates = []
-    for app in MAC_APPS:
-        for root in (Path("/Applications"), Path.home() / "Applications"):
-            candidates.append(root / f"{app}.app" / "Contents" / "MacOS" / app)
-    for env in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
-        if os.environ.get(env):
-            for vendor, product, exe in WIN_EXES:
-                candidates.append(Path(os.environ[env]) / vendor / product / "Application" / exe)
-    return next((str(c) for c in candidates if c.is_file()), None)
-
-
-def render_dom(page: Path):
-    """用無頭瀏覽器打開 page、跑完 JS，回傳畫好的 DOM；找不到瀏覽器回傳 None。"""
-    browser = find_browser()
-    if not browser:
-        return None
-    # 自己的 profile：使用者的瀏覽器開著也不會搶同一個 profile
-    profile = tempfile.mkdtemp(prefix="explain-render-")
-    try:
-        r = subprocess.run(
-            [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-             f"--user-data-dir={profile}", "--virtual-time-budget=15000", "--dump-dom", page.resolve().as_uri()],
-            capture_output=True, timeout=120)
-    finally:
-        shutil.rmtree(profile, ignore_errors=True)
-    return r.stdout.decode("utf-8", "replace")
+find_browser = overflow.find_browser
+render_dom = overflow.render
 
 
 class Rendered(HTMLParser):
@@ -226,7 +191,7 @@ def render_problems(dom: str, expected: int) -> list:
 
 
 def report(path, problems, what) -> None:
-    print(f"{path}：{len(problems)} 個{what}", file=sys.stderr)
+    print(f"{path}：{len(problems)} {what}", file=sys.stderr)
     for p in problems:
         print(f"  - {p}", file=sys.stderr)
 
@@ -241,24 +206,32 @@ def main(argv=None, render=render_dom) -> int:
     src = args.src.read_text(encoding="utf-8")
     problems = lint(src)
     if problems:
-        report(args.src, problems, "問題，沒有產出")
+        report(args.src, problems, "個問題，沒有產出")
         return 1
     out = args.out or args.src.with_name(args.src.stem.removesuffix("-src") + ".html")
     if out.resolve() == args.src.resolve():
         print(f"輸出會蓋掉原始檔 {args.src}：原始檔名要以 -src.html 結尾，或用 -o 指定", file=sys.stderr)
         return 1
     out.write_text(build(src), encoding="utf-8")
-    print(out)
     diagrams = scan(src).diagrams
+    doms = {}
+    for width in overflow.WIDTHS:
+        doms[width] = render(out, width)
+        if doms[width] is None:
+            print(out)
+            print("找不到 Chrome 或 Edge，沒檢查圖有沒有畫出來、有沒有水平溢出：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
+            return 1
+    wide = [p for width, dom in doms.items() for p in overflow.problems(dom, width)]
+    if wide:
+        out.unlink()
+        report(args.src, wide, "處水平溢出，沒有產出")
+        return 1
+    print(out)
     if not diagrams:
         return 0
-    dom = render(out)
-    if dom is None:
-        print("找不到 Chrome 或 Edge，沒檢查圖有沒有畫出來：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
-        return 1
-    problems = render_problems(dom, diagrams)
+    problems = render_problems(doms[overflow.WIDTHS[0]], diagrams)
     if problems:
-        report(out, problems, "渲染問題")
+        report(out, problems, "個渲染問題")
         return 1
     print(f"{diagrams} 張圖都畫出來了")
     return 0

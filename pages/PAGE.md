@@ -32,7 +32,7 @@
 python <P>/scripts/build.py <名稱>-src.html
 ```
 
-`build.py` 在頁尾放上從 CDN 載入 Mermaid 和 Panzoom 的 `<script>`、內嵌縮放拖動的程式，再用本機的 Chrome 或 Edge 逐張確認圖畫得出來；退出碼和訊息的意義寫在它開頭。原始頁自己不載入任何外部資源（CDN 的 script、樣式、字型、圖片），否則它拒絕產出。要改頁面就改 `-src.html` 再重組。打開組好的頁要有網路。
+`build.py` 在頁尾放上從 CDN 載入 Mermaid 和 Panzoom 的 `<script>`、內嵌縮放拖動的程式，再用本機的 Chrome 或 Edge 逐張確認圖畫得出來，並在寬螢幕和手機寬各量一次水平溢出；退出碼和訊息的意義寫在它開頭。它說有水平溢出時不產出：照它列的元素，讓那段文字換行，或把寬的表格、程式碼放進自己橫向捲動的容器。原始頁自己不載入任何外部資源（CDN 的 script、樣式、字型、圖片），否則它拒絕產出。要改頁面就改 `-src.html` 再重組。打開組好的頁要有網路。
 
 ## 外觀
 
@@ -53,13 +53,14 @@ python <P>/scripts/build.py <名稱>-src.html
 ## 交出前
 
 1. **核對**：把整頁和頁上引到的來源交給一個沒看過你結論的子代理（Agent 工具，`model: "opus"`），回報兩種句子：附了來源卻和來源對不上的；講了事實、預估或因果，卻沒附來源也沒標 `推斷` 的。改掉、補來源，或改標 `推斷`。頁尾寫核對紀錄：核對幾句、改了幾句、改標 `推斷` 幾句。
-2. **渲染**：`build.py` 退出碼 0、印出「N 張圖都畫出來了」就算過。它說找不到 Chrome 或 Edge 時，先照第 3 步開 server，再用瀏覽器自動化工具（下面以 playwright 為例）打開那個網址：
+2. **渲染**：`build.py` 退出碼 0 就算過（有圖時它印出「N 張圖都畫出來了」）。它說找不到 Chrome 或 Edge 時，先照第 3 步開 server，再用瀏覽器自動化工具（下面以 playwright 為例）打開那個網址：
+   - 視窗寬 1440 和 390 各看一次：`document.documentElement.scrollWidth` 不大於 `innerWidth`。
    - 確認每張圖都畫成 svg、圖裡掛上了縮放按鈕列（`.dz-bar`）、畫面文字（`document.body.innerText`）沒有 `Syntax error`。查畫面文字，不查原始碼：圖的原始碼和頁上的說明都可能含這個字串。
    - 截圖的檔名用 scratchpad 的完整路徑。
    - 檢查完關掉 playwright 的頁；它在工作目錄建了 `.playwright-mcp/` 的話刪掉。
 3. **交給使用者**：照 [HANDOFF.md](HANDOFF.md)。
 
-完成條件：核對回報的每一句都處理了，頁尾有核對紀錄；每張圖都畫得出來（`build.py` 退出碼 0，或 playwright 退路檢查過）；`HANDOFF.md` 的完成條件成立。
+完成條件：核對回報的每一句都處理了，頁尾有核對紀錄；每張圖都畫得出來、兩種寬度都沒有水平捲軸（`build.py` 退出碼 0，或 playwright 退路檢查過）；`HANDOFF.md` 的完成條件成立。
 
 ## 交出後的對話
 
