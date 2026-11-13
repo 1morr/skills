@@ -21,7 +21,7 @@
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
     - 每張票在第一個 `##` 之前有一行 `Status:`
     - roadmap.md 標「進行中」的里程碑（表的第一欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
-      有一行以 `Session 紀錄：` 開頭
+      有一行以 `Session 紀錄：` 開頭；spec 的〈驗收〉底下有 `### 使用者試`
 只用標準函式庫。
 """
 
@@ -55,6 +55,7 @@ MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$")
 STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
 DONE = re.compile(r"^\**Status:?\**:?\s*done\b", re.I)
 SESSION_NOTE = "Session 紀錄："
+ACCEPTANCE, USER_TRIAL = "驗收", "使用者試"
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 
@@ -235,10 +236,15 @@ def check_scratch(root: Path) -> list:
         if not spec.is_file():
             out.append(f"{rel}/：有票卻沒有 spec.md，里程碑開工的第一步是寫 spec")
         else:
-            titles = [re.split(r"[（(]", t)[0].strip() for t, _ in sections(spec.read_text(encoding="utf-8"))]
+            secs = [(re.split(r"[（(]", t)[0].strip(), lines) for t, lines in sections(spec.read_text(encoding="utf-8"))]
+            titles = [t for t, _ in secs]
             missing = [s for s in SPEC_SECTIONS if s not in titles]
             if missing:
                 out.append(f"{rel}/spec.md：缺〈{'〉〈'.join(missing)}〉段")
+            elif d.name in active:
+                body = next(lines for t, lines in secs if t == ACCEPTANCE)
+                if not any(re.match(rf"###\s*{USER_TRIAL}", l) for _, l in body):
+                    out.append(f"{rel}/spec.md：〈{ACCEPTANCE}〉底下要有 `### {USER_TRIAL}`：使用者親手試什麼、怎麼啟動；沒有就寫「無」和理由")
         tickets = sorted((d / "issues").glob("*.md"))
         if MILESTONE_DIR.match(d.name) and not any(t.name.endswith("-acceptance.md") for t in tickets):
             out.append(f"{rel}/issues/：沒有驗收票（檔名以 -acceptance.md 結尾），它是里程碑的最後一張票")

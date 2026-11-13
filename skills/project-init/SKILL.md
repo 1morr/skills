@@ -52,6 +52,7 @@ argument-hint: "[專案一句話]"
 | `issue-tracker.md` | `docs/agents/issue-tracker.md` |
 | `triage-labels.md` | `docs/agents/triage-labels.md` |
 | `domain.md` | `docs/agents/domain.md` |
+| `milestone.md` | `docs/agents/milestone.md` |
 
 另外建空目錄的佔位：`docs/adr/`、`docs/research/`、`docs/archive/`、`scripts/experiments/` 各放一個 `.gitkeep`。
 
@@ -61,14 +62,14 @@ argument-hint: "[專案一句話]"
 
 ## 4. 票的慣例
 
-`docs/agents/` 的三個檔告訴 mattpocock 的工程 skill（`/to-tickets`、`/implement`、`code-review`）票放哪、狀態怎麼寫、名詞表在哪。第 3 步寫的是他的 `/setup-matt-pocock-skills` 選「local markdown、預設標籤、單一名詞表」時的結果，加上里程碑的慣例，使用者不必再跑那個指令。
+`docs/agents/milestone.md` 是里程碑開工與驗收票的步驟，`AGENTS.md` 指向它。另外三個檔告訴 mattpocock 的工程 skill（`/to-tickets`、`/implement`、`code-review`）票放哪、狀態怎麼寫、名詞表在哪。第 3 步寫的是他的 `/setup-matt-pocock-skills` 選「local markdown、預設標籤、單一名詞表」時的結果，加上里程碑的慣例，使用者不必再跑那個指令。
 
 探查時 `docs/agents/issue-tracker.md` 就在的（使用者之前設定過）：
 
 - 是 local markdown 的：把它〈Conventions〉底下的清單換成 `<T>/issue-tracker.md` 同一段的清單，其餘不動。
 - 是 GitHub 或別的 tracker：停下來告訴使用者，這套流程和 `/1morr:ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
 
-完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`；`triage-labels.md`、`domain.md` 都在。
+完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`；`triage-labels.md`、`domain.md`、`milestone.md` 都在。
 
 ## 5. 閘門
 

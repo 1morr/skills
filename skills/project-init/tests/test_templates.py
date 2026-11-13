@@ -75,7 +75,7 @@ class SkeletonTest(unittest.TestCase):
         roadmap = fill("roadmap.md")
         self.assertIn("| 未開工。", roadmap)
         self.write("docs/roadmap.md", roadmap.replace("| 未開工。", "| 進行中。"))
-        self.write(".scratch/m0/spec.md", "# M0\n\n## 目標\n\n## 範圍\n\n## 共同規則\n\n## 驗收\n\n## 票序\n")
+        self.write(".scratch/m0/spec.md", "# M0\n\n## 目標\n\n## 範圍\n\n## 共同規則\n\n## 驗收\n\n### 使用者試\n\n無。\n\n## 票序\n")
         self.write(".scratch/m0/issues/01-gates.md", fill("ticket.md"))
         self.write(".scratch/m0/issues/02-m0-acceptance.md", fill("ticket.md"))
         self.assertEqual(check_docs.run(self.root), [])
@@ -90,6 +90,15 @@ class SkeletonTest(unittest.TestCase):
         text = fill("instructions.md")
         for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/1morr:checkpoint", "/1morr:ticket-coordinator",
                        "完成標準", "NN-<里程碑>-acceptance", check_docs.SESSION_NOTE):
+            self.assertIn(needle, text)
+
+
+class MilestoneDocTest(unittest.TestCase):
+    def test_instructions_point_at_it_and_it_names_what_the_check_enforces(self):
+        self.assertIn("docs/agents/milestone.md", fill("instructions.md"))
+        text = fill("milestone.md")
+        for needle in ("/to-tickets docs/roadmap.md 拆 <里程碑> 的票", "NN-<里程碑>-acceptance", check_docs.USER_TRIAL,
+                       check_docs.WAITING + "試用", *check_docs.SPEC_SECTIONS):
             self.assertIn(needle, text)
 
 
@@ -123,7 +132,8 @@ class AgentDocsTest(unittest.TestCase):
     def test_issue_tracker_states_what_the_other_skills_rely_on(self):
         text = (TEMPLATES / "issue-tracker.md").read_text(encoding="utf-8")
         for needle in ("`.scratch/<milestone>/issues/<NN>-<slug>.md`", "`<NN>-<milestone>-acceptance.md`", "`Status: done`",
-                       "`Blocked by:`", "`## Comments`", "docs/agents/ticket-template.md", "目標, 範圍, 共同規則, 驗收, 票序"):
+                       "`Blocked by:`", "`## Comments`", "docs/agents/ticket-template.md", "目標, 範圍, 共同規則, 驗收, 票序",
+                       "docs/agents/milestone.md"):
             self.assertIn(needle, text)
 
     def test_only_the_list_is_ignored_when_comparing(self):
@@ -163,7 +173,7 @@ class MergeTicketTest(unittest.TestCase):
         ticket.parent.mkdir(parents=True)
         ticket.write_text(fill("ticket.md"), encoding="utf-8")
         (ticket.parent / "02-m0-acceptance.md").write_text(fill("ticket.md"), encoding="utf-8")
-        (self.repo / ".scratch/m0/spec.md").write_text("# M0\n\n## 目標\n\n## 範圍\n\n## 共同規則\n\n## 驗收\n\n## 票序\n", encoding="utf-8")
+        (self.repo / ".scratch/m0/spec.md").write_text("# M0\n\n## 目標\n\n## 範圍\n\n## 共同規則\n\n## 驗收\n\n### 使用者試\n\n無。\n\n## 票序\n", encoding="utf-8")
         self.commit(self.repo, "docs: scaffold")
         self.git(self.repo, "worktree", "add", "-q", "-b", "t01", str(self.work))
 

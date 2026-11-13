@@ -58,7 +58,7 @@ ROADMAP = """# 路線圖
 ## 不排里程碑
 """
 
-SPEC = "# M1\n\n## 目標\n\n## 範圍（做 / 不做）\n\n## 共同規則\n\n## 驗收\n\n## 票序\n"
+SPEC = "# M1\n\n## 目標\n\n## 範圍（做 / 不做）\n\n## 共同規則\n\n## 驗收\n\n### Agent 驗\n\n### 使用者試\n\n- 啟動後打一個字。\n\n## 票序\n"
 TICKET = "# 01: 標題\n\nStatus: ready-for-agent\nBlocked by: None\n\n## What to build\n\n## 驗收\n\n- [ ] 條件\n\n## Comments\n"
 
 
@@ -319,7 +319,23 @@ class ScratchTest(Repo):
         self.red("缺〈共同規則〉")
 
     def test_spec_extra_sections_and_order_do_not_matter(self):
-        self.write(".scratch/m1/spec.md", "# M1\n\n## 票序\n\n## 細節\n\n## 驗收\n\n## 共同規則\n\n## 範圍\n\n## 目標(做什麼)\n")
+        self.write(".scratch/m1/spec.md", "# M1\n\n## 票序\n\n## 細節\n\n## 驗收\n\n###  使用者試（手機）\n\n## 共同規則\n\n## 範圍\n\n## 目標(做什麼)\n")
+        self.clean()
+
+    def test_active_spec_without_user_trial(self):
+        self.sub(".scratch/m1/spec.md", "### 使用者試\n", "### 人工檢查\n")
+        self.red("m1/spec.md：〈驗收〉底下要有 `### 使用者試`")
+
+    def test_user_trial_outside_the_acceptance_section_does_not_count(self):
+        self.sub(".scratch/m1/spec.md", "### 使用者試\n\n- 啟動後打一個字。\n\n## 票序\n", "## 票序\n\n### 使用者試\n")
+        self.red("m1/spec.md：〈驗收〉底下要有 `### 使用者試`")
+
+    def test_specs_outside_the_active_milestone_need_no_user_trial(self):
+        old = SPEC.replace("### Agent 驗\n\n### 使用者試\n\n- 啟動後打一個字。\n\n", "")
+        self.write(".scratch/m0/spec.md", old)
+        self.write(".scratch/m0/issues/01-m0-acceptance.md", TICKET)
+        self.write(".scratch/docs-cleanup/spec.md", old)
+        self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET)
         self.clean()
 
     def test_milestone_without_acceptance_ticket(self):

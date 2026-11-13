@@ -10,7 +10,7 @@
 - `docs/plan.md`：架構、依賴規則、測試策略。
 - `docs/roadmap.md`：里程碑的順序、狀態與閱讀指引；還沒開工的里程碑在這裡各有一小節，開工後縮成一行連到它的 spec；〈不排里程碑〉收沒人接的遺留。
 - `docs/progress.md`：進行中里程碑的 session 紀錄、偏差與決定。每個 session 的起點與終點。
-- `.scratch/<里程碑>/spec.md`：該里程碑的目標、範圍、共同規則、驗收與票序；`issues/` 是票，執行單位，狀態在票的 `Status:` 行。
+- `.scratch/<里程碑>/spec.md`：該里程碑的目標、範圍、共同規則、驗收（Agent 驗、使用者試）與票序；`issues/` 是票，執行單位，狀態在票的 `Status:` 行。
 - `GLOSSARY.md`、`docs/adr/`：名詞表與架構決定，由 `/grill-with-docs` 按需建立；命名一律用名詞表的詞。
 - `docs/development.md`：開發指令的單一來源，〈全部檢查〉是閘門。
 
@@ -36,7 +36,7 @@
 
 ## 每個 session 的流程
 
-工作單位是**票**：`.scratch/<里程碑>/issues/NN-slug.md`，由使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 產生（見〈Skills〉）。一個 session 只做一張票，在自己的分支上做。
+工作單位是**票**：`.scratch/<里程碑>/issues/NN-slug.md`，由里程碑開工的 session 產生（見〈Skills〉）。一個 session 只做一張票，在自己的分支上做。
 
 1. 讀 `docs/progress.md` 的 session 紀錄與偏差、該里程碑的 spec，再讀票；只讀票列出的 plan / brief 章節，其他按需讀。
 2. `/implement <票路徑>`：tdd、定期 typecheck、結尾 `/code-review <開工時的 commit>`、commit。
@@ -44,7 +44,7 @@
 4. 只在票內的取捨記到票的 `## Comments`；影響架構的另寫 ADR；要推翻已定的決定照〈使用者確認〉。
 5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<做了什麼，一句>`，使用者同意過的偏差各加一行 `偏差：<內容與決定者>`；commit。票的分支不改 progress.md：平行的票都改它會互撞。
 6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進 progress.md（一列 session 紀錄含下一步、每條偏差一行）並 commit。
-7. 驗收票被其他所有票擋、不會平行，它自己在分支上改 progress.md：照〈寫法與封存〉封存這個里程碑。
+7. 驗收票被其他所有票擋、不會平行，它自己在分支上改 progress.md。
 
 完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、Comments 有 `Session 紀錄：` 一行、已 commit。缺一就還沒完成。
 
@@ -82,10 +82,7 @@ commit、文件、票、fixture、log 摘錄與截圖：
 ## Skills
 
 - 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR，照〈使用者確認〉先給草稿），結論寫回 brief。
-- 里程碑開工：入口是使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`。這個 session 依序做完三步，第 3 步 commit 後才算完成：
-  1. 把 roadmap 裡它的那一節，依最新的 brief、plan 與上一個里程碑的結果細化成 `.scratch/<里程碑>/spec.md`，roadmap 那一節縮成一行連結、里程碑表的狀態改成「進行中」。文件不足以寫出 spec 時，問使用者並補進文件。
-  2. 照 skill 提出切法，使用者同意後寫票，每張票寫明「讀：plan §x、brief §y」與驗收條件。最後一張固定是**驗收票** `NN-<里程碑>-acceptance`，被其他所有票擋：從開工的 commit 起跑里程碑 code-review、spec〈驗收〉逐條對到證據、乾淨 checkout 跑全部檢查、各票 Comments 沒處理的發現逐條歸到修掉、延後（寫進 roadmap 接手的那個里程碑的小節，沒人接的進〈不排里程碑〉）或不做，最後封存里程碑；`scripts/check_docs.py` 守它存在。
-  3. 票序寫回 spec〈票序〉，progress.md 加一列 session 紀錄。
+- 里程碑開工（使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`）、做驗收票 `NN-<里程碑>-acceptance`：先讀 `docs/agents/milestone.md`，照它的步驟做。
 - 訪談、寫 plan 的 session 收尾在「plan 與 roadmap 已更新」。之後的里程碑留在 roadmap，開工時才有 spec。
 - 做票：一張票一個 session，`/implement`；整批跑票：`/1morr:ticket-coordinator`。
 - 里程碑之間：`/1morr:checkpoint`；想看懂某樣東西現在怎麼運作：`/1morr:explain`。
