@@ -7,11 +7,17 @@
 import contextlib
 import importlib.util
 import io
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+
+# pre-commit hook 裡 git 會設絕對路徑的 GIT_DIR、GIT_INDEX_FILE：在暫存目錄跑的 git 繼承它們，就把假檔案寫進外面那個 repo 的
+# index、把它的 config 改成 core.bare = true。專案常用自己的 hook 跑這些測試，所以由測試自己清；測試只碰自己建的暫存 repo。
+for _name in [n for n in os.environ if n.startswith("GIT_")]:
+    del os.environ[_name]
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = next(p for p in (HERE.parent / "scripts" / "check_docs.py", HERE.parent / "check_docs.py") if p.is_file())

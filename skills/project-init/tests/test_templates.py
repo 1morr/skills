@@ -5,6 +5,7 @@
 - 填好的骨架通得過 check_docs.py。
 - 範本的票改成 done、勾完驗收、留了 Session 紀錄，通得過協調者的 orca/scripts/merge-ticket.sh 與 check_docs.py；沒做完的被擋。
 - check_commit_msg.py 和 merge-ticket.sh 收同一組 commit type。
+- 抄進專案的三個測試在 hook 的 GIT_DIR、GIT_INDEX_FILE 下跑，不改到外面那個 repo。
 - 範本裡沒有留給模型刪、卻不在清單上的佔位。
 - docs/agents/ 的三個範本和這台機器裝的 mattpocock-skills 種子範本沒有走樣（沒裝就跳過）。
 """
@@ -14,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -137,6 +139,44 @@ class PreCommitHookTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("Session 紀錄", r.stderr)
         self.assertEqual(self.git("log", "--format=%s").stdout.strip(), "docs: scaffold")
+
+
+@unittest.skipUnless(shutil.which("git"), "要 git")
+class HookEnvironmentTest(unittest.TestCase):
+    """抄進專案的測試在 hook 的環境下跑（git 給了絕對路徑的 GIT_DIR、GIT_INDEX_FILE）：暫存目錄的 git 不能改到外面那個 repo。
+    專案常用自己的 hook 跑它們，不經過 templates/pre-commit 的 unset。"""
+
+    MODULES = ("test_check_docs", "test_check_commit_msg", "test_docs_moved_lines")
+
+    def setUp(self):
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], env=self.env, capture_output=True, text=True, check=True).stdout.strip()
+
+    def outer_repo(self):
+        """(外面那個 repo, 它的 worktree 的 gitdir)：git 在 worktree 裡呼叫 hook 時給的就是這個 GIT_DIR。"""
+        tmp = Path(tempfile.mkdtemp(prefix="project-init-hook-env-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        outer = tmp / "outer"
+        self.git("init", "-q", "-b", "main", str(outer))
+        (outer / "a.txt").write_text("a\n", encoding="utf-8")
+        self.git("-C", str(outer), "add", "a.txt")
+        self.git("-C", str(outer), "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "docs: start")
+        self.git("-C", str(outer), "worktree", "add", "-q", str(tmp / "wt"))
+        return outer, self.git("-C", str(tmp / "wt"), "rev-parse", "--absolute-git-dir")
+
+    def test_temporary_repos_leave_the_outer_repo_alone(self):
+        for module in self.MODULES:
+            with self.subTest(module=module):
+                outer, gitdir = self.outer_repo()
+                head, index = self.git("-C", str(outer), "rev-parse", "HEAD"), outer.parent / "hook-index"
+                env = dict(self.env, GIT_DIR=gitdir, GIT_INDEX_FILE=str(index))
+                r = subprocess.run([sys.executable, "-m", "unittest", "-q", module], cwd=SKILL / "tests", env=env, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+                self.assertFalse(index.exists(), "寫進了 hook 的 index")
+                self.assertEqual(self.git("-C", str(outer), "config", "core.bare"), "false")
+                self.assertEqual(self.git("-C", str(outer), "rev-parse", "HEAD"), head)
 
 
 class CommitTypesTest(unittest.TestCase):
