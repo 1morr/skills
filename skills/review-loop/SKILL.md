@@ -11,7 +11,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 審查員用一個全新的 session、不用你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文要乾淨，沒有前幾輪的東西。
 
-`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`（plugin 根目錄的 `orca/`）。**先讀 `<O>/COORDINATOR.md`**：開工、等待、被叫醒、Heads up、規則、回報都照它，這份只寫審查獨有的部分。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。**先讀 `<O>/COORDINATOR.md`**，這份只寫審查獨有的部分。
 
 ## 開工
 
@@ -45,7 +45,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 之後每一輪：列出上一輪改過的地方（位置、改成什麼），附上 `git diff <上一輪起點>..<上一輪終點> -- <原始檔>`。寫明：這些地方最容易改錯或說過頭，要逐一確認；其他部分照常審。
 
    **獨立**：prompt 只放固定部分和這一輪的變動；前幾輪的意見、駁回清單、你對成品的看法都留在 ledger。重複出現的意見由你對照 ledger 擋掉。
-2. **開審查 session**：先把要審的版本 commit 好，再 `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱>/work review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。它從你最新的 commit 開一個審查專用的 worktree 和子 session，審查員在那裡渲染、跑腳本，碰不到你的檔。然後照 COORDINATOR.md 掛等待。
+2. **開審查 session**：先把要審的版本 commit 好，再 `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱>/work review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。審查員在自己的 worktree 裡渲染、跑腳本，碰不到你的檔。然後照 COORDINATOR.md 掛等待。
 3. **被叫醒**：照 COORDINATOR.md「子 session 的一輪」，另外：
    - **提問**：需求類的照依據回答；要它判斷的回「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都留在你這裡。
    - **Heads up**：照 COORDINATOR.md 記下原文、收起，但不轉給審查員：把它當成這一輪多出來的一條意見，跟報告一起進第 4 步查證。只有內容是審查員自己在改檔、做 git 或對外動作時，才馬上叫它停。

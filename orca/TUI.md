@@ -5,6 +5,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 ## 開 session
 
 - `launch.sh` / `new-ticket.sh` 印 `expanded: NO`：先讀畫面。停在空輸入框是字被吞了，在同一個終端補送一次；其他情況關掉那個終端重開。同一張票連兩次沒展開算卡住。
+- `open-worktree.sh` 印 `started: NO`：子 session 沒起來。讀畫面查原因，照上一條處理。
 
 ## 跨平台
 
