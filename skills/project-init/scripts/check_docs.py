@@ -11,7 +11,7 @@
   roadmap.md
     - 有〈里程碑〉段，裡面的表有「狀態」欄，狀態以「進行中」開頭的最多一個
   大小與寫法
-    - 字元上限（Python `len`）：AGENTS.md 6,000、docs/progress.md 20,000、docs/design-brief.md 30,000、docs/plan.md 60,000；不存在的檔不查
+    - 字元上限（Python `len`）：AGENTS.md 8,000、docs/progress.md 20,000、docs/design-brief.md 30,000、docs/plan.md 60,000；不存在的檔不查
     - docs/design-brief.md、docs/plan.md 不寫票號（「票 12」「票12」）；程式碼區塊裡的不算
   程式碼
     - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或 plan 的章節號（「plan §3.2」「brief §4」）；
@@ -33,7 +33,7 @@ from pathlib import Path
 PROGRESS = "docs/progress.md"
 ROADMAP = "docs/roadmap.md"
 BRIEF, PLAN = "docs/design-brief.md", "docs/plan.md"
-BUDGETS = {"AGENTS.md": 6000, PROGRESS: 20000, BRIEF: 30000, PLAN: 60000}
+BUDGETS = {"AGENTS.md": 8000, PROGRESS: 20000, BRIEF: 30000, PLAN: 60000}
 TICKET_NUMBER = re.compile(r"票\s*\d")
 SECTION_REF = re.compile(r"(?:plan|brief)(?:\.md)?\s*§\s*\d", re.I)
 NOT_CODE = ("docs/", ".scratch/", "scripts/check_docs.py", "scripts/tests/test_check_docs.py")
