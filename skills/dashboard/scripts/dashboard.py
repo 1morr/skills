@@ -7,8 +7,8 @@
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
-  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容；〈搬移前的紀錄〉（同步時從舊格式搬來的）也讀
-  docs/archive/*.md    〈偏差與決定〉：舊骨架把決定跟著里程碑封存在這裡，沒搬的照樣讀
+  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
+  docs/archive/*.md    〈決定〉：已驗收里程碑的決定；舊骨架的段名〈偏差與決定〉也讀
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
@@ -135,7 +135,8 @@ def decisions(repo: Path) -> list:
     secs = sections(read(repo / "docs/decisions.md"))
     lines = secs.get("紀錄", []) + secs.get("搬移前的紀錄", [])
     for archived in sorted((repo / "docs/archive").glob("*.md")) if (repo / "docs/archive").is_dir() else []:
-        lines += sections(read(archived)).get("偏差與決定", [])
+        old = sections(read(archived))
+        lines += old.get("決定", []) + old.get("偏差與決定", [])
     for line in lines:
         m = DECISION.match(line)
         if not m:

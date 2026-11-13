@@ -148,8 +148,10 @@ class CollectTest(Repo):
 
     def test_decisions_left_in_milestone_archives_are_read_too(self):
         self.write("docs/archive/M0.md", "# M0\n\n## Session 紀錄\n\n- 2025-12-01 這一行不是決定。\n\n## 偏差與決定\n\n- 2025-12-31 M0 票 02（使用者決定，試用後）：改用另一個套件。\n")
-        last = self.collect()["decisions"][-1]
-        self.assertEqual((last["date"], last["milestone"], last["decider"], last["text"]), ("2025-12-31", "M0", "使用者定", "改用另一個套件。"))
+        self.write("docs/archive/M-1.md", "# 更早\n\n## 決定\n\n- 2025-12-30 框架（Agent 定）：先不定技術棧。\n")
+        older, old = self.collect()["decisions"][-1], self.collect()["decisions"][-2]
+        self.assertEqual((old["date"], old["milestone"], old["decider"], old["text"]), ("2025-12-31", "M0", "使用者定", "改用另一個套件。"))
+        self.assertEqual((older["date"], older["milestone"], older["decider"]), ("2025-12-30", "框架", "Agent 定"))
 
     def test_a_decision_without_a_decider_is_shown_as_unknown(self):
         self.sub("docs/decisions.md", "（使用者定）", "")
