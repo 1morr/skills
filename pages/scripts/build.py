@@ -1,35 +1,33 @@
-"""把解說頁的原始 HTML 組成單一檔案：不准載入外部資源；有 Mermaid 圖就內嵌 Mermaid、Panzoom 和
-同資料夾的 diagram.js、diagram.css（瀏覽器打開時畫圖、可縮放拖動），再用本機的 Chrome 或 Edge
-無頭打開組好的頁，確認每張圖都畫出來、縮放按鈕都掛上了。
+"""把解說頁的原始 HTML 組成可以交付的頁：原始頁自己不准載入外部資源；有 Mermaid 圖就在頁尾放上
+從 jsDelivr 載入 Mermaid、Panzoom 的 <script>（固定版本、附 integrity），再內嵌同資料夾的 diagram.js、
+diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本機的 Chrome 或 Edge 無頭打開，確認每張圖
+都畫出來、縮放按鈕都掛上了。
 
     python build.py <page-src.html> [-o <page.html>]
 
 成功時印出輸出檔路徑和「N 張圖都畫出來了」，退出碼 0。有問題時印到 stderr、退出碼 1：
-- 原始頁會從外部載入東西：不產出。頁面要離線也能看。
+- 原始頁會從外部載入東西：不產出。外部資源只有這支放的兩個函式庫。
 - 找不到瀏覽器或圖畫不出來：照樣產出。
 
-組好的頁約 3.6 MB（多半是 Mermaid）。Orca 從另一台機器預覽工作區的檔案時只讀 512 KiB 以內，
-打不開；交付時開本機 http server、給網址就沒有這個限制（HANDOFF.md）。
+打開組好的頁和這裡的檢查都要連得到 cdn.jsdelivr.net。寫法照 jsDelivr 的建議：網址釘完整版本號，
+<script> 帶 integrity（檔案的 sha384）和 crossorigin="anonymous"，CDN 給的檔不一樣瀏覽器就不執行。
+換版本時兩個都要改：integrity 用
+    curl -sL <網址> | openssl dgst -sha384 -binary | openssl base64 -A
+算，並對一次 npm registry 上同版本 tarball 裡的那個檔。
 
 為什麼用瀏覽器的命令列檢查：playwright 不讓開 file://，得另開 http server，用完常忘了關，
 截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。
 
-Mermaid 和 Panzoom 第一次用時從 npm registry 下載固定版本、驗 sha512，存在使用者快取目錄。
 只用標準函式庫，CI 才能直接跑測試。
 """
 
 import argparse
-import base64
-import hashlib
-import io
 import os
 import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
-import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
@@ -37,20 +35,22 @@ from typing import NamedTuple
 class Pkg(NamedTuple):
     name: str
     version: str
-    sha512: str  # npm registry 的 dist.integrity
-    member: str  # tarball 裡要的檔
+    path: str       # 套件裡要的檔
+    integrity: str  # 那個檔的 sha384，寫進 <script integrity>
 
     @property
-    def tarball(self) -> str:
-        return f"https://registry.npmjs.org/{self.name}/-/{self.name.split('/')[-1]}-{self.version}.tgz"
+    def url(self) -> str:
+        return f"https://cdn.jsdelivr.net/npm/{self.name}@{self.version}/{self.path}"
+
+    @property
+    def tag(self) -> str:
+        return f'<script src="{self.url}" integrity="{self.integrity}" crossorigin="anonymous"></script>'
 
 
-MERMAID = Pkg("mermaid", "11.17.2",
-              "V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==",
-              "package/dist/mermaid.min.js")
-PANZOOM = Pkg("@panzoom/panzoom", "4.6.2",
-              "Zn3B5/hwa6eYIPRSKX0xf2clv8nviTX8AnAU5kU/EugiTDhG41ya2wlBqYrZJYCWQROr/5XkWObZhIkepi89qw==",
-              "package/dist/panzoom.min.js")
+MERMAID = Pkg("mermaid", "11.17.2", "dist/mermaid.min.js",
+              "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2")
+PANZOOM = Pkg("@panzoom/panzoom", "4.6.2", "dist/panzoom.min.js",
+              "sha384-irdz3GZoyr9anVd5nSLy63Z39tLtMTNQFFKxhx/KM08C8NkKpZre6M/m4QCUeeB3")
 HERE = Path(__file__).resolve().parent
 
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
@@ -74,7 +74,7 @@ class Scan(HTMLParser):
         a = {k: v or "" for k, v in attrs}
         for k, v in a.items():
             if (k in LOADING_ATTRS or (tag == "link" and k == "href")) and REMOTE.match(v):
-                self.problems.append(f"<{tag} {k}=\"{v}\"> 會從外部載入：頁面要離線也能看，改成內嵌或拿掉")
+                self.problems.append(f"<{tag} {k}=\"{v}\"> 會從外部載入：外部資源只有 build.py 放的 Mermaid 和 Panzoom，其他的改成內嵌或拿掉")
         if tag == "pre" and "mermaid" in a.get("class", "").split():
             self.diagrams += 1
         if tag in ("script", "style"):
@@ -89,7 +89,7 @@ class Scan(HTMLParser):
             return
         m = REMOTE_IN_CODE[self.code_tag].search(data)
         if m:
-            self.problems.append(f"<{self.code_tag}> 裡從外部載入（{m.group(0)}…）：Orca 遠端預覽會擋，改成內嵌或拿掉")
+            self.problems.append(f"<{self.code_tag}> 裡從外部載入（{m.group(0)}…）：外部資源只有 build.py 放的 Mermaid 和 Panzoom，其他的改成內嵌或拿掉")
         if self.code_tag == "script" and "mermaid.initialize" in data:
             self.problems.append("頁面自己載入了 Mermaid：拿掉，build.py 會放")
 
@@ -120,47 +120,18 @@ def before_body_end(html: str, tail: str) -> str:
     return html[:ends[-1]] + tail + html[ends[-1]:]
 
 
-def build(html: str, load) -> str:
-    """有 <pre class="mermaid"> 才呼叫 load(pkg) 取 Mermaid、Panzoom，連同 diagram.css、diagram.js 放在 </body> 前。"""
+def build(html: str) -> str:
+    """有 <pre class="mermaid"> 才在 </body> 前放 diagram.css、Mermaid 和 Panzoom 的 <script src>、diagram.js。"""
     if not scan(html).diagrams:
         return html
     css = (HERE / "diagram.css").read_text(encoding="utf-8")
     js = (HERE / "diagram.js").read_text(encoding="utf-8")
     return before_body_end(html, "".join([
         "<style>\n", css, "</style>\n",
-        inline_script(load(MERMAID)), "\n",
-        inline_script(load(PANZOOM)), "\n",
+        MERMAID.tag, "\n",
+        PANZOOM.tag, "\n",
         inline_script(js), "\n",
     ]))
-
-
-def verify(tarball: bytes, sha512: str) -> bool:
-    return base64.b64encode(hashlib.sha512(tarball).digest()).decode() == sha512
-
-
-def cache_dir() -> Path:
-    if os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-    else:
-        base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    return base / "1morr"
-
-
-def load_npm(pkg: Pkg) -> str:
-    cached = cache_dir() / f"{pkg.name.lstrip('@').replace('/', '-')}-{pkg.version}.min.js"
-    if cached.exists():
-        return cached.read_text(encoding="utf-8")
-    with urllib.request.urlopen(pkg.tarball, timeout=60) as r:
-        tarball = r.read()
-    if not verify(tarball, pkg.sha512):
-        raise RuntimeError(f"{pkg.tarball} 的 sha512 對不上，不使用")
-    with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:gz") as t:
-        js = t.extractfile(pkg.member).read().decode("utf-8")
-    cached.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cached.with_suffix(".tmp")
-    tmp.write_text(js, encoding="utf-8")
-    tmp.replace(cached)
-    return js
 
 
 # 依序找；第一個找得到的就用
@@ -240,7 +211,7 @@ def render_problems(dom: str, expected: int) -> list:
     problems = []
     for i, d in enumerate(r.diagrams, 1):
         if not d["svg"]:
-            problems.append(f"第 {i} 張圖沒畫出來，還是原始碼：Mermaid 沒執行或被擋")
+            problems.append(f"第 {i} 張圖沒畫出來，還是原始碼：Mermaid 沒執行（連不到 cdn.jsdelivr.net，或 integrity 對不上）")
         elif "Syntax error" in "".join(d["text"]):
             problems.append(f"第 {i} 張圖有語法錯誤，Mermaid 畫出的是錯誤圖示")
         elif not d["zoom"]:
@@ -254,7 +225,7 @@ def report(path, problems, what) -> None:
         print(f"  - {p}", file=sys.stderr)
 
 
-def main(argv=None, load=load_npm, render=render_dom) -> int:
+def main(argv=None, render=render_dom) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -270,7 +241,7 @@ def main(argv=None, load=load_npm, render=render_dom) -> int:
     if out.resolve() == args.src.resolve():
         print(f"輸出會蓋掉原始檔 {args.src}：原始檔名要以 -src.html 結尾，或用 -o 指定", file=sys.stderr)
         return 1
-    out.write_text(build(src, load), encoding="utf-8")
+    out.write_text(build(src), encoding="utf-8")
     print(out)
     diagrams = scan(src).diagrams
     if not diagrams:

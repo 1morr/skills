@@ -5,8 +5,6 @@
 在 pages/ 執行：python -m unittest discover -s tests
 """
 
-import base64
-import hashlib
 import importlib.util
 import tempfile
 import unittest
@@ -19,13 +17,6 @@ build = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build)
 
 DIAGRAM = '<pre class="mermaid">\nflowchart TB\n  A["開始"] --> B["結束"]\n</pre>'
-FAKE_LIB = 'window.mermaid={initialize(){}};var s="</script>";'
-FAKE_PANZOOM = 'window.Panzoom=function(){};'
-
-
-def fake_load(pkg):
-    return FAKE_LIB if pkg is build.MERMAID else FAKE_PANZOOM
-
 
 def page(body="", head=""):
     return f'<!doctype html><html><head><meta charset="utf-8">{head}</head><body>{body}</body></html>'
@@ -33,10 +24,6 @@ def page(body="", head=""):
 
 def ok(src):
     return build.lint(src) == []
-
-
-def never(pkg):
-    raise AssertionError("沒有圖就不該載入 Mermaid 或 Panzoom")
 
 
 class Lint(unittest.TestCase):
@@ -79,62 +66,54 @@ class Lint(unittest.TestCase):
 
 
 class Build(unittest.TestCase):
-    def test_inlines_libs_then_diagram_js_before_body_end(self):
-        out = build.build(page(DIAGRAM), fake_load)
+    def test_css_then_libs_then_diagram_js_before_body_end(self):
+        out = build.build(page(DIAGRAM))
         tail = out[out.index("</pre>"):]
-        order = [tail.index(x) for x in ("pre.dz-open", "window.mermaid", "window.Panzoom", "mermaid.run(")]
+        order = [tail.index(x) for x in ("pre.dz-open", build.MERMAID.url, build.PANZOOM.url, "mermaid.run(")]
         self.assertEqual(order, sorted(order))
         self.assertTrue(out.rstrip().endswith("</body></html>"))
-        self.assertEqual(out.count("<script>"), 3)
 
     def test_class_spelling_does_not_matter(self):
-        out = build.build(page('<PRE id="d" class="diagram  mermaid">flowchart TB\nA</PRE>'), fake_load)
-        self.assertIn("window.mermaid", out)
+        out = build.build(page('<PRE id="d" class="diagram  mermaid">flowchart TB\nA</PRE>'))
+        self.assertIn(build.MERMAID.url, out)
 
     def test_no_diagram_no_libs(self):
         src = page("<p>沒有圖</p>")
-        self.assertEqual(build.build(src, never), src)
-        self.assertEqual(build.build(page('<pre class="code">flowchart</pre>'), never),
+        self.assertEqual(build.build(src), src)
+        self.assertEqual(build.build(page('<pre class="code">flowchart</pre>')),
                          page('<pre class="code">flowchart</pre>'))
 
-    def test_script_end_inside_lib_does_not_close_element(self):
-        out = build.build(page(DIAGRAM), fake_load)
+    def test_libs_are_pinned_with_integrity(self):
+        out = build.build(page(DIAGRAM))
 
         class Scripts(HTMLParser):
             def __init__(self):
                 super().__init__()
-                self.bodies, self.inside = [], False
+                self.remote = []
 
             def handle_starttag(self, tag, attrs):
-                self.inside = tag == "script"
-
-            def handle_data(self, data):
-                if self.inside:
-                    self.bodies.append(data)
-
-            def handle_endtag(self, tag):
-                self.inside = False
+                a = dict(attrs)
+                if tag == "script" and a.get("src"):
+                    self.remote.append(a)
 
         p = Scripts()
         p.feed(out)
-        self.assertIn('var s="<\\/script>";', p.bodies[0])
-        self.assertIn("window.Panzoom", p.bodies[1])
-        self.assertIn("mermaid.run(", p.bodies[2])
+        self.assertEqual([a["src"] for a in p.remote], [
+            "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js",
+            "https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.6.2/dist/panzoom.min.js"])
+        for a in p.remote:
+            # 沒有 crossorigin 時瀏覽器不驗 integrity；版本沒釘死時 CDN 換了檔 integrity 就會對不上
+            self.assertRegex(a["integrity"], r"^sha384-[A-Za-z0-9+/]{64}$")
+            self.assertEqual(a["crossorigin"], "anonymous")
+            self.assertRegex(a["src"], r"@\d+\.\d+\.\d+/")
 
-    def test_lib_containing_script_start_is_refused(self):
+    def test_script_end_inside_inlined_js_does_not_close_element(self):
+        self.assertEqual(build.inline_script('var s="</script>";'), '<script>var s="<\\/script>";</script>')
+        self.assertEqual(build.inline_script("var a = 1 < 2;"), "<script>var a = 1 < 2;</script>")
+
+    def test_inlined_js_containing_script_start_is_refused(self):
         with self.assertRaises(ValueError):
-            build.build(page(DIAGRAM), lambda pkg: 'var s="<!--<script>";')
-
-    def test_tarball_integrity(self):
-        good = base64.b64encode(hashlib.sha512(b"x").digest()).decode()
-        self.assertTrue(build.verify(b"x", good))
-        self.assertFalse(build.verify(b"not x", good))
-
-    def test_scoped_package_tarball_url(self):
-        self.assertEqual(build.PANZOOM.tarball,
-                         "https://registry.npmjs.org/@panzoom/panzoom/-/panzoom-4.6.2.tgz")
-        self.assertEqual(build.MERMAID.tarball,
-                         "https://registry.npmjs.org/mermaid/-/mermaid-11.17.2.tgz")
+            build.inline_script('var s="<!--<script>";')
 
 
 BAR = '<span class="dz-bar"><button class="panzoom-exclude">+</button></span>'
@@ -190,13 +169,13 @@ class Cli(unittest.TestCase):
         d = Path(tempfile.mkdtemp())
         src = d / name
         src.write_text(html, encoding="utf-8")
-        code = build.main([str(src), *extra], load=fake_load, render=render)
+        code = build.main([str(src), *extra], render=render)
         return code, d
 
     def test_writes_page_without_src_suffix(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM))
         self.assertEqual(code, 0)
-        self.assertIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+        self.assertIn(build.MERMAID.url, (d / "m0.html").read_text(encoding="utf-8"))
 
     def test_render_problem_fails_but_keeps_page(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: page(BROKEN))
@@ -223,17 +202,18 @@ class Cli(unittest.TestCase):
     def test_refuses_to_overwrite_source(self):
         code, d = self.run_main("m0.html", page(DIAGRAM))
         self.assertEqual(code, 1)
-        self.assertNotIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+        self.assertNotIn(build.MERMAID.url, (d / "m0.html").read_text(encoding="utf-8"))
 
 
 @unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")
 class RealBrowser(unittest.TestCase):
-    """用真的 Mermaid、Panzoom、diagram.js 和瀏覽器跑：錯誤圖示的樣子是 Mermaid 決定的，假 DOM 驗不到。"""
+    """用真的 Mermaid、Panzoom（從 CDN 載入，integrity 也在這裡驗到）、diagram.js 和瀏覽器跑：
+    錯誤圖示的樣子是 Mermaid 決定的，假 DOM 驗不到。要連得到 cdn.jsdelivr.net。"""
 
     def check(self, body, diagrams):
         d = Path(tempfile.mkdtemp())
         out = d / "p.html"
-        out.write_text(build.build(page(body), build.load_npm), encoding="utf-8")
+        out.write_text(build.build(page(body)), encoding="utf-8")
         return build.render_problems(build.render_dom(out), diagrams)
 
     def test_good_diagram_passes(self):
