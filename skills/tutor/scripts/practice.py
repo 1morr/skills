@@ -8,6 +8,11 @@
     data-guide    導讀頁檔名，相對於產出的練習頁；題目裡的 §N 會連到導讀頁那一段
     data-answers  答案檔，相對於原始檔；批改用，不放進頁面
 
+模擬卷（同一套組頁，照考試的樣子做）：<body data-mode="mock" data-minutes="60">
+    data-minutes  作答時間（分鐘）；頁面頂端倒數，按「交卷」才對填答格、才看得到範本答案
+    data-guide    可以列好幾份導讀頁，用 ; 分開（跨 topic 的累積卷）
+    只有完整題目：不放基本功、不寫對照的 §、不用 data-differs。只列一份導讀頁時，它的每個題型至少一題。
+
 填答格（頁面上馬上對答案，寫法照 Moodle 的 short answer／numerical 題型：多個可接受的答案、不分大小寫、數字可給容許誤差）：
     <p class="fill" data-answer="2.262|2.26" data-why="df = 9、雙尾 α = 0.05，查 t 表">臨界值 =</p>
     data-answer   可接受的答案，用 | 分開；第一個是公布的答案。兩邊都是數字時比數值
@@ -45,6 +50,7 @@ BODY_ATTRS = ("data-title", "data-key", "data-guide", "data-answers")
 MIN_DRILLS = 3
 # 題型表的每個題型至少幾題變式（老師原題不算）：只做過一題，分不出是會了還是記得那一題
 MIN_PER_TYPE = 2
+MODES = ("practice", "mock")
 ORIGINAL = "老師原題"
 # 畫布預設高度（畫布座標）；寫不下時讀者按「加長」
 PAD_H = {"drill": 280, "full": 900}
@@ -210,6 +216,13 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     if p.body is None or missing:
         problems.append(f"<body> 缺 {'、'.join(missing or BODY_ATTRS)}：見 practice.py 開頭的說明")
 
+    mode = (body.get("data-mode") or "practice").strip()
+    mock = mode == "mock"
+    if mode not in MODES:
+        problems.append(f'<body data-mode="{mode}"> 看不懂：不寫是練習頁，模擬卷寫 mock')
+    if mock and not re.fullmatch(r"[1-9]\d*", (body.get("data-minutes") or "").strip()):
+        problems.append('模擬卷的 <body> 要有 data-minutes：作答時間幾分鐘（正整數），照老師的考試時間按題數比例抓')
+
     ids = [q["id"] for q in p.qs]
     for q in p.qs:
         name = q["title"] or q["id"] or "(沒有標題)"
@@ -225,12 +238,18 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
         if q["drill"] and not q["fills"]:
             problems.append(f'基本功「{name}」沒有填答格：加一個 class="fill" data-answer="…" data-why="…" 的元素，'
                             "讀者填了馬上知道對錯，不用貼回對話")
-        if not q["drill"]:
+        if mock:
+            if q["drill"]:
+                problems.append(f"模擬卷不放基本功（「{name}」）：只放完整題目，照考試的樣子")
+            if q["refs"]:
+                problems.append(f"模擬卷的題目「{name}」不寫對照的 §：考試沒有提示，對照留到交卷後的範本答案")
+        if not q["drill"] and not mock:
             if not q["refs"]:
                 problems.append(f"題目「{name}」的 .ref 沒寫對照導讀頁的 §N：寫「對照 Eg 1（導讀頁 §16）」，讀者卡住時點過去看")
             if not q["differs"]:
                 problems.append(f"題目「{name}」沒有 data-differs：寫這題和對照的例題哪裡不一樣（結論相反、陷阱不同），"
                                 "照抄例題步驟的人會在這裡錯")
+        if not q["drill"]:
             if q["model"] != 1:
                 problems.append(f'題目「{name}」要有一個 <details class="model"> 範本答案（現在 {q["model"]} 個）：'
                                 "老師格式的完整答案加給分點，讀者寫完自己對，不用等批改")
@@ -239,7 +258,10 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
 
     drills = [q for q in p.qs if q["drill"]]
     full = [q for q in p.qs if not q["drill"]]
-    if len(drills) < MIN_DRILLS:
+    if mock:
+        if not full:
+            problems.append('模擬卷沒有題目（section class="q"）')
+    elif len(drills) < MIN_DRILLS:
         problems.append(f'基本功小題（section class="q drill"）有 {len(drills)} 題，至少 {MIN_DRILLS} 題：'
                         "每題只考一個判斷，例如用 t 還是 Z、左尾右尾、查哪一格")
     if not full:
@@ -247,14 +269,21 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     elif drills and p.qs.index(full[0]) < p.qs.index(drills[-1]):
         problems.append("基本功小題要全部排在完整題目前面：先確定每個判斷會做，再做整題")
 
-    guide = body.get("data-guide")
+    guides = [g.strip() for g in (body.get("data-guide") or "").split(";") if g.strip()]
+    if len(guides) > 1 and not mock:
+        problems.append("練習頁的 data-guide 只能寫一份導讀頁；跨 topic 的題目放模擬卷（data-mode=\"mock\"）")
     refs = {r for q in p.qs for r in q["refs"]}
-    if guide:
-        gpath = out_dir / guide
-        if not gpath.is_file():
-            problems.append(f"找不到導讀頁 {gpath}：data-guide 相對於產出的練習頁；先用 build.py 組好導讀頁")
-        else:
-            problems += type_coverage(full, guide_types(gpath), guide)
+    missing = [g for g in guides if not (out_dir / g).is_file()]
+    for g in missing:
+        problems.append(f"找不到導讀頁 {out_dir / g}：data-guide 相對於產出的練習頁；先用 build.py 組好導讀頁")
+    if guides and not missing:
+        types = {}
+        for g in guides:
+            types.update(guide_types(out_dir / g))
+        need = 0 if len(guides) > 1 else 1 if mock else MIN_PER_TYPE
+        problems += type_coverage(full, types, "、".join(guides), need)
+        if not mock:
+            guide, gpath = guides[0], out_dir / guides[0]
             have = guide_anchors(gpath)
             bad = sorted((r for r in refs if anchor(r) not in have), key=lambda r: [int(x) for x in r.split(".")])
             if bad:
@@ -273,8 +302,8 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     return problems
 
 
-def type_coverage(full: list, types: dict, guide: str) -> list:
-    """每題寫明練的是題型表的哪幾列；每個題型的變式題數夠；讀圖題型的題目有圖或軟體輸出。"""
+def type_coverage(full: list, types: dict, guide: str, need: int = MIN_PER_TYPE) -> list:
+    """每題寫明練的是題型表的哪幾列；每個題型至少 need 題（老師原題不算）；讀圖題型的題目有圖或軟體輸出。"""
     if not types:
         return [f"導讀頁 {guide} 的題型表沒有 data-type：用現在的 build.py 重組導讀頁"]
     problems = []
@@ -290,8 +319,8 @@ def type_coverage(full: list, types: dict, guide: str) -> list:
                                 '或排成老師樣式的 <pre class="mtb"> 軟體輸出，考試就是這樣給')
     for t in types:
         n = sum(t in q["types"] for q in full if not q["differs"].startswith(ORIGINAL))
-        if n < MIN_PER_TYPE:
-            problems.append(f"題型 {t!r} 只有 {n} 題變式，至少 {MIN_PER_TYPE} 題（{ORIGINAL}不算）：題型表上的每一種都要練到")
+        if n < need:
+            problems.append(f"題型 {t!r} 只有 {n} 題變式，至少 {need} 題（{ORIGINAL}不算）：題型表上的每一種都要練到")
     return problems
 
 
@@ -434,6 +463,21 @@ HOWTO = """<div class="howto">
 """
 
 
+HOWTO_MOCK = """<div class="howto">
+<b>這是模擬卷</b>
+<ul>
+<li>照考試做：不看導讀頁、不看筆記，只用考試發的表（右下角「查表」）。準備好再按「開始計時」。</li>
+<li>每題寫在畫布上，最後的數字填進格子。作答時不會告訴你對錯。</li>
+<li>寫完或時間到按「交卷」：填答格一次對完，每題的範本答案和給分點才會出現。照給分點一點一點勾，算出你的分數。</li>
+<li>對完按「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
+</ul>
+</div>
+"""
+
+MOCK_BAR = ('<div class="clock" data-minutes="{minutes}"><span class="left" aria-live="off"></span>'
+            '<button type="button" data-act="start">開始計時</button>'
+            '<button type="button" data-act="submit" hidden>交卷</button><span class="status" aria-live="polite"></span></div>\n')
+
 REPORT = ('<p class="report"><button id="report" type="button">複製填答結果</button>'
           '<span class="status" aria-live="polite"></span></p>\n')
 
@@ -441,14 +485,19 @@ REPORT = ('<p class="report"><button id="report" type="button">複製填答結�
 def build(src: str, base: Path) -> str:
     a, inner = body_parts(src)
     inner, panel_html = panel(inner)
-    inner = link_refs(finish_models(finish_sections(add_pads(inner))), a["data-guide"])
+    mock = a.get("data-mode") == "mock"
+    inner = finish_models(finish_sections(add_pads(inner)))
+    if not mock:
+        inner = link_refs(inner, a["data-guide"])
     has_lead = re.search(r"""class\s*=\s*["'][^"']*\blead\b""", inner)
-    lead = "" if has_lead else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
+    lead = "" if has_lead or mock else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
     title = html.escape(a["data-title"])
+    mode = ' data-mode="mock"' if mock else ""
+    howto = HOWTO_MOCK + MOCK_BAR.format(minutes=html.escape(a["data-minutes"].strip())) if mock else HOWTO
     page = (f'<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
             f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
-            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}">\n<main>\n<h1>{title}</h1>\n{lead}{HOWTO}'
+            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}"{mode}>\n<main>\n<h1>{title}</h1>\n{lead}{howto}'
             f"{nav(inner)}{REPORT}{inner}\n</main>\n{panel_html}"
             f"<script>\n{JS.read_text(encoding='utf-8')}</script>\n</body>\n</html>\n")
     return inline_images(page, base)

@@ -3,6 +3,8 @@
   "use strict";
   const KEY = document.body.dataset.key;
   const TITLE = document.body.dataset.title || document.title;
+  const MOCK = document.body.dataset.mode === "mock";  // 模擬卷：交卷才對答案
+  const mockChecks = [];  // 交卷時把每個填答格對一次
   const COLORS = { black: "#1d2433", red: "#c62828", blue: "#1f5fd1" };
   const FAMILY = getComputedStyle(document.body).fontFamily;
   const FONT = 18;  // 打字的字級和行高，單位是畫布座標
@@ -68,6 +70,25 @@
       redo.type = "button";
       redo.textContent = "再做一次";
       el.append(" ", input, " ", btn, " ", redo, out);
+      if (MOCK) {
+        btn.hidden = redo.hidden = true;
+        input.value = f.draft || "";
+        input.addEventListener("input", function () {
+          f.draft = input.value;
+          localStorage.setItem(store, JSON.stringify(state));
+        });
+        mockChecks.push(function () {
+          const v = (f.draft || "").trim();
+          f.tries = v ? [v] : [];
+          f.ok = !!v && matches(v, answers, tol);
+          localStorage.setItem(store, JSON.stringify(state));
+          input.disabled = true;
+          el.classList.toggle("ok", f.ok);
+          el.classList.toggle("no", !f.ok);
+          out.textContent = f.ok ? "對。" : (v ? "不對" : "沒填") + "，答案是 " + answers[0].trim() + "。";
+        });
+        return;
+      }
       function show() {
         const why = el.dataset.why ? " " + el.dataset.why : "";
         const done = f.ok || (drill && f.tries.length >= 2);
@@ -446,11 +467,66 @@
   sections.forEach(makeModel);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
 
+  // 模擬卷：按「開始計時」才看得到題目，頂端倒數；按「交卷」才對填答格、才出現範本答案
+  let mockLine = null;
+  const clock = document.querySelector(".clock");
+  if (MOCK && clock) {
+    const store = KEY + ":mock";
+    const limit = +clock.dataset.minutes * 60;
+    const st = JSON.parse(localStorage.getItem(store) || "null") || { start: 0, end: 0 };
+    const left = clock.querySelector(".left");
+    const start = clock.querySelector('[data-act="start"]');
+    const submit = clock.querySelector('[data-act="submit"]');
+    const status = clock.querySelector(".status");
+    const mmss = function (sec) { return Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0"); };
+    let timer = 0;
+    function tick() {
+      const used = ((st.end || Date.now()) - st.start) / 1000;
+      const over = used > limit;
+      clock.classList.toggle("over", over);
+      left.textContent = st.end ? "用時 " + mmss(used) + "（限時 " + mmss(limit) + "）"
+        : over ? "時間到，已超過 " + mmss(used - limit) : "剩 " + mmss(limit - used);
+    }
+    function show() {
+      document.body.classList.toggle("started", !!st.start);
+      document.body.classList.toggle("submitted", !!st.end);
+      start.hidden = !!st.start;
+      submit.hidden = !st.start || !!st.end;
+      clearInterval(timer);
+      if (st.start) tick(); else left.textContent = "限時 " + mmss(limit);
+      if (st.start && !st.end) timer = setInterval(tick, 1000);
+      if (st.end) {
+        mockChecks.forEach(function (check) { check(); });
+        status.textContent = "已交卷：往下看每題的範本答案，照給分點勾。";
+      }
+      pads.forEach(function (p) { p.resize(); });
+    }
+    start.addEventListener("click", function () {
+      st.start = Date.now();
+      localStorage.setItem(store, JSON.stringify(st));
+      show();
+    });
+    submit.addEventListener("click", function () {
+      if (!submit.classList.contains("armed")) {  // 交卷不能反悔，要連按兩下
+        submit.classList.add("armed"); submit.textContent = "再按一次交卷";
+        setTimeout(function () { submit.classList.remove("armed"); submit.textContent = "交卷"; }, 2500);
+        return;
+      }
+      st.end = Date.now();
+      localStorage.setItem(store, JSON.stringify(st));
+      show();
+    });
+    mockLine = function () {
+      return st.end ? "模擬卷用時 " + mmss((st.end - st.start) / 1000) + "，限時 " + mmss(limit) : "模擬卷還沒交卷";
+    };
+    show();
+  }
+
   // 複製填答結果：每題一行字，貼到對話讓 Claude 記進學習紀錄
   const report = document.getElementById("report");
   if (report) report.addEventListener("click", async function () {
     const status = report.parentNode.querySelector(".status");
-    const lines = [TITLE + " 填答結果"];
+    const lines = [TITLE + " 填答結果"].concat(mockLine ? [mockLine()] : []);
     sections.forEach(function (sec) {
       const got = fillLines[sec.dataset.id]().concat(modelLines[sec.dataset.id] ? modelLines[sec.dataset.id]() : []);
       const name = sec.dataset.id + "（" + sec.querySelector("h2").textContent.trim() + "）";

@@ -218,6 +218,60 @@ class TypeRule(Case):
         self.assertGreen(src())
 
 
+MOCK_BODY = BODY + ' data-mode="mock" data-minutes="45"'
+MQ = ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "").replace(' data-differs="有季節性沒有趨勢，Eg 1 有趨勢"', "")
+
+
+class MockRule(Case):
+    """模擬卷：只有完整題目、沒有提示、有作答時間；一份導讀頁時每個題型至少一題。"""
+
+    def test_valid_mock_passes(self):
+        self.assertGreen(src(MQ, MOCK_BODY))
+
+    def test_formatting_variants_pass(self):
+        body = BODY + " DATA-MINUTES=' 90 ' data-mode='mock'"
+        self.assertGreen(src(MQ.replace('class="q"', "class='q hard'"), body))
+
+    def test_unknown_mode_fails(self):
+        self.assertRed(src(body=BODY + ' data-mode="exam"'), "看不懂")
+
+    def test_missing_or_bad_minutes_fail(self):
+        for bad in ("", ' data-minutes="0"', ' data-minutes="一小時"', ' data-minutes="1.5"'):
+            with self.subTest(bad=bad):
+                self.assertRed(src(MQ, BODY + ' data-mode="mock"' + bad), "data-minutes")
+
+    def test_drill_in_mock_fails(self):
+        self.assertRed(src(drill("which-table") + MQ, MOCK_BODY), "不放基本功")
+
+    def test_ref_in_mock_fails(self):
+        self.assertRed(src(ONE, MOCK_BODY), "不寫對照的 §")
+
+    def test_mock_still_needs_model_and_type(self):
+        self.assertRed(src(MQ.replace(MODEL, ""), MOCK_BODY), "要有一個 <details class=\"model\">")
+        self.assertRed(src(MQ.replace(' data-type="acf-read"', ""), MOCK_BODY), "沒有 data-type")
+
+    def test_single_guide_needs_every_type_once(self):
+        (self.dir / "guide.html").write_text(TypeRule.TYPES2, encoding="utf-8")
+        self.assertRed(src(MQ, MOCK_BODY), "'mad' 只有 0 題")
+
+    def test_cumulative_mock_draws_types_from_all_guides(self):
+        (self.dir / "g5.html").write_text(GUIDE.replace("acf-read", "decompose"), encoding="utf-8")
+        body = MOCK_BODY.replace('data-guide="guide.html"', 'data-guide="guide.html; g5.html"')
+        self.assertGreen(src(MQ.replace('data-type="acf-read"', 'data-type="decompose"'), body))
+        self.assertRed(src(MQ.replace('data-type="acf-read"', 'data-type="arima"'), body), "不在導讀頁的題型表裡")
+
+    def test_several_guides_only_in_mock(self):
+        (self.dir / "g5.html").write_text(GUIDE, encoding="utf-8")
+        self.assertRed(src(body=BODY.replace('data-guide="guide.html"', 'data-guide="guide.html;g5.html"')), "只能寫一份導讀頁")
+
+    def test_mock_page_has_clock_and_no_guide_links(self):
+        out = practice.build(src(MQ, MOCK_BODY), self.dir)
+        self.assertIn('data-mode="mock"', out)
+        self.assertIn('class="clock" data-minutes="45"', out)
+        self.assertNotIn('href="guide.html', out)
+        self.assertNotIn('class="clock"', practice.build(src(), self.dir).split("<script>")[0].split("</style>")[1])
+
+
 class NoAnswerRule(Case):
     def test_answer_blocks_fail(self):
         for leak in ('<details><summary>答案</summary>r4 顯著</details>', '<div class="calc">r = 0.4</div>',
