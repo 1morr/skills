@@ -1,0 +1,21 @@
+#!/bin/sh
+# 每次 commit 前跑 repo 規則的檢查（不到一秒）；完整的七組見 README〈開發〉，CI 會跑。
+# 每個 clone 設一次：git config core.hooksPath .githooks
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# git 給 hook 的 GIT_DIR、GIT_INDEX_FILE 會被測試裡的 git 指令繼承，測試在暫存目錄開的 repo 會寫錯地方。
+for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
+  unset "$name"
+done
+
+for py in python3 python; do
+  if "$py" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+    "$py" -m unittest discover -s tests >/dev/null 2>&1 || {
+      echo "pre-commit: tests/ 沒過，跑 $py -m unittest discover -s tests 看是哪一條" >&2
+      exit 1
+    }
+    exit 0
+  fi
+done
+echo "pre-commit: 找不到 Python 3，repo 規則沒檢查" >&2
+exit 1

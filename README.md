@@ -54,6 +54,8 @@ claude plugin install 1morr@1morr-skills
 
 新增 skill：建 `skills/<名稱>/SKILL.md`，plugin 會自動載入；同時在上面的表格加一列。寫法和其他要一起改的地方在 [`AGENTS.md`](AGENTS.md)。
 
+clone 之後設一次 `git config core.hooksPath .githooks`：每次 commit 前會跑第一條（repo 規則，不到一秒）。
+
 測試（CI 跑的就是這七條）：
 
 ```
