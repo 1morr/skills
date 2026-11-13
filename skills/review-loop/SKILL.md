@@ -15,7 +15,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 開工
 
-1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是它載入時顯示的 skill 目錄，下面提到的 DOCUMENT.md 也在那裡。
+1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`，下面提到的 DOCUMENT.md 也在那裡。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用瀏覽器自動化工具照實際尺寸截圖）。

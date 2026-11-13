@@ -19,8 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # 模型可以自己觸發的 skill：加進來之前先看 AGENTS.md〈結構〉
 MODEL_INVOKED = {"diff"}
 # md 裡的路徑縮寫指到哪：值是相對 repo 根的路徑，{skill} 換成那份 md 所屬的 skill
-SHORT = {"O": "orca", "P": "pages", "D": "skills/{skill}/scripts", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates",
-         "X": "skills/{skill}/tests", "DIFF": "skills/diff"}
+SHORT = {"O": "orca", "P": "pages", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates", "DIFF": "skills/diff"}
 # 有 md 要檢查的目錄
 DOC_DIRS = ("skills", "orca", "pages")
 
@@ -241,7 +240,7 @@ class Fixture(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         r = self.root
         write(r, "skills/diff/SKILL.md", "---\nname: diff\ndescription: 對照頁。使用者要 diff 頁時用。\n---\n\n"
-              "`<D>` 是腳本目錄。跑 `python <D>/diff.py a b`，細節見 [LOOK.md](LOOK.md)。\n")
+              "`<S>` 是腳本目錄。跑 `python <S>/diff.py a b`，細節見 [LOOK.md](LOOK.md)。\n")
         write(r, "skills/diff/LOOK.md", "# 外觀\n\n照 `<P>/TOKENS.md`。\n")
         write(r, "skills/diff/scripts/diff.py", "")
         write(r, "skills/diff/tests/test_diff.py", "")
@@ -324,7 +323,7 @@ class PathsTest(Fixture):
         self.red(check_paths)
 
     def test_script_missing_from_own_skill(self):
-        sub(self.root, "skills/diff/SKILL.md", "<D>/diff.py", "<D>/compare.py")
+        sub(self.root, "skills/diff/SKILL.md", "<S>/diff.py", "<S>/compare.py")
         self.red(check_paths)
 
     def test_file_missing_from_shared_folders(self):

@@ -1,6 +1,6 @@
 # 文件的兩個版本
 
-`<D>` 的定義在 SKILL.md。`diff.py` 和 `fill.py` 開頭寫了完整用法和輸出格式。
+`<S>` 的定義在 SKILL.md。`diff.py` 和 `fill.py` 開頭寫了完整用法和輸出格式。
 
 ## 1. 取得兩個版本
 
@@ -17,7 +17,7 @@ docx、pdf、html、htm 照格式抽字，其他副檔名當純文字、以空�
 ## 2. 比對
 
 ```
-uv run --no-project --with python-docx --with pymupdf python <D>/diff.py <前版> <後版> -o <暫存>/diff.json \
+uv run --no-project --with python-docx --with pymupdf python <S>/diff.py <前版> <後版> -o <暫存>/diff.json \
   [--notes notes.json] [--before-label 起點] [--after-label 最終版]
 ```
 
@@ -25,7 +25,7 @@ uv run --no-project --with python-docx --with pymupdf python <D>/diff.py <前版
 
 stderr 最後一行是計數。`groups` 是連續改動合成的「處」，給讀者看的改動數用它；其他是區塊數。數字大得不尋常時先看是不是整段錯位（表格插了一欄、段落被拆成兩段），弄清楚再往下。
 
-**說明**（知道每處為什麼改時才寫）：`notes.json` 是 `[{"match": "該段原文的一段", "note": "原因", "tag": "選填"}]`，對上的會掛在那一段的 `notes`。從內容反推、沒有來源的原因，`tag` 寫「推斷」。stderr 印 `UNMATCHED NOTE` 代表那條沒對上任何改動過的段落，多半是 `match` 抄錯或那段其實沒改：修到一條都不剩。
+**說明**（知道每處為什麼改時才寫）：`notes.json` 的格式在 `diff.py` 開頭，對上的會掛在那一段的 `notes`。從內容反推、沒有來源的原因，`tag` 寫「推斷」。stderr 印 `UNMATCHED NOTE` 代表那條沒對上任何改動過的段落，多半是 `match` 抄錯或那段其實沒改：修到一條都不剩。
 
 ## 3. 寫頁面
 
@@ -38,7 +38,7 @@ stderr 最後一行是計數。`groups` 是連續改動合成的「處」，給�
 再用同一份 `diff.json` 填進去，產出單一檔案（相對路徑的圖片會被內嵌）：
 
 ```
-python <D>/fill.py page-src.html -o <輸出.html> --json diff=<暫存>/diff.json
+python <S>/fill.py page-src.html -o <輸出.html> --json diff=<暫存>/diff.json
 ```
 
 頁面要有：
@@ -52,4 +52,6 @@ python <D>/fill.py page-src.html -o <輸出.html> --json diff=<暫存>/diff.json
 
 ## 4. 檢查
 
-照 SKILL.md〈檢查與交付〉，另外確認頁首的改動數和 `diff.json` 的 `counts.groups` 一致、渲染圖有顯示。
+照 SKILL.md〈檢查與交付〉。
+
+完成條件：頁首的改動數等於 `diff.json` 的 `counts.groups`；渲染圖有顯示；stderr 沒有 `UNMATCHED NOTE`。

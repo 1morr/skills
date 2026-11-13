@@ -11,7 +11,7 @@
 | `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`）、交付方式（`HANDOFF.md`）與組頁腳本 |
 | `tests/` | 本檔規則的檢查 |
 
-- skill 之間不用 `../` 互連。對方是 model-invoked 就寫「呼叫 Skill 工具載入 `<名稱>`」；兩個 skill 都要的檔搬到 `orca/` 或 `pages/`。
+- skill 之間不用 `../` 互連。對方是 model-invoked 就寫「呼叫 Skill 工具載入 `<名稱>`」，要跑它的腳本時用 `${CLAUDE_PLUGIN_ROOT}/skills/<名稱>` 定義縮寫；兩個 skill 都要的檔搬到 `orca/` 或 `pages/`。
 - `SKILL.md` 用 `${CLAUDE_SKILL_DIR}`、`${CLAUDE_PLUGIN_ROOT}` 定義路徑縮寫（例如 `<O>`、`<P>`、`<S>`），附屬 md 沿用縮寫：Claude Code 只替換 `SKILL.md` 裡的變數。新縮寫要加進 `tests/test_repo_rules.py` 的 `SHORT`。
 - 預設 user-invoked：`disable-model-invocation: true`，description 一行、不列觸發詞。只有模型要自己觸發、或別的 skill 要用 Skill 工具載入的才是 model-invoked，並加進 `tests/test_repo_rules.py` 的 `MODEL_INVOKED`。
 

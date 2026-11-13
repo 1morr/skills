@@ -68,7 +68,7 @@
 hunk 和證據輸出由程式填進頁面：把 `git diff <base> <head> -- <檔>` 和指令輸出存成檔，頁面放 `<script type="application/json" id="data">__DATA__</script>` 和讀它的 JS，再
 
 ```
-python <D>/fill.py page-src.html -o <輸出.html> --text hunk_a=a.diff --text tests_before=before.txt …
+python <S>/fill.py page-src.html -o <輸出.html> --text hunk_a=a.diff --text tests_before=before.txt …
 ```
 
 （截圖和錄影用相對路徑寫在 `<img>` / `<video>` 裡，會一起內嵌。）交出前用 `grep` 掃一次頁面和證據文字有沒有家目錄路徑、像金鑰的字串。
