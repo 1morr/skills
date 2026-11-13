@@ -86,7 +86,7 @@ class SkeletonContractTest(unittest.TestCase):
         """兩邊都過，回傳 dashboard 讀到的資料。"""
         self.assertEqual(check_docs.run(self.repo), [])
         data = dashboard.collect(self.repo)
-        self.assertEqual((data["missing"], data["unreadable"]), ([], []))
+        self.assertEqual((data["missing"], data["unreadable"], data["unlisted"]), ([], [], []))
         self.assertNotIn(dashboard.UNMARKED, [d["decider"] for d in data["decisions"]])
         return data
 
@@ -134,6 +134,14 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([(d["milestone"], d["label"], d["decider"], d["archived"]) for d in data["decisions"]],
                          [("M1", "M1", "使用者定", False), ("M0", "M0 票 01", "Agent 定", True), ("M0", "框架", "Agent 定", True)])
         self.assertEqual((len(data["sessions"]), data["next"]), (1, "新 session 下 `/1morr:checkpoint M0`"))
+
+        # 不是里程碑的工作也在表裡佔一列
+        self.write(".scratch/docs-diet/spec.md", spec())
+        self.write(".scratch/docs-diet/issues/01-trim.md", ticket("01", "瘦身"))
+        self.assertTrue(any("docs-diet" in v for v in check_docs.run(self.repo)))
+        self.assertEqual([u["name"] for u in dashboard.collect(self.repo)["unlisted"]], ["docs-diet"])
+        self.sub("docs/roadmap.md", self.roadmap_row("M1 核心"), self.roadmap_row("M1 核心") + "\n| docs-diet 文件瘦身 | 文件變短 | — | 未開工 |")
+        self.assertEqual([(m["dir"], len(m["tickets"])) for m in self.check()["milestones"]][-1], ("docs-diet", 1))
 
 
 if __name__ == "__main__":

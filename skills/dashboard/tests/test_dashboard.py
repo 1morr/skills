@@ -184,6 +184,19 @@ class CollectTest(Repo):
         self.assertEqual([(u["file"], u["line"]) for u in d["unreadable"]], [("docs/decisions.md", 11), ("docs/archive/M0.md", 3)])
         self.assertEqual(len(d["decisions"]), 2)
 
+    def test_tickets_outside_the_roadmap_are_listed_apart(self):
+        self.assertEqual(self.collect()["unlisted"], [])
+        self.write(".scratch/docs-cleanup/spec.md", SPEC)
+        self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET)
+        self.write(".scratch/notes/draft.md", "沒有 issues/ 的目錄不算")
+        d = self.collect()
+        self.assertEqual([(u["name"], u["state"], u["detail"], [t["title"] for t in u["tickets"]]) for u in d["unlisted"]],
+                         [("docs-cleanup", "todo", "打出第一個字。", ["01: 查碼表"])])
+        self.assertEqual(len(d["milestones"]), 3)
+        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |", "| M2 介面 | 畫面 | brief §4 | 未開工 |\n| `docs-cleanup` 瘦身 | 文件 | — | 未開工 |")
+        d = self.collect()
+        self.assertEqual((d["unlisted"], d["milestones"][3]["dir"], len(d["milestones"][3]["tickets"])), ([], "docs-cleanup", 1))
+
     def test_a_dropped_ticket_is_marked(self):
         self.sub(".scratch/m1/issues/02-bar.md", "Status: ready-for-agent", "Status: wontfix")
         self.assertEqual([t["dropped"] for t in self.collect()["milestones"][1]["tickets"]], [False, True, False])
@@ -210,7 +223,7 @@ class CollectTest(Repo):
         bare.mkdir()
         d = m.collect(bare)
         self.assertEqual(d["missing"], ["docs/roadmap.md", "docs/decisions.md", "docs/progress.md"])
-        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"], d["unreadable"]), ([], [], [], "", []))
+        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"], d["unreadable"], d["unlisted"]), ([], [], [], "", [], []))
 
 
 @unittest.skipUnless(shutil.which("git"), "要 git")

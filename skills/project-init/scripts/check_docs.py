@@ -24,6 +24,7 @@
     - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或架構文檔的章節號（「brief §4」「architecture §3」「plan §3.2」）；
       不是 git repo 就不查
   .scratch/
+    - 有 issues/ 的目錄都列在 roadmap.md 的里程碑表（表的第一欄第一個詞，小寫後就是目錄名）；不是里程碑的工作（文件瘦身、審計）也佔一列
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票（早期專案叫收尾票的 -close.md 也算）
     - 每張票在第一個 `##` 之前有一行 `Status:`
@@ -227,12 +228,31 @@ def check_roadmap(text: str) -> list:
     return out
 
 
+def dir_of(row: list) -> str:
+    """里程碑表一列對應的目錄名：第一欄第一個詞的小寫（`M1.5 媒體庫` → `m1.5`）；行內程式碼的反引號不算。"""
+    words = row[0].replace("`", "").split() if row else []
+    return words[0].lower() if words else ""
+
+
 def active_dirs(root: Path) -> set:
-    """進行中里程碑的目錄名：表的第一欄第一個詞的小寫（`M1.5 媒體庫` → `m1.5`）。"""
+    """進行中里程碑的目錄名。"""
     if not (root / ROADMAP).is_file():
         return set()
     active, _ = active_milestones((root / ROADMAP).read_text(encoding="utf-8"))
-    return {r[0].split()[0].lower() for r in active if r and r[0].split()}
+    return {dir_of(r) for r in active} - {""}
+
+
+def listed_dirs(root: Path):
+    """里程碑表列出的目錄名；roadmap.md 或它的表不在就回傳 None（那是別條規則的違規）。"""
+    if not (root / ROADMAP).is_file():
+        return None
+    by_title = {}
+    for title, lines in sections((root / ROADMAP).read_text(encoding="utf-8")):
+        by_title.setdefault(title, lines)
+    head, rows = table(by_title.get(MILESTONES, []))
+    if MILESTONES not in by_title or not head:
+        return None
+    return {dir_of(r) for _, r in rows} - {""}
 
 
 def check_budgets(root: Path) -> list:
@@ -312,9 +332,11 @@ def check_scratch(root: Path) -> list:
     base = root / SCRATCH
     if not base.is_dir():
         return out
-    active = active_dirs(root)
+    active, listed = active_dirs(root), listed_dirs(root)
     for d in sorted(p for p in base.iterdir() if (p / "issues").is_dir()):
         rel = f"{SCRATCH}/{d.name}"
+        if listed is not None and d.name.lower() not in listed:
+            out.append(f"{rel}/：{ROADMAP} 的里程碑表沒有列它。加一列，第一欄以 `{d.name}` 開頭；不列的話總覽頁和下一個 session 都看不到這批票")
         spec = d / "spec.md"
         if not spec.is_file():
             out.append(f"{rel}/：有票卻沒有 spec.md，里程碑開工的第一步是寫 spec")

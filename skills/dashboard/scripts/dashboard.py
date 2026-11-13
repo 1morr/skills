@@ -7,6 +7,7 @@
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
+                       有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
   docs/archive/*.md    〈決定〉：已驗收里程碑的決定，里程碑取檔名；舊骨架的段名〈偏差與決定〉也讀
                        這兩處以 `- ` 開頭卻不是 `- YYYY-MM-DD …` 的行，列在頁面的「讀不到的行」
@@ -146,6 +147,20 @@ def milestones(repo: Path) -> list:
     return out
 
 
+def unlisted(repo: Path, listed: list) -> list:
+    """有票卻不在里程碑表裡的 `.scratch/` 目錄，長得和里程碑一樣，頁面另列一區。"""
+    known = {m["dir"] for m in listed}
+    out = []
+    for d in sorted(p for p in (repo / ".scratch").iterdir() if (p / "issues").is_dir()) if (repo / ".scratch").is_dir() else []:
+        if d.name.lower() in known:
+            continue
+        found = tickets(d)
+        live = [t for t in found if not t["dropped"]]
+        out.append({"name": d.name, "goal": "", "status": "docs/roadmap.md 的里程碑表沒有列它",
+                    "state": "done" if live and all(t["done"] for t in live) else "todo", "dir": d.name, "tickets": found, **spec(d)})
+    return out
+
+
 def decider_of(rest: str) -> str:
     m = DECIDER_IN_PARENS.search(rest) or DECIDER_BARE.search(rest)
     if not m:
@@ -250,7 +265,7 @@ def collect(repo: Path) -> dict:
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
             "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": log[-1]["next"] if log else "",
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": unreadable}
+            "unreadable": unreadable, "unlisted": unlisted(repo, ms)}
 
 
 PAGE = r"""<!doctype html>
@@ -406,6 +421,8 @@ function render() {
           el("span", { class: "badge active num" }, (w.done ? "做完，等合併" : (w.boxes ? `${w.checked}/${w.boxes}` : "進行中")) + "　" + w.worktree))))] : null),
     el("h2", {}, "里程碑"),
     p.milestones.length ? el("div", { class: "grid" }, p.milestones.map(m => milestoneCard(m, p.name))) : el("div", { class: "empty" }, "roadmap.md 沒有里程碑表。"),
+    p.unlisted.length ? [el("h2", {}, "不在 roadmap 的工作"),
+      el("div", { class: "grid" }, p.unlisted.map(m => milestoneCard(m, p.name + "/unlisted")))] : null,
     el("h2", {}, "決策"), decisionsView(p),
     el("h2", {}, "架構決定（ADR）"),
     p.adrs.length ? el("ul", { class: "plain" }, p.adrs.map(a => el("li", {}, el("span", {}, a.title), el("span", { class: "small num" }, a.file)))) : el("div", { class: "empty" }, "沒有 ADR。"),

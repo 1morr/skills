@@ -92,6 +92,10 @@ class Repo(unittest.TestCase):
         self.assertIn(old, text)
         self.write(rel, text.replace(old, new))
 
+    def row(self, name, state="未開工"):
+        """在里程碑表加一列。"""
+        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |\n", f"| M2 介面 | 畫面 | brief §4 | 未開工 |\n| {name} | 目標 | — | {state} |\n")
+
     def clean(self):
         self.assertEqual(m.run(self.root), [])
 
@@ -460,6 +464,7 @@ class ScratchTest(Repo):
         self.write(".scratch/m0/issues/01-m0-acceptance.md", TICKET)
         self.write(".scratch/docs-cleanup/spec.md", old)
         self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET)
+        self.row("docs-cleanup 文件瘦身")
         self.clean()
 
     def test_milestone_without_acceptance_ticket(self):
@@ -473,12 +478,30 @@ class ScratchTest(Repo):
     def test_effort_that_is_not_a_milestone_needs_no_acceptance_ticket(self):
         self.write(".scratch/docs-cleanup/spec.md", SPEC)
         self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET)
+        self.row("docs-cleanup 文件瘦身")
         self.clean()
 
     def test_decimal_milestone_needs_one(self):
         self.write(".scratch/m1.5/spec.md", SPEC)
         self.write(".scratch/m1.5/issues/01-x.md", TICKET)
+        self.row("M1.5 插入的")
         self.red(".scratch/m1.5/issues/：沒有驗收票")
+
+    def test_directory_with_tickets_missing_from_the_roadmap(self):
+        self.write(".scratch/docs-cleanup/spec.md", SPEC)
+        self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET)
+        self.red(".scratch/docs-cleanup/：docs/roadmap.md 的里程碑表沒有列它")
+        self.row("`docs-cleanup`")
+        self.clean()
+
+    def test_how_the_roadmap_row_is_worded_does_not_matter(self):
+        self.sub("docs/roadmap.md", "| M1 核心 | 第一個功能 |", "| M1 換了名字的核心（第二版） | 改寫過的目標 |")
+        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |\n", "")
+        self.clean()
+
+    def test_without_a_roadmap_table_the_listing_is_not_checked(self):
+        self.sub("docs/roadmap.md", "## 里程碑", "## 階段")
+        self.assertEqual(m.run(self.root), ["docs/roadmap.md：缺〈里程碑〉段"])
 
     def test_directory_without_issues_is_ignored(self):
         self.write(".scratch/notes/draft.md", "隨手記")
@@ -526,6 +549,7 @@ class ScratchTest(Repo):
         self.write(".scratch/m0/issues/02-m0-acceptance.md", TICKET.replace("ready-for-agent", "done"))
         self.write(".scratch/docs-cleanup/spec.md", SPEC)
         self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET.replace("ready-for-agent", "done"))
+        self.row("docs-cleanup 文件瘦身")
         self.clean()
 
 
