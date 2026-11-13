@@ -251,7 +251,7 @@ button, select, input { font: inherit; color: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .now { background: var(--note-bg); border-left: 4px solid var(--note-bar); padding: 0.9rem 1.1rem; border-radius: 0 0.5rem 0.5rem 0; margin-top: 1.25rem; }
 .now code, td code { font-family: var(--font-code); font-size: 0.9375rem; overflow-wrap: anywhere; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 0.9rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 0.9rem; align-items: start; }
 .card { border: 1px solid var(--rule); border-radius: 0.6rem; background: var(--panel); }
 .card > summary { list-style: none; cursor: pointer; padding: 0.9rem 1.1rem; }
 .card > summary::-webkit-details-marker { display: none; }
@@ -269,6 +269,7 @@ ul.plain { list-style: none; padding: 0; margin: 0.5rem 0 0; }
 ul.plain li { padding: 0.3rem 0; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; justify-content: space-between; align-items: baseline; }
 ul.plain li > * { min-width: 0; overflow-wrap: anywhere; }
 ul.scope { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+.more { margin-top: 0.7rem; } .more > summary { cursor: pointer; } .more p { margin: 0.5rem 0 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
 .filters input, .filters select { border: 1px solid var(--rule); background: var(--paper); border-radius: 0.4rem; padding: 0.3rem 0.6rem; }
 .table-wrap { overflow-x: auto; }
@@ -313,11 +314,12 @@ function milestoneCard(m, key) {
                el("div", { class: "small num" }, `${done} / ${total} 張票完成`)] : el("div", { class: "small" }, m.status)),
     el("div", { class: "body" },
       total ? el("div", { class: "small" }, m.status) : null,
-      m.detail ? el("div", { style: "margin-top:.6rem" }, m.detail) : null,
-      m.scope.length ? [el("div", { class: "small", style: "margin-top:.6rem" }, "範圍"), el("ul", { class: "scope" }, m.scope.map(s => el("li", {}, s)))] : null,
       total ? el("ul", { class: "plain" }, m.tickets.map(t => el("li", {},
         el("span", {}, t.title),
-        el("span", { class: "badge " + (t.done ? "done" : "") + " num" }, t.done ? "完成" : (t.checked ? `${t.checked}/${t.boxes}` : "未開始"))))) : null));
+        el("span", { class: "badge " + (t.done ? "done" : "") + " num" }, t.done ? "完成" : (/^(wontfix|cancelled)/i.test(t.status) ? "不做" : (t.checked ? `${t.checked}/${t.boxes}` : "未開始")))))) : null,
+      (m.detail || m.scope.length) ? el("details", { class: "more" }, el("summary", { class: "small" }, "目標與範圍"),
+        m.detail ? el("p", {}, m.detail) : null,
+        m.scope.length ? el("ul", { class: "scope" }, m.scope.map(s => el("li", { class: "small" }, s))) : null) : null));
   card.addEventListener("toggle", () => { view.open[id] = card.open; });
   return card;
 }
