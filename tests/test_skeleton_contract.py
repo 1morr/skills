@@ -149,6 +149,75 @@ class SkeletonContractTest(unittest.TestCase):
         self.sub("docs/roadmap.md", self.roadmap_row("M1 核心"), self.roadmap_row("M1 核心") + "\n| docs-diet 文件瘦身 | 文件變短 | — | 未開工 |")
         self.assertEqual([(m["dir"], len(m["tickets"])) for m in self.check()["milestones"]][-1], ("docs-diet", 1))
 
+    def open_m0(self):
+        self.set_state("M0 骨架", "進行中，已拆 2 張票")
+        self.write(".scratch/m0/spec.md", spec())
+        self.write(".scratch/m0/issues/01-gates.md", ticket("01", "閘門"))
+        self.write(".scratch/m0/issues/02-m0-acceptance.md", ticket("02", "M0 驗收"))
+        self.append("docs/progress.md", "| 2026-01-03 | M0 開工 | 拆了 2 張票 | 新 session 下 `/implement .scratch/m0/issues/01-gates.md` |")
+
+    def finish(self, rel, *notes):
+        text = self.read(rel).replace("Status: ready-for-agent", "Status: done").replace("- [ ]", "- [x]")
+        self.write(rel, text.rstrip("\n") + "\n\n" + "\n".join(notes) + "\n")
+
+    @unittest.expectedFailure
+    def test_notes_stay_on_the_ticket_until_the_milestone_is_archived(self):
+        notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
+        self.open_m0()
+        self.finish(".scratch/m0/issues/01-gates.md", "Session 紀錄：2026-01-04 做完閘門", "決定：用 X 不用 Y（Agent 定）", "變更：無")
+
+        # 票合併了，沒有人抄：progress.md 與 decisions.md 沒有動，dashboard 從票讀
+        data = self.check()
+        self.assertEqual([(d["milestone"], d["label"], d["decider"], d["text"], d["date"]) for d in data["decisions"]],
+                         [("M0", "M0 票 01", "Agent 定", "用 X 不用 Y", "2026-01-04"), ("框架", "框架", "Agent 定", data["decisions"][1]["text"], "2026-01-02")])
+        self.assertEqual([(s["date"], s["ticket"], s["result"]) for s in data["sessions"]][0], ("2026-01-04", "M0 01", "做完閘門"))
+        self.assertEqual(data["next"], "新 session 下 `/implement .scratch/m0/issues/02-m0-acceptance.md`")
+        self.assertEqual([d["label"] for d in data["unseen"]], ["M0 票 01", "框架"])
+
+        # 驗收票封存：票上的行由 ticket_notes.py 組進封存檔，兩個檔自己的行照搬
+        self.finish(".scratch/m0/issues/02-m0-acceptance.md", "Session 紀錄：2026-01-05 M0 驗收完", "變更：無")
+        rows, decided = notes.archive(self.repo, "m0")
+        table = self.read("docs/progress.md").split(f"## {check_docs.SESSIONS}\n", 1)[1].strip()
+        log = self.read("docs/decisions.md").split(f"## {check_docs.LOG}\n", 1)[1].strip()
+        self.write("docs/archive/M0.md", "\n\n".join([
+            "# M0 封存", f"## {check_docs.SESSIONS}", "\n".join([table] + rows), f"## {check_docs.ARCHIVED}", "\n".join([log] + decided),
+            f"## {check_docs.USER_TRIAL}", "- 啟動後打一個字：可以。"]) + "\n")
+        head = "\n".join(table.split("\n")[:2])
+        self.write("docs/progress.md", self.read("docs/progress.md").replace(table, head + "\n| 2026-01-05 | M1 準備 | M0 已驗收並封存 | 新 session 下 `/1morr:checkpoint M0` |"))
+        self.write("docs/decisions.md", self.read("docs/decisions.md").replace(log, ""))
+        self.set_state("M0 骨架", "已驗收，封存在 [docs/archive/M0.md](archive/M0.md)")
+        data = self.check()
+        self.assertEqual([(d["label"], d["archived"]) for d in data["decisions"]], [("M0 票 01", True), ("框架", True)])
+        self.assertEqual([r["ticket"] for r in data["archived_sessions"][0]["rows"]], ["M0 02", "M0 01", "M0 開工", "框架"])
+        self.assertEqual((len(data["sessions"]), data["next"]), (1, "新 session 下 `/1morr:checkpoint M0`"))
+
+    @unittest.expectedFailure
+    def test_changelog_entries_are_read_from_the_file_and_from_tickets(self):
+        notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
+        self.write("CHANGELOG.md", fill("changelog.md"))
+        self.assertEqual(self.check()["changelog"], [{"version": "Unreleased", "date": "", "entries": []}])
+        self.open_m0()
+        self.finish(".scratch/m0/issues/01-gates.md", "Session 紀錄：2026-01-04 做完閘門",
+                    "變更：Added｜閘門｜commit 前會跑文件檢查。", "變更：Fixed｜閘門｜訊息太長時說出上限。")
+
+        # 還在票上的條目標成待組裝
+        entries = self.check()["changelog"][0]["entries"]
+        self.assertEqual([(e["kind"], e["feature"], e["text"], e["pending"]) for e in entries],
+                         [("Added", "閘門", "commit 前會跑文件檢查。", "M0 01"), ("Fixed", "閘門", "訊息太長時說出上限。", "M0 01")])
+
+        # 驗收票把它們組進 [Unreleased]，里程碑已驗收後只讀檔案
+        self.finish(".scratch/m0/issues/02-m0-acceptance.md", "Session 紀錄：2026-01-05 M0 驗收完", "變更：無")
+        self.append("CHANGELOG.md", "\n" + "\n".join(notes.changelog(self.repo, "m0")))
+        self.write("docs/archive/M0.md", f"# M0\n\n## {check_docs.SESSIONS}\n\n## {check_docs.ARCHIVED}\n\n## {check_docs.USER_TRIAL}\n\n無，只有閘門。\n")
+        self.set_state("M0 骨架", "已驗收，封存在 [docs/archive/M0.md](archive/M0.md)")
+        entries = self.check()["changelog"][0]["entries"]
+        self.assertEqual([(e["kind"], e["feature"], e["pending"]) for e in entries], [("Added", "閘門", ""), ("Fixed", "閘門", "")])
+
+        # 發版後多一段，舊的條目跟著版本走
+        self.sub("CHANGELOG.md", "## [Unreleased]", "## [Unreleased]\n\n## [0.1.0] - 2026-01-06")
+        self.assertEqual([(v["version"], v["date"], len(v["entries"])) for v in self.check()["changelog"]],
+                         [("Unreleased", "", 0), ("0.1.0", "2026-01-06", 2)])
+
 
 if __name__ == "__main__":
     unittest.main()
