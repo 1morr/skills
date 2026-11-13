@@ -80,6 +80,12 @@ class SkeletonTest(unittest.TestCase):
         self.write(".scratch/m0/issues/02-m0-acceptance.md", fill("ticket.md"))
         self.assertEqual(check_docs.run(self.root), [])
 
+    def test_filled_templates_pass_the_size_and_wording_checks(self):
+        for name, rel in (("instructions.md", "AGENTS.md"), ("design-brief.md", check_docs.BRIEF), ("plan.md", check_docs.PLAN),
+                          ("progress.md", check_docs.PROGRESS), ("roadmap.md", check_docs.ROADMAP)):
+            self.write(rel, fill(name))
+        self.assertEqual(check_docs.run(self.root), [])
+
     def test_instruction_sections_the_other_skills_read(self):
         text = fill("instructions.md")
         for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/1morr:checkpoint", "/1morr:ticket-coordinator",

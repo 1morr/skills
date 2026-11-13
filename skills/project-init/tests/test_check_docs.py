@@ -234,6 +234,44 @@ class MilestonesTest(Repo):
         self.clean()
 
 
+class BudgetTest(Repo):
+    def test_over_budget(self):
+        for rel, limit in m.BUDGETS.items():
+            with self.subTest(rel):
+                self.setUp()
+                base = (self.root / rel).read_text(encoding="utf-8") if (self.root / rel).is_file() else "# 文件\n"
+                head, rest = base.split("\n", 1)  # 填在第一個 ## 之前，不屬於任何段
+                pad = "字" * (limit - len(base) - 1)
+                self.write(rel, f"{head}\n{pad}\n{rest}")
+                self.clean()
+                self.write(rel, f"{head}\n{pad}字\n{rest}")
+                self.red(f"{rel}：{limit + 1} 字元")
+
+    def test_missing_files_and_other_files_are_not_measured(self):
+        self.write("docs/research/big.md", "字" * 100000)
+        self.clean()
+
+
+class CurrentStateTest(Repo):
+    def test_ticket_number_in_brief_or_plan(self):
+        for rel in (m.BRIEF, m.PLAN):
+            for text in ("照 M1 票 12 的做法", "（票3）"):
+                with self.subTest(rel=rel, text=text):
+                    self.setUp()
+                    self.write(rel, f"# 文件\n\n## 1. 節\n\n- 這一條{text}。\n")
+                    self.red(f"{rel}:5：寫了票號")
+
+    def test_other_wording_is_fine(self):
+        text = "# 文件\n\n## 1. 節\n\n- 拆票後以票為準；M0 的第一張票接上；門票 3 張不是票號的寫法也不要用。\n\n```\n票 12\n```\n"
+        self.write(m.BRIEF, text.replace("門票 3 張不是票號的寫法也不要用", "見 ADR 0003、事實 B3"))
+        self.write(m.PLAN, text.replace("門票 3 張不是票號的寫法也不要用", "見 ADR 0003、事實 B3"))
+        self.clean()
+
+    def test_ticket_numbers_elsewhere_are_fine(self):
+        self.write("docs/roadmap.md", (self.root / "docs/roadmap.md").read_text(encoding="utf-8") + "\n- 票 12 留下的項目。\n")
+        self.clean()
+
+
 class ScratchTest(Repo):
     def test_tickets_without_spec(self):
         (self.root / ".scratch/m1/spec.md").unlink()

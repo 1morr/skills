@@ -10,6 +10,9 @@
     - 〈偏差與決定〉每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元、標一個決定者：（使用者定）（使用者同意）（Agent 定）
   roadmap.md
     - 有〈里程碑〉段，裡面的表有「狀態」欄，狀態以「進行中」開頭的最多一個
+  大小與寫法
+    - 字元上限（Python `len`）：AGENTS.md 6,000、docs/progress.md 20,000、docs/design-brief.md 30,000、docs/plan.md 60,000；不存在的檔不查
+    - docs/design-brief.md、docs/plan.md 不寫票號（「票 12」「票12」）；程式碼區塊裡的不算
   .scratch/
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
@@ -23,6 +26,9 @@ from pathlib import Path
 
 PROGRESS = "docs/progress.md"
 ROADMAP = "docs/roadmap.md"
+BRIEF, PLAN = "docs/design-brief.md", "docs/plan.md"
+BUDGETS = {"AGENTS.md": 6000, PROGRESS: 20000, BRIEF: 30000, PLAN: 60000}
+TICKET_NUMBER = re.compile(r"票\s*\d")
 SCRATCH = ".scratch"
 MILESTONES, SESSIONS, DEVIATIONS = "里程碑", "Session 紀錄", "偏差與決定"
 STATE = "狀態"
@@ -143,6 +149,31 @@ def check_roadmap(text: str) -> list:
     return []
 
 
+def check_budgets(root: Path) -> list:
+    out = []
+    for rel, limit in BUDGETS.items():
+        if (root / rel).is_file():
+            size = len((root / rel).read_text(encoding="utf-8"))
+            if size > limit:
+                out.append(f"{rel}：{size} 字元，上限 {limit}（多 {size - limit}）。搬走或刪掉內容，不靠縮短措辭湊數")
+    return out
+
+
+def check_current_state(root: Path) -> list:
+    """brief 與 plan 只寫現況：票號留在票與 progress.md。"""
+    out = []
+    for rel in (BRIEF, PLAN):
+        if not (root / rel).is_file():
+            continue
+        fenced = False
+        for n, line in enumerate((root / rel).read_text(encoding="utf-8").split("\n"), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+            elif not fenced and TICKET_NUMBER.search(line):
+                out.append(f"{rel}:{n}：寫了票號。這裡只寫現在的做法，要留證據就連到 ADR 或 docs/research/")
+    return out
+
+
 def check_scratch(root: Path) -> list:
     out = []
     base = root / SCRATCH
@@ -175,7 +206,7 @@ def run(root: Path) -> list:
             out += check((root / rel).read_text(encoding="utf-8"))
         else:
             out.append(f"找不到 {rel}")
-    return out + check_scratch(root)
+    return out + check_budgets(root) + check_current_state(root) + check_scratch(root)
 
 
 def main(argv) -> int:
