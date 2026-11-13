@@ -9,7 +9,7 @@ argument-hint: "[repo 路徑…，預設目前的 repo] [static：只產生一�
 
 參數：$ARGUMENTS
 
-`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`。
+`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`（plugin 根目錄的 `pages/`）。
 
 ## 1. 要看哪些 repo
 
@@ -17,12 +17,12 @@ argument-hint: "[repo 路徑…，預設目前的 repo] [static：只產生一�
 
 ## 2. 開頁面
 
-- **預設**：用 Bash 的 `run_in_background` 跑 `python3 <S>/dashboard.py --serve <repo>…`。它印出的第一行是網址。埠被佔用（`Address already in use`）就加 `--port 0` 重跑，讓系統挑一個。用預設瀏覽器打開網址（macOS `open`、Windows `start`、Linux `xdg-open`）。
-- **參數有 `static`**：`python3 <S>/dashboard.py <repo>… -o <scratchpad>/dashboard.html`，打開那個檔。它不會自動更新。
+- **預設**：用 Bash 的 `run_in_background` 跑 `python3 <S>/dashboard.py --serve <repo>…`。它印出的第一行是網址。埠被佔用（`Address already in use`）就加 `--port 0` 重跑，讓系統挑一個。
+- **參數有 `static`**：`python3 <S>/dashboard.py <repo>… -o <scratchpad>/dashboard.html`，照 `<P>/HANDOFF.md` 交付。它不會自動更新。
 
 伺服器只綁 `127.0.0.1`。使用者說要從手機或別台機器看時才加 `--host 0.0.0.0`，並先告訴他：同一個網路上的人都看得到這些決策和進度。
 
-完成條件：瀏覽器開著那一頁，頁面上有里程碑。
+完成條件：預設模式下 `curl -s <網址>data.json` 回的 JSON 裡有里程碑；`static` 時 `<P>/HANDOFF.md` 的完成條件成立。
 
 ## 3. 告訴使用者
 

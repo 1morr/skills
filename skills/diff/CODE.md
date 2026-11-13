@@ -77,6 +77,5 @@ python <D>/fill.py page-src.html -o <輸出.html> --text hunk_a=a.diff --text te
 
 ## 5. 交付之後
 
-- 用預設瀏覽器打開頁面（macOS `open`、Windows `start`、Linux `xdg-open`）。
 - 使用者要貼到 PR：另寫一份純文字 Markdown（圖改成說明文字），問過再用 `gh pr comment <編號> --body-file`。`gh` 傳不了 HTML，要在 PR 上看到圖，請使用者在網頁把 HTML 檔拖進留言框。
 - 這次自己找出或問來的跑法（指令、陷阱、出處確認方式），repo 的指令檔沒寫的：把打算寫的文字給使用者看，同意才寫進 repo 的 `AGENTS.md` 或 `CLAUDE.md`。

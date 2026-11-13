@@ -211,7 +211,7 @@ def check_no_opening_for_user(root: Path) -> list:
 
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
           check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header)
+          check_usage_header, check_no_opening_for_user)
 
 
 class RepoTest(unittest.TestCase):

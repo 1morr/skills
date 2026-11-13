@@ -9,7 +9,7 @@
 - 找不到瀏覽器或圖畫不出來：照樣產出。
 
 組好的頁約 3.6 MB（多半是 Mermaid）。Orca 從另一台機器預覽工作區的檔案時只讀 512 KiB 以內，
-打不開；用 http server 加 Orca 瀏覽器分頁看就沒有這個限制（PAGE.md〈交出前〉）。
+打不開；交付時開本機 http server、給網址就沒有這個限制（HANDOFF.md）。
 
 為什麼用瀏覽器的命令列檢查：playwright 不讓開 file://，得另開 http server，用完常忘了關，
 截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。

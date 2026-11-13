@@ -56,11 +56,6 @@ python <P>/scripts/build.py <名稱>-src.html
    - 確認每張圖都畫成 svg、圖裡掛上了縮放按鈕列（`.dz-bar`）、畫面文字（`document.body.innerText`）沒有 `Syntax error`。不要搜原始碼：內嵌的 Mermaid 自己就含這個字串。
    - 截圖的檔名用 scratchpad 的完整路徑。
    - 檢查完關掉 playwright 的頁；它在工作目錄建了 `.playwright-mcp/` 的話刪掉。
-3. **交給使用者**：在 Orca 裡（環境變數 `ORCA_WORKTREE_ID` 有值）用 Orca 的瀏覽器分頁開，不要叫使用者直接打開檔案：使用者常從另一台機器連進 Orca，那邊的檔案預覽讀不了這麼大的檔；Orca 的分頁在跑你的這台機器上渲染，畫面傳過去。
-   - 用背景模式開 `python -u -m http.server 0 --bind 127.0.0.1 --directory <組好的檔所在的資料夾>`，從它印的 `port <n>` 取 port。
-   - `orca tab create --url http://127.0.0.1:<n>/<名稱>.html --json`。
-   - 在對話給網址和檔案的完整路徑。server 開著讓使用者讀，使用者說看完了再關。
+3. **交給使用者**：照 [HANDOFF.md](HANDOFF.md)。
 
-   不在 Orca 裡時，用預設瀏覽器打開組好的檔案（macOS `open`、Windows `start`、Linux `xdg-open`），在對話給它的完整路徑。
-
-完成條件：核對回報的每一句都處理了，頁尾有核對紀錄；每張圖都畫得出來（`build.py` 退出碼 0，或 playwright 退路檢查過）；使用者拿到了 Orca 分頁或打開的檔案。
+完成條件：核對回報的每一句都處理了，頁尾有核對紀錄；每張圖都畫得出來（`build.py` 退出碼 0，或 playwright 退路檢查過）；`HANDOFF.md` 的完成條件成立。

@@ -8,7 +8,7 @@
 | --- | --- |
 | `skills/<名稱>/` | 一個 skill：`SKILL.md`（`name` 等於資料夾名）、附屬 md、`scripts/`、`tests/` |
 | `orca/` | 用 Orca 開子 session 的 skill 共用的流程（`COORDINATOR.md`）、已知行為（`TUI.md`）與腳本 |
-| `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`）與組頁腳本 |
+| `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`）、交付方式（`HANDOFF.md`）與組頁腳本 |
 | `tests/` | 本檔規則的檢查 |
 
 - skill 之間不用 `../` 互連。對方是 model-invoked 就寫「呼叫 Skill 工具載入 `<名稱>`」；兩個 skill 都要的檔搬到 `orca/` 或 `pages/`。
@@ -22,6 +22,7 @@
 ## 文字
 
 - `SKILL.md` 和附屬 md 用繁體中文；識別符、指令、log、commit message 用英文。
+- skill 不替使用者開瀏覽器或分頁（`open`、`xdg-open`、`orca tab create`）：交付照 `pages/HANDOFF.md`。執行者自己用瀏覽器自動化工具檢查頁面不算。
 - 執行時讀的檔只寫執行者要做的事。給維護者的規則寫在本檔，例如「改了這支腳本要跑哪個測試」。
 
 ## 腳本
@@ -37,4 +38,4 @@
 
 ## 由測試強制的規則
 
-`python -m unittest discover -s tests` 檢查：`name` 等於資料夾名；每個 skill 都在 README 表格和兩份 manifest 裡、沒有多出來的；md 裡的相對連結和縮寫路徑指得到檔案；md 裡沒有 `../`；model-invoked 的 skill 都在 `MODEL_INVOKED`；有 Python 腳本的目錄有測試，而且 CI 和 README 都跑它；`SKILL.md` 用 `${CLAUDE_…}` 定義的縮寫都在 `SHORT`；`${CLAUDE_…}` 只出現在 `SKILL.md`；shell 腳本的非註解行沒有緊貼中文的 `$var`，也沒有 `stat -c`、`touch -d`、`sed -i`；兩份 manifest 的 description 相同；`orca/scripts/` 每支腳本前兩行寫了用法；project-init 的範本搭出來的 repo 走完一輪里程碑，每一站都過 `check_docs.py`，dashboard 也全部讀得到（`tests/test_skeleton_contract.py`）。其餘規則靠改的人自查。
+`python -m unittest discover -s tests` 檢查：`name` 等於資料夾名；每個 skill 都在 README 表格和兩份 manifest 裡、沒有多出來的；md 裡的相對連結和縮寫路徑指得到檔案；md 裡沒有 `../`；model-invoked 的 skill 都在 `MODEL_INVOKED`；有 Python 腳本的目錄有測試，而且 CI 和 README 都跑它；`SKILL.md` 用 `${CLAUDE_…}` 定義的縮寫都在 `SHORT`；`${CLAUDE_…}` 只出現在 `SKILL.md`；shell 腳本的非註解行沒有緊貼中文的 `$var`，也沒有 `stat -c`、`touch -d`、`sed -i`；兩份 manifest 的 description 相同；`orca/scripts/` 每支腳本前兩行寫了用法；md 裡沒有 `xdg-open`、`orca tab create`；project-init 的範本搭出來的 repo 走完一輪里程碑，每一站都過 `check_docs.py`，dashboard 也全部讀得到（`tests/test_skeleton_contract.py`）。其餘規則靠改的人自查。
