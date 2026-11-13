@@ -94,7 +94,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 - **寫回讀法**：使用者拍板的讀法連同原文、其他讀法、拍板的回覆，寫進專案記錄決定的地方（例如評核資料夾的 README），和合併同一個 commit。之後 review-loop 會把它當成定案。
 - **清 worktree**：每一版跑 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`。沒合併的分支會留著，列給使用者決定要不要刪。
 
-完成條件：`git worktree list` 沒有這一批的 worktree；合併 commit 在主分支上；留下的分支都列給了使用者。
+完成條件：`git worktree list` 沒有這一批的 worktree；使用者要合併的，合併 commit 在主分支上；留下的分支都列給了使用者。
 
 ## Ledger
 

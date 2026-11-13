@@ -74,4 +74,6 @@ sh .githooks/pre-commit                                        # exit 0
    外部事實先查證，寫進 docs/research/ 並編號。
    ```
 
-3. 要用額度門檻跑整批票的話，照 plugin README〈額度門檻〉設定一次。
+3. 要用額度門檻跑整批票的話，照 `${CLAUDE_PLUGIN_ROOT}/README.md`〈額度門檻〉設定一次。
+
+完成條件：commit 在預設分支上；訪談指令印給了使用者，裡面的 `<…>` 都換成了實際內容。
