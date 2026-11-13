@@ -1,6 +1,6 @@
 # {{PROJECT}} 實作計劃
 
-> 狀態：骨架。brief 的〈範圍與順序〉定案後再寫。`/to-tickets` 以〈里程碑任務〉為輸入，拆票後以票為準。
+> 狀態：骨架。brief 的〈範圍與順序〉定案後再寫。里程碑的順序與範圍在 `docs/roadmap.md`，這裡只寫架構。
 
 ## 0. 工程慣例
 
@@ -33,12 +33,6 @@ M0 票 01 要交付：
 
 已經就位（project-init 建的）：`scripts/check_docs.py`（progress、spec、票的格式）、`scripts/check_commit_msg.py` 與 commit-msg hook。
 
-## 5. 里程碑任務
-
-### 5.1 M0 骨架
-
-目標：repo 骨架與閘門就位，並端到端跑通第一條最小的使用路徑（tracer bullet）。驗收條件待 brief 定案後寫。
-
-## 6. 風險與回寫點
+## 5. 風險與回寫點
 
 實作中發現與 brief 不符時要回寫的地方。

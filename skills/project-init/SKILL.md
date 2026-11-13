@@ -5,9 +5,9 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / roadmap / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
-`/grill-with-docs` 填 brief → 寫 plan → `/to-tickets` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
+`/grill-with-docs` 填 brief → 寫 plan 與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
 參數：$ARGUMENTS
 
@@ -16,7 +16,7 @@ argument-hint: "[專案一句話]"
 ## 1. 探查
 
 1. 目前目錄不是 git repo：問使用者要不要 `git init`。查預設分支名。
-2. 已經有 `docs/progress.md`、`docs/plan.md` 或 `.scratch/`：這個 skill 只管新專案，停下來告訴使用者哪些檔已經在，不覆蓋。
+2. 已經有 `docs/progress.md`、`docs/plan.md`、`docs/roadmap.md` 或 `.scratch/`：這個 skill 只管新專案，停下來告訴使用者哪些檔已經在，不覆蓋。
 3. 已有的 `AGENTS.md`、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
 4. 找**擋路檔**：專案目錄和它上面每一層的 `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`（`~/.claude/CLAUDE.md` 不算）。有任何一個，Claude Code 就只讀它們、不讀 `AGENTS.md`。
 5. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
@@ -42,6 +42,7 @@ argument-hint: "[專案一句話]"
 | `instructions.md` | `AGENTS.md` |
 | `design-brief.md` | `docs/design-brief.md` |
 | `plan.md` | `docs/plan.md` |
+| `roadmap.md` | `docs/roadmap.md` |
 | `progress.md` | `docs/progress.md` |
 | `development.md` | `docs/development.md` |
 | `ticket.md` | `docs/agents/ticket-template.md` |

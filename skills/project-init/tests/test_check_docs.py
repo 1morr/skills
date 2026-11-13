@@ -26,13 +26,6 @@ PROGRESS = """# 進度
 
 - 規則寫在這裡，這一段的行可以很長：%s
 
-## 里程碑與閱讀指引
-
-| 里程碑 | 票目錄 | 拆票前讀 | 備註 |
-| --- | --- | --- | --- |
-| M0 | `.scratch/m0/issues/` | brief | 完成，[已封存](archive/M0.md) |
-| M1 | `.scratch/m1/issues/` | plan §2 | 進行中，已拆 3 張票 |
-
 ## Session 紀錄
 
 | 日期 | 票 | 結果 | 下一步 |
@@ -45,6 +38,25 @@ PROGRESS = """# 進度
 - 2026-01-02 M1 票 01（使用者同意）：改用另一個套件，見 ADR 0003。
 """ % ("長" * 300)
 
+ROADMAP = """# 路線圖
+
+> 開頭的說明。
+
+## 里程碑
+
+| 里程碑 | 目標 | 拆票前讀 | 狀態 |
+| --- | --- | --- | --- |
+| M0 骨架 | 閘門 | brief | 完成，[已封存](archive/M0.md) |
+| M1 核心 | 第一個功能 | plan §2 | 進行中，已拆 3 張票 |
+| M2 介面 | 畫面 | brief §4 | 未開工 |
+
+## M2 介面
+
+目標：畫面。
+
+## 不排里程碑
+"""
+
 SPEC = "# M1\n\n## 目標\n\n## 範圍（做 / 不做）\n\n## 共同規則\n\n## 驗收\n\n## 票序\n"
 TICKET = "# 01: 標題\n\nStatus: ready-for-agent\nBlocked by: None\n\n## What to build\n\n## 驗收\n\n- [ ] 條件\n\n## Comments\n"
 
@@ -54,6 +66,7 @@ class Repo(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="check-docs-"))
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.write("docs/progress.md", PROGRESS)
+        self.write("docs/roadmap.md", ROADMAP)
         self.write(".scratch/m1/spec.md", SPEC)
         self.write(".scratch/m1/issues/01-first.md", TICKET)
         self.write(".scratch/m1/issues/02-m1-acceptance.md", TICKET)
@@ -89,7 +102,11 @@ class BasicsTest(Repo):
 
     def test_missing_progress(self):
         (self.root / "docs/progress.md").unlink()
-        self.red("找不到")
+        self.red("找不到 docs/progress.md")
+
+    def test_missing_roadmap(self):
+        (self.root / "docs/roadmap.md").unlink()
+        self.red("找不到 docs/roadmap.md")
 
 
 class ProgressSectionsTest(Repo):
@@ -195,16 +212,26 @@ class DeviationsTest(Repo):
 
 class MilestonesTest(Repo):
     def test_two_active(self):
-        self.sub("docs/progress.md", "| 完成，[已封存](archive/M0.md) |", "| 進行中，還有 1 張 |")
+        self.sub("docs/roadmap.md", "| 完成，[已封存](archive/M0.md) |", "| 進行中，還有 1 張 |")
         self.red("最多一個")
 
     def test_none_active_is_fine(self):
-        self.sub("docs/progress.md", "| 進行中，已拆 3 張票 |", "| 未拆票，上一個里程碑還在進行中的檢查不算 |")
+        self.sub("docs/roadmap.md", "| 進行中，已拆 3 張票 |", "| 未開工，上一個里程碑還在進行中的檢查不算 |")
         self.clean()
 
-    def test_missing_note_column(self):
-        self.sub("docs/progress.md", "| 里程碑 | 票目錄 | 拆票前讀 | 備註 |", "| 里程碑 | 票目錄 | 拆票前讀 | 狀態 |")
-        self.red("「備註」欄")
+    def test_missing_state_column(self):
+        self.sub("docs/roadmap.md", "| 里程碑 | 目標 | 拆票前讀 | 狀態 |", "| 里程碑 | 目標 | 拆票前讀 | 備註 |")
+        self.red("「狀態」欄")
+
+    def test_missing_milestone_section(self):
+        self.sub("docs/roadmap.md", "## 里程碑\n", "## 總表\n")
+        self.red("缺〈里程碑〉")
+
+    def test_other_sections_columns_and_wording_do_not_matter(self):
+        self.sub("docs/roadmap.md", "## M2 介面\n\n目標：畫面。\n", "## M2 介面\n\n已開工，見 spec。\n\n## M3 發佈\n\n進行中的字出現在表外不算。\n")
+        self.sub("docs/roadmap.md", "| 里程碑 | 目標 | 拆票前讀 | 狀態 |\n| --- | --- | --- | --- |", "| 狀態 | 里程碑 | 目標 | 拆票前讀 |\n| --- | --- | --- | --- |")
+        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |", "| 等 M1 進行中的票做完 | M2 介面 | 畫面 | brief §4 |")
+        self.clean()
 
 
 class ScratchTest(Repo):

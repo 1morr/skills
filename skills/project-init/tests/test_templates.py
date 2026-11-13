@@ -67,10 +67,14 @@ class SkeletonTest(unittest.TestCase):
 
     def test_fresh_skeleton_passes_check_docs(self):
         self.write("docs/progress.md", fill("progress.md"))
+        self.write("docs/roadmap.md", fill("roadmap.md"))
         self.assertEqual(check_docs.run(self.root), [])
 
     def test_skeleton_with_a_first_milestone_passes(self):
-        self.write("docs/progress.md", fill("progress.md").replace("| 未拆票。", "| 進行中。"))
+        self.write("docs/progress.md", fill("progress.md"))
+        roadmap = fill("roadmap.md")
+        self.assertIn("| 未開工。", roadmap)
+        self.write("docs/roadmap.md", roadmap.replace("| 未開工。", "| 進行中。"))
         self.write(".scratch/m0/spec.md", "# M0\n\n## 目標\n\n## 範圍\n\n## 共同規則\n\n## 驗收\n\n## 票序\n")
         self.write(".scratch/m0/issues/01-gates.md", fill("ticket.md"))
         self.write(".scratch/m0/issues/02-m0-acceptance.md", fill("ticket.md"))
@@ -148,6 +152,7 @@ class MergeTicketTest(unittest.TestCase):
         self.git(self.repo, "init", "-q", "-b", "main")
         (self.repo / "docs").mkdir()
         (self.repo / "docs/progress.md").write_text(fill("progress.md"), encoding="utf-8")
+        (self.repo / "docs/roadmap.md").write_text(fill("roadmap.md"), encoding="utf-8")
         ticket = self.repo / self.TICKET
         ticket.parent.mkdir(parents=True)
         ticket.write_text(fill("ticket.md"), encoding="utf-8")

@@ -1,14 +1,15 @@
-"""檢查 docs/progress.md、里程碑 spec 與票的格式；規則寫在 progress.md〈寫法與封存〉。
+"""檢查 docs/progress.md、docs/roadmap.md、里程碑 spec 與票的格式；規則寫在 progress.md〈寫法與封存〉。
 
     python check_docs.py [repo 根目錄，預設目前目錄]
 
 全部通過 exit 0；否則每條違規印一行到 stderr、exit 1。規則：
   progress.md
-    - `##` 段依序各一次：寫法與封存、里程碑與閱讀指引、Session 紀錄、偏差與決定
+    - `##` 段依序各一次：寫法與封存、Session 紀錄、偏差與決定
     - 〈Session 紀錄〉整段是一張表（表外沒有別的字），每列不超過 200 字元
     - 最後一列的「下一步」給得出指令（含 `/…` 的行內程式碼），或以「等使用者：」開頭，或是「由協調者決定」
     - 〈偏差與決定〉每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元、標一個決定者：（使用者定）（使用者同意）（Agent 定）
-    - 里程碑表的備註以「進行中」開頭的最多一個
+  roadmap.md
+    - 有〈里程碑〉段，裡面的表有「狀態」欄，狀態以「進行中」開頭的最多一個
   .scratch/
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
@@ -21,9 +22,11 @@ import sys
 from pathlib import Path
 
 PROGRESS = "docs/progress.md"
+ROADMAP = "docs/roadmap.md"
 SCRATCH = ".scratch"
-MILESTONES, SESSIONS, DEVIATIONS = "里程碑與閱讀指引", "Session 紀錄", "偏差與決定"
-PROGRESS_SECTIONS = ("寫法與封存", MILESTONES, SESSIONS, DEVIATIONS)
+MILESTONES, SESSIONS, DEVIATIONS = "里程碑", "Session 紀錄", "偏差與決定"
+STATE = "狀態"
+PROGRESS_SECTIONS = ("寫法與封存", SESSIONS, DEVIATIONS)
 SPEC_SECTIONS = ("目標", "範圍", "共同規則", "驗收", "票序")
 MAX_CHARS = 200
 WAITING = "等使用者："
@@ -92,16 +95,6 @@ def check_progress(text: str) -> list:
     for title, lines in secs:
         by_title.setdefault(title, lines)
 
-    if MILESTONES in by_title:
-        head, rows = table(by_title[MILESTONES])
-        if "備註" not in head:
-            out.append(f"{PROGRESS}：〈{MILESTONES}〉的表要有「備註」欄")
-        else:
-            i = head.index("備註")
-            active = [r for _, r in rows if len(r) > i and r[i].startswith(ACTIVE)]
-            if len(active) > 1:
-                out.append(f"{PROGRESS}：有 {len(active)} 個里程碑的備註以「{ACTIVE}」開頭，最多一個")
-
     if SESSIONS in by_title:
         lines = by_title[SESSIONS]
         for n, l in lines:
@@ -134,6 +127,22 @@ def check_progress(text: str) -> list:
     return out
 
 
+def check_roadmap(text: str) -> list:
+    by_title = {}
+    for title, lines in sections(text):
+        by_title.setdefault(title, lines)
+    if MILESTONES not in by_title:
+        return [f"{ROADMAP}：缺〈{MILESTONES}〉段"]
+    head, rows = table(by_title[MILESTONES])
+    if STATE not in head:
+        return [f"{ROADMAP}：〈{MILESTONES}〉的表要有「{STATE}」欄"]
+    i = head.index(STATE)
+    active = [r for _, r in rows if len(r) > i and r[i].startswith(ACTIVE)]
+    if len(active) > 1:
+        return [f"{ROADMAP}：有 {len(active)} 個里程碑的狀態以「{ACTIVE}」開頭，最多一個"]
+    return []
+
+
 def check_scratch(root: Path) -> list:
     out = []
     base = root / SCRATCH
@@ -160,10 +169,13 @@ def check_scratch(root: Path) -> list:
 
 
 def run(root: Path) -> list:
-    progress = root / PROGRESS
-    if not progress.is_file():
-        return [f"找不到 {PROGRESS}"]
-    return check_progress(progress.read_text(encoding="utf-8")) + check_scratch(root)
+    out = []
+    for rel, check in ((PROGRESS, check_progress), (ROADMAP, check_roadmap)):
+        if (root / rel).is_file():
+            out += check((root / rel).read_text(encoding="utf-8"))
+        else:
+            out.append(f"找不到 {rel}")
+    return out + check_scratch(root)
 
 
 def main(argv) -> int:
