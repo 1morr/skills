@@ -12,6 +12,7 @@
   const measure = document.createElement("canvas").getContext("2d");
   let lastPad = null;
   const fillLines = {};  // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
+  const modelLines = {};  // 題目代號 → 回傳這題對範本答案的自評（一行字）
 
   // 填答格：全形轉半形、不分大小寫、不管空白；兩邊都是數字就比數值（data-tol 是容許誤差）
   function norm(s) {
@@ -101,6 +102,59 @@
       input.addEventListener("keydown", function (e) { if (e.key === "Enter") check(); });
       show();
     });
+  }
+
+  // 範本答案：讀者寫完才打開；給分點變成勾選，自評分數存起來，也進「複製填答結果」
+  function makeModel(section) {
+    const box = section.querySelector("details.model");
+    if (!box) return;
+    const id = section.dataset.id;
+    const store = KEY + ":" + id + ":model";
+    const st = JSON.parse(localStorage.getItem(store) || "null") || { seen: false, got: [] };
+    const items = Array.from(box.querySelectorAll(".rubric li"));
+    const total = items.reduce(function (n, li) { return n + (+li.dataset.marks || 0); }, 0);
+    const score = document.createElement("p");
+    score.className = "score";
+    score.setAttribute("aria-live", "polite");
+    box.append(score);
+    function earned() {
+      return items.reduce(function (n, li, i) { return n + (st.got[i] ? +li.dataset.marks : 0); }, 0);
+    }
+    function show() {
+      score.textContent = "自評：" + earned() + " / " + total + " 分";
+      section.classList.toggle("graded", st.seen);
+    }
+    items.forEach(function (li, i) {
+      const label = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!st.got[i];
+      const marks = document.createElement("span");
+      marks.className = "marks";
+      marks.textContent = "[" + li.dataset.marks + " 分]";
+      li.dataset.label = li.textContent.trim();
+      label.append(cb, " ");
+      while (li.firstChild) label.append(li.firstChild);
+      label.append(" ", marks);
+      li.append(label);
+      cb.addEventListener("change", function () {
+        st.got[i] = cb.checked;
+        localStorage.setItem(store, JSON.stringify(st));
+        show();
+      });
+    });
+    box.addEventListener("toggle", function () {
+      if (!box.open || st.seen) return;
+      st.seen = true;
+      localStorage.setItem(store, JSON.stringify(st));
+      show();
+    });
+    show();
+    modelLines[id] = function () {
+      if (!st.seen) return ["範本答案還沒打開"];
+      const lost = items.filter(function (_, i) { return !st.got[i]; }).map(function (li) { return li.dataset.label; });
+      return ["自評 " + earned() + "/" + total + " 分" + (lost.length ? "；沒拿到：" + lost.join("、") : "")];
+    };
   }
 
   // 打的字自動換行：中文一字一斷，英文整個字一起換；單一個字比一行還寬才逐字切
@@ -389,6 +443,7 @@
 
   const sections = Array.from(document.querySelectorAll("section.q"));
   sections.forEach(makeFills);
+  sections.forEach(makeModel);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
 
   // 複製填答結果：每題一行字，貼到對話讓 Claude 記進學習紀錄
@@ -397,7 +452,7 @@
     const status = report.parentNode.querySelector(".status");
     const lines = [TITLE + " 填答結果"];
     sections.forEach(function (sec) {
-      const got = fillLines[sec.dataset.id]();
+      const got = fillLines[sec.dataset.id]().concat(modelLines[sec.dataset.id] ? modelLines[sec.dataset.id]() : []);
       const name = sec.dataset.id + "（" + sec.querySelector("h2").textContent.trim() + "）";
       got.forEach(function (s) { lines.push(name + "：" + s); });
     });

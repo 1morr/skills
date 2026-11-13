@@ -89,6 +89,25 @@ figcaption { color: var(--muted); font-size: .84rem; margin-top: .35rem; }
 .report .status { color: var(--muted); margin-left: .6rem; }
 .report textarea { display: block; width: 100%; margin-top: .5rem; font: .86rem/1.5 var(--mono); }
 
+/* 範本答案：寫完才打開；答案紙是白紙，給分點一點一點勾 */
+details.model { border: 1px solid var(--rule); border-radius: 4px; margin: 1rem 0 1.25rem; }
+details.model > summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: .55rem 1rem; }
+details.model > summary:hover { background: var(--accent-soft); }
+details.model[open] > summary { border-bottom: 1px solid var(--line); }
+details.model > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
+details.model .sheet {
+  background: #fff; color: #161616; border: 1px solid #d5d0c5; border-radius: 2px; padding: .8rem 1.1rem;
+  margin-top: 1rem; font: 16px/1.65 var(--serif); overflow-x: auto;
+}
+details.model .sheet p { margin: .35rem 0; }
+.rubric { list-style: none; padding: 0; }
+.rubric li { margin: .35rem 0; }
+.rubric label { cursor: pointer; display: block; padding: .15rem .3rem; border-radius: 3px; }
+.rubric label:hover { background: var(--tint); }
+.rubric label:has(:checked) { color: var(--ok); }
+.rubric .marks { color: var(--muted); font-size: .86rem; white-space: nowrap; }
+details.model .score { font-weight: 700; margin-bottom: 1rem; }
+
 /* 畫布：工具列在上、白紙方格在下 */
 .pad { border: 1px solid var(--rule); border-radius: 4px; overflow: clip; margin: 1rem 0 1.25rem; background: var(--board); }
 .tools {

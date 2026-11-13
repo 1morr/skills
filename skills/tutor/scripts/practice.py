@@ -15,6 +15,15 @@
     data-why      一句原因：答對或公布答案時顯示。基本功必填
 基本功錯兩次就公布答案和原因；整題的填答格只說對不對，不公布，步驟由 Claude 批改。
 
+範本答案（每題完整題目一個，讀者寫完才打開，照給分點自己勾，勾的結果會進「複製填答結果」）：
+    <details class="model">
+      <div class="sheet">老師格式的完整答案</div>
+      <ul class="rubric"><li data-marks="2">寫出 H0、Ha</li><li data-marks="1">結論句寫明顯著水準</li></ul>
+    </details>
+    data-marks    這個給分點幾分（正整數），配分照老師的評分方式
+
+讀圖題：導讀頁題型表那一列寫了 data-reads="figure" 的題型，題目裡要有 <figure> 或 <pre class="mtb">（軟體輸出）。
+
 只用標準函式庫，CI 才能直接跑測試。
 """
 
@@ -42,8 +51,9 @@ PAD_H = {"drill": 280, "full": 900}
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
-# 練習頁只放題目和填答格：做法在答案檔，由 Claude 批改
+# 題目本身只放題目和填答格；做法和答案只能放在讀者寫完才打開的 details.model 裡
 ANSWER_CLASSES = {"answer", "calc", "sheet", "origin", "trap", "summary"}
+MODEL_SUMMARY = "寫完了再打開：範本答案和給分點"
 SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 PLACEHOLDER = re.compile(r"\{\{|\}\}")
@@ -81,14 +91,28 @@ class Lint(HTMLParser):
             if self.inside("q"):
                 self.problems.append("題目裡又有題目（section.q 不能巢狀）")
             self.qs.append({"id": a.get("data-id") or "", "drill": "drill" in cls, "differs": (a.get("data-differs") or "").strip(),
-                            "title": "", "refs": [], "fills": 0, "types": (a.get("data-type") or "").split()})
+                            "title": "", "refs": [], "fills": 0, "types": (a.get("data-type") or "").split(),
+                            "model": 0, "marks": 0, "shows": False})
             if a.get("data-h") is not None and not a["data-h"].strip().isdigit():
                 self.problems.append(f"data-h={a['data-h']!r} 要是整數：畫布的高度（畫布座標）")
         elif self.qs and self.inside("q"):
-            if tag == "details" or cls & ANSWER_CLASSES:
+            q = self.qs[-1]
+            name = q["id"] or q["title"]
+            if tag == "details" and "model" in cls and not q["drill"] and not self.inside("model"):
+                q["model"] += 1
+            elif self.inside("model"):
+                if tag == "li" and self.inside("rubric"):
+                    marks = (a.get("data-marks") or "").strip()
+                    if marks.isdigit() and int(marks) > 0:
+                        q["marks"] += int(marks)
+                    else:
+                        self.problems.append(f"題目 {name!r} 的給分點沒有 data-marks：每個 <li> 寫這一點幾分（正整數）")
+            elif tag == "details" or cls & ANSWER_CLASSES:
                 what = f'<{tag} class="{" ".join(sorted(cls))}">' if cls else f"<{tag}>"
-                self.problems.append(f"題目 {self.qs[-1]['id'] or self.qs[-1]['title']!r} 裡有 {what}："
-                                     "練習頁不放做法和答案；要馬上對的單一答案用 .fill 填答格，做法寫在答案檔由 Claude 批改")
+                self.problems.append(f"題目 {name!r} 裡有 {what}：做法和答案放進 <details class=\"model\">，讀者寫完才打開；"
+                                     "要馬上對的單一答案用 .fill 填答格")
+            if (tag == "figure" or (tag == "pre" and "mtb" in cls)) and not self.inside("model"):
+                q["shows"] = True
             if tag == "h2":
                 self.heading = ""
             if "pad" in cls:
@@ -165,10 +189,11 @@ def guide_anchors(path: Path) -> set:
     return set(re.findall(r'\bid="(s\d+(?:-\d+)?)"', text))
 
 
-def guide_types(path: Path) -> list:
-    """導讀頁題型表每一列的 data-type，照表上的順序。"""
+def guide_types(path: Path) -> dict:
+    """導讀頁題型表每一列：{data-type: 是不是讀圖題（data-reads="figure"）}，照表上的順序。"""
     text = path.read_text(encoding="utf-8")
-    return [tag_attrs(m.group(0))["data-type"] for m in re.finditer(r"<tr\b[^>]*\bdata-type\s*=[^>]*>", text, re.I)]
+    rows = (tag_attrs(m.group(0)) for m in re.finditer(r"<tr\b[^>]*\bdata-type\s*=[^>]*>", text, re.I))
+    return {a["data-type"]: a.get("data-reads") == "figure" for a in rows}
 
 
 def anchor(ref: str) -> str:
@@ -206,6 +231,11 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
             if not q["differs"]:
                 problems.append(f"題目「{name}」沒有 data-differs：寫這題和對照的例題哪裡不一樣（結論相反、陷阱不同），"
                                 "照抄例題步驟的人會在這裡錯")
+            if q["model"] != 1:
+                problems.append(f'題目「{name}」要有一個 <details class="model"> 範本答案（現在 {q["model"]} 個）：'
+                                "老師格式的完整答案加給分點，讀者寫完自己對，不用等批改")
+            elif not q["marks"]:
+                problems.append(f'題目「{name}」的範本答案沒有給分點：加 <ul class="rubric">，每個 <li data-marks="分數"> 寫一個老師會給分的點')
 
     drills = [q for q in p.qs if q["drill"]]
     full = [q for q in p.qs if not q["drill"]]
@@ -243,8 +273,8 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     return problems
 
 
-def type_coverage(full: list, types: list, guide: str) -> list:
-    """每題寫明練的是題型表的哪幾列；每個題型的變式題數夠。"""
+def type_coverage(full: list, types: dict, guide: str) -> list:
+    """每題寫明練的是題型表的哪幾列；每個題型的變式題數夠；讀圖題型的題目有圖或軟體輸出。"""
     if not types:
         return [f"導讀頁 {guide} 的題型表沒有 data-type：用現在的 build.py 重組導讀頁"]
     problems = []
@@ -255,6 +285,9 @@ def type_coverage(full: list, types: list, guide: str) -> list:
         for t in q["types"]:
             if t not in types:
                 problems.append(f"題目「{name}」的 data-type={t!r} 不在導讀頁的題型表裡（{'、'.join(types)}）")
+            elif types[t] and not q["shows"]:
+                problems.append(f'題目「{name}」練的是讀圖題型 {t!r}，卻沒有圖：放腳本畫的 <figure>（時間序列圖、ACF 圖）'
+                                '或排成老師樣式的 <pre class="mtb"> 軟體輸出，考試就是這樣給')
     for t in types:
         n = sum(t in q["types"] for q in full if not q["differs"].startswith(ORIGINAL))
         if n < MIN_PER_TYPE:
@@ -311,6 +344,17 @@ def finish_sections(inner: str) -> str:
         pos = m.end()
     out.append(inner[pos:])
     return "".join(out)
+
+
+def finish_models(inner: str) -> str:
+    """details.model 補上摘要，預設收起來。"""
+    def repl(m):
+        a = tag_attrs(m.group(0))
+        if "model" not in (a.get("class") or "").split():
+            return m.group(0)
+        tag = re.sub(r"\sopen(\s*=\s*(\"[^\"]*\"|'[^']*'))?", "", m.group(0), flags=re.I)
+        return f"{tag}<summary>{MODEL_SUMMARY}</summary>"
+    return re.sub(r"<details\b[^>]*>", repl, inner, flags=re.I)
 
 
 def link_refs(inner: str, guide: str) -> str:
@@ -383,7 +427,7 @@ HOWTO = """<div class="howto">
 <li>每題標了對照導讀頁的哪一段，點 § 會在新分頁打開；卡住時去看那題例題的做法。</li>
 <li>畫布：滑鼠按住拖曳就是寫字，觸控筆、手指也可以。按「文字」再點畫布任何地方就能打字；點已經打的字可以改，按 Esc 或點別處收起來。</li>
 <li>工具列還有換顏色、橡皮擦、復原（Ctrl+Z）、加長、清空（要連按兩下）。寫的東西自動存在這台電腦的瀏覽器裡，關掉再開還在。</li>
-<li>整題的做法不在這頁。有填答格的先對最後的數字；要看步驟哪裡錯，按「複製給 Claude」，到對話裡按 Ctrl+V 貼上，Claude 照你寫的步驟批改。</li>
+<li>整題寫完才打開下面的「範本答案和給分點」，照老師的給分點一點一點勾，就知道會拿幾分。有填答格的先對最後的數字。看不出步驟哪裡錯，按「複製給 Claude」，到對話裡按 Ctrl+V 貼上。</li>
 <li>全部做完按上面的「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
 </ul>
 </div>
@@ -397,7 +441,7 @@ REPORT = ('<p class="report"><button id="report" type="button">複製填答結�
 def build(src: str, base: Path) -> str:
     a, inner = body_parts(src)
     inner, panel_html = panel(inner)
-    inner = link_refs(finish_sections(add_pads(inner)), a["data-guide"])
+    inner = link_refs(finish_models(finish_sections(add_pads(inner))), a["data-guide"])
     has_lead = re.search(r"""class\s*=\s*["'][^"']*\blead\b""", inner)
     lead = "" if has_lead else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
     title = html.escape(a["data-title"])

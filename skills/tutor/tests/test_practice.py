@@ -33,8 +33,10 @@ def drill(qid, text="這題用 t 還是 Z？"):
 
 
 DRILLS = drill("which-table") + drill("which-tail") + drill("critical-value")
+MODEL = ('<details class="model"><div class="sheet"><p>The series is stationary.</p></div>'
+         '<ul class="rubric"><li data-marks="2">說出沒有趨勢</li><li data-marks="1">結論句</li></ul></details>')
 ONE = ('<section class="q" data-id="acf-seasonal" data-type="acf-read" data-differs="有季節性沒有趨勢，Eg 1 有趨勢">'
-       '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p></section>')
+       '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p>' + MODEL + '</section>')
 TWO = ONE.replace("acf-seasonal", "acf-trend").replace("練習 1", "練習 2")
 FULL = ONE + TWO
 PANEL = ('<aside class="panel" data-label="查表"><figure data-tab="Z 表"><img src="z.png" data-zh="z.zh.png">'
@@ -221,7 +223,7 @@ class NoAnswerRule(Case):
         for leak in ('<details><summary>答案</summary>r4 顯著</details>', '<div class="calc">r = 0.4</div>',
                      '<div class="sheet">Since …</div>', '<p class="trap">別用 1.96</p>', '<div class="answer">x</div>'):
             with self.subTest(leak=leak):
-                self.assertRed(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", leak)), "不放做法和答案")
+                self.assertRed(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", leak)), "做法和答案放進")
 
     def test_question_markup_passes(self):
         q = ('<div class="en">Plot it.<ol><li>a</li></ol></div><div class="zh note">畫圖。</div>'
@@ -229,8 +231,55 @@ class NoAnswerRule(Case):
              '<figure><img src="q.png" data-zh="q.zh.png"><figcaption>Eg p.2</figcaption></figure>')
         self.assertGreen(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", q)))
 
+    def test_model_may_hold_answer_blocks(self):
+        rich = MODEL.replace('<ul class="rubric">', '<div class="calc">r = 0.4</div><p class="trap">別用 1.96</p><ul class="rubric">')
+        self.assertGreen(src(DRILLS + FULL.replace(MODEL, rich)))
+
     def test_own_pad_fails(self):
         self.assertRed(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", '<div class="pad"></div>')), "不用自己放 .pad")
+
+
+class ModelRule(Case):
+    """每題完整題目一個範本答案，裡面有帶分數的給分點；讀圖題型的題目要有圖或軟體輸出。"""
+    READS = GUIDE.replace('data-type="acf-read"', 'data-reads="figure" data-type="acf-read"')
+    FIG = '<figure data-tr="none"><img src="q.png"><figcaption>gen.py 畫的 ACF</figcaption></figure>'
+
+    def test_missing_model_fails(self):
+        self.assertRed(src(DRILLS + ONE.replace(MODEL, "") + TWO), "要有一個 <details class=\"model\">")
+
+    def test_two_models_fail(self):
+        self.assertRed(src(DRILLS + ONE.replace(MODEL, MODEL + MODEL) + TWO), "現在 2 個")
+
+    def test_model_without_rubric_fails(self):
+        self.assertRed(src(DRILLS + ONE.replace('<li data-marks="2">說出沒有趨勢</li><li data-marks="1">結論句</li>', "") + TWO),
+                       "沒有給分點")
+
+    def test_rubric_item_without_marks_fails(self):
+        for bad in ("<li>結論句</li>", '<li data-marks="0">結論句</li>', '<li data-marks="一">結論句</li>'):
+            with self.subTest(bad=bad):
+                self.assertRed(src(DRILLS + ONE.replace('<li data-marks="1">結論句</li>', bad) + TWO), "沒有 data-marks")
+
+    def test_model_formatting_variants_pass(self):
+        m = MODEL.replace('<details class="model">', "<DETAILS open class='model wide'>").replace('data-marks="2"', "data-marks=' 3 '")
+        self.assertGreen(src(DRILLS + ONE.replace(MODEL, m) + TWO))
+
+    def test_drills_need_no_model(self):
+        self.assertGreen(src())
+
+    def test_figure_type_without_figure_fails(self):
+        (self.dir / "guide.html").write_text(self.READS, encoding="utf-8")
+        self.assertRed(src(), "卻沒有圖")
+
+    def test_figure_inside_model_does_not_count(self):
+        (self.dir / "guide.html").write_text(self.READS, encoding="utf-8")
+        inner = FULL.replace('<ul class="rubric">', self.FIG + '<ul class="rubric">')
+        self.assertRed(src(DRILLS + inner), "卻沒有圖")
+
+    def test_figure_or_output_in_question_passes(self):
+        (self.dir / "guide.html").write_text(self.READS, encoding="utf-8")
+        for shown in (self.FIG, '<pre class="mtb">Lag  ACF  T  LBQ</pre>'):
+            with self.subTest(shown=shown[:20]):
+                self.assertGreen(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", shown)))
 
 
 class FigureRule(Case):
@@ -356,6 +405,11 @@ class Build(Case):
         out = self.page()
         self.assertEqual(out.count('class="fill" data-answer="t|t 分配"'), 3)
         self.assertEqual(out.count('<button id="report"'), 1)
+
+    def test_model_gets_summary_and_starts_closed(self):
+        out = practice.build(src(DRILLS + FULL.replace('<details class="model">', '<details open class="model">')), self.dir)
+        self.assertEqual(out.count(f"<summary>{practice.MODEL_SUMMARY}</summary>"), 2)
+        self.assertNotIn("<details open", out)
 
     def test_cli_writes_nothing_when_red(self):
         (self.dir / "p-src.html").write_text(src(DRILLS), encoding="utf-8")
