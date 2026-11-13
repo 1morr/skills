@@ -63,6 +63,17 @@ class TicketNotesTest(unittest.TestCase):
         code, out, _ = self.run_it("m1.5", str(self.repo), "--archive")
         self.assertEqual((code, out.split("\n")[0], out.strip().split("\n")[-2:]), (0, "## Session 紀錄", ["## 決定", "- 2026-01-05 M1.5 票 02（Agent 定）：用 X"]))
 
+    def test_changelog_entries_are_grouped_by_category(self):
+        self.ticket("m0/issues/01-a.md", "甲", "Session 紀錄：2026-01-04 做完甲。", "變更：Fixed｜候選列｜整季缺時問得到。", "變更：Added｜搜尋｜可以搜作品。")
+        self.ticket("m0/issues/02-b.md", "乙", "Session 紀錄：2026-01-05 做完乙。", "變更： Added ｜ 搜尋 ｜ 不合格式的不印", "變更：Added｜匯出｜可以匯出。", "變更：無",
+                    "變更：新增了一些東西")
+        self.ticket("m0/issues/03-c.md", "丙", "Session 紀錄：2026-01-06 做完丙。", "變更：無")
+        self.assertEqual(m.changelog(self.repo, "m0"), ["### Added", "- **搜尋**：可以搜作品。", "- **匯出**：可以匯出。", "", "### Fixed", "- **候選列**：整季缺時問得到。"])
+        code, out, _ = self.run_it("m0", str(self.repo), "--changelog")
+        self.assertEqual((code, out.split("\n")[0]), (0, "### Added"))
+        self.assertIn("  變更：Fixed｜候選列｜整季缺時問得到。\n", self.run_it("m0", str(self.repo))[1])
+        self.assertEqual(self.run_it("m0", str(self.repo), "--archive", "--changelog")[0], 2)
+
     def test_an_effort_that_is_not_a_milestone_keeps_its_directory_name(self):
         self.ticket("docs-diet/issues/01-trim.md", "瘦身", "Session 紀錄：2026-01-04 瘦了。")
         self.assertEqual(m.archive(self.repo, "docs-diet")[0], ["| 2026-01-04 | docs-diet 01 | 瘦了。 | |"])

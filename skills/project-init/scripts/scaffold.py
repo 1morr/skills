@@ -26,6 +26,7 @@ TEMPLATES = {
     "progress.md": "docs/progress.md",
     "decisions.md": "docs/decisions.md",
     "development.md": "docs/development.md",
+    "changelog.md": "CHANGELOG.md",
     "ticket.md": "docs/agents/ticket-template.md",
     "issue-tracker.md": "docs/agents/issue-tracker.md",
     "triage-labels.md": "docs/agents/triage-labels.md",
