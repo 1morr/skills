@@ -42,6 +42,13 @@ FROM_KINDS = {"table", "count", "convention", "rule", "constant"}
 # 這兩種在材料或算式上看得到，要連到同一段裡圈出它的 figure 或算出它的 .calc
 LINKED_FROM = {"table", "count"}
 
+# 這些框的標籤由樣式加上；內文開頭再寫一次就重複了
+LABELS = {"why": ("為什麼",), "trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
+          "sheet": ("答案紙上寫這樣",)}
+# 整頁太長的提醒（不擋產出）：正文字數，和沒有摺起來的圖的張數
+PROSE_WARN = 15000
+FIGURE_WARN = 60
+
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
 PAGE_REF = re.compile(r"\bp{1,2}\.\s*\d+")
@@ -95,6 +102,8 @@ class Lint(HTMLParser):
         self.problems_h2 = False  # 題目欄已經有 h2 了（題型表要在它前面）
         self.type_row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
         self.type_slugs = []  # 題型表每一列的 data-type
+        self.boxes = []  # 開著的有標籤的框：{"depth", "labels", "first"}
+        self.shown_figures = 0  # 沒有摺在 <details> 裡的圖
 
     def skipping(self) -> bool:
         return any(skip for _, skip, _ in self.stack)
@@ -127,9 +136,13 @@ class Lint(HTMLParser):
             if self.kind not in KINDS:
                 self.problems.append(f'<body data-problems="{self.kind}"> 看不懂：只能是 {" 或 ".join(KINDS)}')
         if self.stack and self.stack[-1][0] == "body" and not (
-                tag in ("script", "style") or (tag == "section" and cls & set(PANES))):
-            self.problems.append(f'<body> 底下只能放 <section class="course"> 和 <section class="problems">（現在有 <{tag}>）：'
-                                 "標題和範圍表放進課件欄的開頭")
+                tag in ("script", "style") or (tag == "section" and cls & set(PANES)) or (tag == "aside" and "panel" in cls)):
+            self.problems.append(f'<body> 底下只能放 <section class="course">、<section class="problems"> 和查表面板 '
+                                 f'<aside class="panel">（現在有 <{tag}>）：標題和範圍表放進課件欄的開頭')
+        for name in cls & set(LABELS):
+            self.boxes.append({"depth": len(self.stack), "labels": LABELS[name], "first": True})
+        if "ans" in cls and self.calcs:
+            self.calcs[-1]["ans"] = True
         for key in ("src", "href", "data-zh"):
             if tag in ("img", "script", "link", "source") and a.get(key) and REMOTE.match(a[key]):
                 self.problems.append(f"外部資源 <{tag} {key}={a[key]!r}>：頁面要能離線打開，請改成本機檔案")
@@ -147,12 +160,18 @@ class Lint(HTMLParser):
             self.example = False
         if tag == "table" and "types" in cls and self.pane() == "problems" and not self.problems_h2:
             self.types = []
+            if not self.inside_class("cheat"):
+                self.problems.append('題型表要放在速查卡 <div class="cheat"> 裡：題目欄開頭一張可以單獨列印的卡，'
+                                     "題型表、要背的公式、判斷規則都在上面")
         if cls & ANSWER_ONLY and self.pane() == "problems" and not self.in_answer():
             what = ", ".join(sorted(cls & ANSWER_ONLY))
             self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
         if tag == "figure":
             if self.sections and self.inside_class("why"):
                 self.sections[-1]["why_fig"] = True
+            self.shown_figures += not self.inside("details")
+            if self.inside_class("panel") and not (a.get("data-tab") or "").strip():
+                self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
             self.figures.append({"caption": "", "in_caption": False, "page": "page" in cls, "id": a.get("id") or "",
                                  "tr": "tr" in self.prev[len(self.stack)], "none": a.get("data-tr") == "none",
                                  "zh": False})
@@ -168,7 +187,7 @@ class Lint(HTMLParser):
         if "def" in cls:
             self.defs.append({"dfn": 0, "test": "", "term": "", "example": self.example})
         if "calc" in cls:
-            self.calcs.append({"formula": "", "subst": ""})
+            self.calcs.append({"formula": "", "subst": "", "ans": False})
         if tag == "h2":
             self.heading = ""
             if self.pane() == "problems":
@@ -235,6 +254,7 @@ class Lint(HTMLParser):
                 inner = self.prev[i + 1] if len(self.prev) > i + 1 else set()
                 del self.stack[i:]
                 del self.prev[i + 1:]
+                self.boxes = [b for b in self.boxes if b["depth"] < i]
                 self.closed(i, cls, inner)
                 break
         if cls is None:
@@ -272,6 +292,8 @@ class Lint(HTMLParser):
                 self.problems.append(f'計算「{what}」沒有寫出公式：.calc 裡要有含「=」的 class="formula"，不寫「用 §N 的公式」')
             if not re.search(r"\d", c["subst"]):
                 self.problems.append(f'計算「{what}」沒有代入數字：.calc 裡要有 class="subst"，把數字代進公式')
+            if not c["ans"]:
+                self.problems.append(f'計算「{what}」沒有標出結果：算出來的那個數包成 <span class="ans">…</span>，讀者一眼找到答案')
         if tag == "figcaption" and self.figures:
             self.figures[-1]["in_caption"] = False
         if tag == "figure" and self.figures:
@@ -302,6 +324,12 @@ class Lint(HTMLParser):
     def handle_data(self, data):
         if self.row is not None:
             self.row["text"] += data
+        text = data.strip()
+        for box in self.boxes:
+            if box["first"] and text:
+                box["first"] = False
+                if text.startswith(box["labels"]):
+                    self.problems.append(f"「{text[:12]}」開頭重複了標籤：這個框的標籤由樣式加上，內文直接寫內容")
         if self.type_row is not None:
             self.type_row["text"] += data
         m = NOT_EXAMINED.search(data)
@@ -424,6 +452,21 @@ def lint(src: str) -> list:
     return problems
 
 
+def warnings(src: str) -> list:
+    """不擋產出的提醒：整頁太長時讀者抓不到重點。"""
+    p = Lint()
+    p.feed(src)
+    p.close()
+    out = []
+    units = sum(sec["units"] for sec in p.sections)
+    if units > PROSE_WARN:
+        out.append(f"正文有 {units} 字（提醒門檻 {PROSE_WARN}）：刪掉重複講的段落，把只有少數人要看的推導收進 <details>")
+    if p.shown_figures > FIGURE_WARN:
+        out.append(f"沒摺起來的圖有 {p.shown_figures} 張（提醒門檻 {FIGURE_WARN}）：整張統計表放查表面板，"
+                   "題目裡只留圈出那一格的小截圖")
+    return out
+
+
 def panes(sections) -> list:
     """每個 h2 都在課件欄或題目欄裡，兩欄都要有，課件欄在前。"""
     problems, seen = [], []
@@ -538,14 +581,36 @@ def add_toc(src: str) -> str:
 
 def add_toolbars(src: str) -> str:
     """課件欄頂端放「圖片中文／原文」切換（有翻譯圖才放），題目欄頂端放「展開全部做法」。"""
-    bars = {"problems": '<button type="button" data-act="answers">展開全部做法</button>'}
+    here = '<button type="button" class="here" data-act="toc" title="回到這一欄的目錄"></button>'
+    bars = {"problems": '<button type="button" data-act="print">列印速查卡</button>'
+                        '<button type="button" data-act="answers">展開全部做法</button>', "course": ""}
+    if re.search(r'<aside\b[^>]*\bid="panel"', src, re.I):
+        bars["problems"] = '<button type="button" data-act="panel">查表</button>' + bars["problems"]
     if re.search(r"<img\b[^>]*\bdata-zh\s*=", src, re.I):
         bars["course"] = '<button type="button" data-act="lang">圖片：中文（點這裡全部換成原文）</button>'
     for name in ("problems", "course"):  # 先插後面那欄，前面那欄的位置才不會變
         at = pane_start(src, name)
-        if at >= 0 and name in bars:
-            src = src[:at] + f'<div class="bar">{bars[name]}</div>' + src[at:]
+        if at >= 0:
+            src = src[:at] + f'<div class="bar">{here}{bars[name]}</div>' + src[at:]
     return src
+
+
+PANEL = re.compile(r"""<aside\b[^>]*\bclass\s*=\s*["'][^"']*\bpanel\b[^"']*["'][^>]*>(.*?)</aside\s*>""", re.I | re.S)
+PANEL_FIG = re.compile(r"""<figure\b[^>]*\bdata-tab\s*=\s*["']([^"']*)["'][^>]*>(.*?</figure\s*>)""", re.I | re.S)
+
+
+def add_panel(src: str) -> str:
+    """<aside class="panel"> 裡的 figure 變成「查表」按鈕打開的分頁面板：整張統計表放這裡，不用每題重貼。"""
+    m = PANEL.search(src)
+    if not m:
+        return src
+    tabs, bodies = [], []
+    for i, fm in enumerate(PANEL_FIG.finditer(m.group(1))):
+        tabs.append(f'<button type="button" data-tab="t{i}" aria-pressed="{"true" if i == 0 else "false"}">{fm.group(1)}</button>')
+        bodies.append(f'<figure data-tab="t{i}"{"" if i == 0 else " hidden"}>{fm.group(2)}')
+    panel = (f'<aside id="panel" aria-label="查表"><header>{"".join(tabs)}'
+             f'<button type="button" class="close">關閉</button></header><div class="body">{"".join(bodies)}</div></aside>')
+    return src[:m.start()] + panel + src[m.end():]
 
 
 IMG_TAG = re.compile(r"<img\b[^>]*>", re.I)
@@ -602,7 +667,7 @@ def inject_assets(src: str) -> str:
 
 def build(src: str, base: Path) -> str:
     src, anchors = number_headings(src)
-    src = add_toolbars(add_toc(link_refs(src, anchors)))
+    src = add_toolbars(add_toc(link_refs(add_panel(src), anchors)))
     return inject_assets(inline_images(split_bilingual(src), base))
 
 
@@ -620,6 +685,8 @@ def main(argv=None) -> int:
         for p in problems:
             print(f"  - {p}", file=sys.stderr)
         return 1
+    for w in warnings(src):
+        print(f"提醒：{w}", file=sys.stderr)
     out = args.out or args.src.with_name(args.src.stem.removesuffix("-src") + ".html")
     out.write_text(build(src, args.src.parent), encoding="utf-8")
     print(out)

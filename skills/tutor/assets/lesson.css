@@ -1,12 +1,13 @@
 /* tutor 講解頁共用樣式；build.py 會把它內嵌進每一頁。
    走雙色教科書的路子：墨色正文、一個藍色專色（連結、§ 編號、定義、做法摺疊），
-   黃色只用在「這段記住」和最後答案的螢光筆。紅色留給課件截圖上老師的紅框，介面不用。 */
+   黃色只用在重點框和算出來的答案（.ans 螢光筆），磚紅只用在「常見錯誤」。
+   正紅留給課件截圖上老師的紅框，介面不用。 */
 :root {
   color-scheme: light dark;
   --bg: #fbfaf6; --bg2: #f4f2ec; --fg: #23211d; --muted: #67625a; --line: #e2ddd2; --rule: #c9c2b4;
   --accent: #1f5f8b; --accent-tint: #e9f0f5; --accent-line: #b9cfdf;
   --sum-bg: #fbf4de; --sum-line: #e8d6a0; --sum-ink: #7a5710;
-  --tr-bg: #f0ede5; --mark: #b42318; --warn: #9c3d1f; --hl: #f6e3a1;
+  --tr-bg: #f0ede5; --mark: #b42318; --warn: #9c3d1f; --warn-tint: #fbeee8; --warn-line: #e9c4b4; --hl: #f6e3a1;
   --sheet-bg: #ffffff; --sheet-fg: #161616; --img-filter: none;
   --sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
   /* 數學和英文原文用襯線體；中文字落到後面的黑體，不會變成細明體 */
@@ -17,7 +18,7 @@
     --bg: #1b1a18; --bg2: #22211e; --fg: #e8e4db; --muted: #a49e93; --line: #36332e; --rule: #4a463f;
     --accent: #86b8dc; --accent-tint: #1e2a33; --accent-line: #33495a;
     --sum-bg: #2a2516; --sum-line: #4d4224; --sum-ink: #e3bf66;
-    --tr-bg: #262420; --mark: #ff8f7f; --warn: #f0a07f; --hl: #5c4a17;
+    --tr-bg: #262420; --mark: #ff8f7f; --warn: #f0a07f; --warn-tint: #2e1d17; --warn-line: #5a3528; --hl: #5c4a17;
     --sheet-bg: #eeeae1; --sheet-fg: #161616; --img-filter: brightness(.88);
   }
 }
@@ -33,12 +34,17 @@ body {
 
 /* 標題：§ 編號是專色，標題本身是墨色；上方留白比下方多 */
 h1 { font-size: 1.75rem; line-height: 1.3; letter-spacing: -.01em; font-weight: 700; margin: 1.5rem 0 .6rem; text-wrap: balance; }
+/* 三級字級拉開：h2 1.5、h3 1.2、內文 1；h3 左邊一條專色，捲動時一眼找到每一塊的開頭 */
 h2 {
-  font-size: 1.3rem; line-height: 1.45; font-weight: 700; text-wrap: balance;
-  margin: 3.5rem 0 1rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+  font-size: 1.5rem; line-height: 1.4; font-weight: 700; text-wrap: balance;
+  margin: 4rem 0 1rem; padding-top: 1.2rem; border-top: 2px solid var(--fg);
 }
-h2.recap { border-top: 3px double var(--rule); }
-h3 { font-size: 1.08rem; line-height: 1.5; font-weight: 700; margin: 2.2rem 0 .5rem; }
+h2.recap { border-top: 3px double var(--fg); }
+h3 {
+  font-size: 1.2rem; line-height: 1.5; font-weight: 700; margin: 2.8rem 0 .6rem;
+  padding-left: .7rem; border-left: 4px solid var(--accent);
+}
+strong { font-weight: 700; }
 .num { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums lining-nums; margin-right: .35em; }
 p { margin: .7rem 0; }
 ul, ol { padding-left: 1.5rem; }
@@ -58,10 +64,16 @@ code { font: .9em/1 ui-monospace, "SF Mono", Consolas, monospace; background: va
 /* 圖：細線框、不加陰影；太高的圖不超過一個畫面 */
 figure { margin: 1.4rem 0; }
 figure img {
-  display: block; max-width: 100%; max-height: 85vh; width: auto; height: auto;
+  display: block; max-width: 100%; max-height: 60vh; width: auto; height: auto;
   border: 1px solid var(--line); border-radius: 2px; background: #fff; filter: var(--img-filter);
 }
 figcaption { font-size: .84rem; line-height: 1.55; color: var(--muted); margin-top: .45rem; }
+/* 圖預設不超過 60% 畫面高，講解才不會被截圖擠掉；要看細節按「放大」 */
+figure.zoom img { max-height: none; }
+figcaption .zoom-btn {
+  font: inherit; color: var(--accent); background: none; border: 0; padding: 0; margin-left: .6em; cursor: pointer;
+  text-decoration: underline; text-underline-offset: .22em;
+}
 /* 翻譯圖：預設顯示中文，點圖換原文（build 把 <img data-zh> 拆成 img.zh 和 img.en） */
 figure img.en { display: none; }
 figure.show-en img.en { display: block; }
@@ -71,17 +83,17 @@ figure:has(img.zh) img:hover { border-color: var(--accent-line); }
 figure:has(img.zh) figcaption::before { content: "中文 · 點圖看原文 · "; font-weight: 600; color: var(--accent); }
 figure.show-en:has(img.zh) figcaption::before { content: "原文 · 點圖看中文 · "; }
 
-/* 有底色的框只有三種：譯文（灰）、定義（藍）、這段記住（黃）。為什麼、常見錯誤只是有標籤的段落 */
+/* 有底色的框四種：譯文（灰）、定義（藍）、重點（黃）、常見錯誤（磚紅）。「為什麼」只是有標籤的段落 */
 .tr { background: var(--tr-bg); border-radius: 3px; padding: .5rem .9rem; margin: .7rem 0; }
 .tr .en { font-family: var(--serif); }
 div.tr { padding: .7rem 1.1rem; }
 div.tr::before, .def::before, .summary::before, .why::before, .trap::before, .sheet::before {
-  display: block; font: 600 .78rem/1.5 var(--sans); letter-spacing: .06em; margin-bottom: .15rem;
+  display: block; font: 700 .84rem/1.5 var(--sans); letter-spacing: .06em; margin-bottom: .2rem;
 }
 div.tr::before { content: "譯文"; color: var(--muted); }
 div.tr p { margin: .3rem 0; }
 .tr strong { color: var(--mark); } /* 對應課件上老師的紅框 */
-.def, .summary { border-radius: 3px; padding: .8rem 1.1rem; margin: 1.2rem 0; }
+.def, .summary, .trap { border-radius: 3px; padding: .8rem 1.1rem; margin: 1.2rem 0; }
 .def { background: var(--accent-tint); border: 1px solid var(--accent-line); }
 .def::before { content: "定義"; color: var(--accent); }
 .def dfn { font-style: normal; font-weight: 700; color: var(--accent); }
@@ -90,7 +102,9 @@ div.tr p { margin: .3rem 0; }
 .summary::before { content: "這題記住"; color: var(--sum-ink); }
 section.course .summary::before { content: "這頁重點"; }
 .summary ul, .summary ol { margin: .2rem 0; }
-.why, .trap { margin: 1.2rem 0; }
+section.course .summary { border-left: 4px solid var(--sum-ink); }
+.why { margin: 1.2rem 0; }
+.trap { background: var(--warn-tint); border: 1px solid var(--warn-line); border-left: 4px solid var(--warn); }
 .why::before { content: "為什麼"; color: var(--muted); }
 .trap::before { content: "常見錯誤"; color: var(--warn); }
 .def > :first-child, .summary > :first-child, .why > :first-child, .trap > :first-child, div.tr > :first-child { margin-top: .1rem; }
@@ -112,6 +126,17 @@ ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②�
 .frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .25em .05em; }
 .frac > span:last-child { padding: .05em .25em 0; }
 .ans { font-weight: 700; padding: 0 .15em; background: linear-gradient(transparent 55%, var(--hl) 55%); }
+/* 公式用 MathML：瀏覽器自己排 Σ 的上下標、分數、根號，長得和講義一樣 */
+math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", var(--serif); font-size: 1.12em; }
+/* 靠左排，不照瀏覽器預設置中；分數裡的 Σ 也把上下限排在正上正下 */
+math[display="block"] { display: inline math; margin: .3rem 0; }
+math[display="block"] mfrac > * { math-style: normal; }
+
+/* 速查卡：題目欄開頭一張可以單獨列印的卡 */
+.cheat { border: 2px solid var(--accent); border-radius: 6px; padding: .7rem 1.1rem 1rem; margin: 1.25rem 0 2rem; background: var(--bg); }
+.cheat::before { content: "速查卡"; display: block; font: 700 .84rem/1.5 var(--sans); letter-spacing: .06em; color: var(--accent); }
+.cheat h4 { font-size: 1rem; margin: 1.1rem 0 .3rem; }
+.cheat table { font-size: .9rem; }
 
 /* 答案紙：模擬真的紙，暗色模式也是紙 */
 .sheet {
@@ -175,7 +200,12 @@ details.toc a:hover { color: var(--accent); }
   background: var(--pane, var(--bg));
   padding: .55rem 0; border-bottom: 1px solid var(--line);
 }
-.bar::before { font-weight: 700; font-size: .85rem; letter-spacing: .08em; color: var(--muted); margin-right: auto; }
+.bar::before { font-weight: 700; font-size: .85rem; letter-spacing: .08em; color: var(--muted); }
+/* 現在讀到哪一段：捲動時跟著換，按一下回到這一欄的目錄 */
+.bar .here {
+  margin-right: auto; border: 0; padding: .2rem .3rem; font-weight: 600; color: var(--accent); text-align: left;
+  flex: 1 1 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 section.course > .bar::before { content: "課件"; }
 section.problems > .bar::before { content: "題目"; }
 .bar button {
@@ -193,6 +223,23 @@ section.problems > .bar::before { content: "題目"; }
 .back[hidden] { display: none; }
 :target { scroll-margin-top: 4rem; animation: flash 2s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--accent) 20%, transparent); } to { background: transparent; } }
+
+/* 查表面板：整張統計表放這裡，按題目欄的「查表」打開 */
+#panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 100vw); z-index: 20; display: none; flex-direction: column;
+  background: var(--bg); border-left: 1px solid var(--rule); box-shadow: -8px 0 28px -12px rgba(0, 0, 0, .25);
+}
+#panel.open { display: flex; }
+#panel header { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .6rem .9rem; border-bottom: 1px solid var(--line); }
+#panel header button {
+  font: inherit; font-size: .9rem; color: var(--fg); border: 1px solid var(--line); background: transparent;
+  border-radius: 4px; padding: .15rem .8rem; cursor: pointer;
+}
+#panel header button[aria-pressed="true"] { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
+#panel header .close { margin-left: auto; }
+#panel .body { overflow: auto; padding: .7rem .9rem 2rem; }
+#panel figure { margin: 0; }
+#panel figure img { max-height: none; width: 100%; }
 
 /* 窄螢幕：兩欄上下接著；題目欄換一個底色、滿版，一眼看出換欄了 */
 section.course, section.problems { --pane: var(--bg); }
@@ -224,7 +271,10 @@ section.problems {
   body { display: block; height: auto; overflow: visible; max-width: none; background: #fff; color: #000; }
   section.course, section.problems { overflow: visible; background: none; box-shadow: none; clip-path: none; }
   figure img { filter: none; }
-  .bar, .back { display: none; }
+  .bar, .back, #panel, .zoom-btn { display: none; }
+  /* 列印速查卡：只印那張卡 */
+  body.print-cheat section.course, body.print-cheat section.problems > :not(.cheat) { display: none; }
+  body.print-cheat .cheat { border: 0; padding: 0; margin: 0; }
   h2 { break-before: auto; }
   figure, .sheet { break-inside: avoid; }
 }

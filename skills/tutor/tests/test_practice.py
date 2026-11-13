@@ -405,8 +405,17 @@ class Build(Case):
     def test_every_question_gets_a_pad(self):
         out = self.page()
         pads = re.findall(r'<div class="pad" data-id="([^"]+)" data-h="(\d+)">', out)
-        self.assertEqual([p[0] for p in pads], IDS)
-        self.assertEqual([p[1] for p in pads], ["280", "280", "280", "900", "900"])
+        self.assertEqual([p[0] for p in pads], IDS[3:])  # 基本功只填一格，沒有畫布
+        self.assertEqual([p[1] for p in pads], ["900", "900"])
+
+    def test_pad_comes_before_the_model_answer(self):
+        out = self.page()
+        sec = out[out.index('id="q-acf-seasonal"'):out.index('id="q-acf-trend"')]
+        self.assertLess(sec.index('class="pad"'), sec.index("<details"))
+
+    def test_drill_with_height_gets_a_pad(self):
+        out = practice.build(src(DRILLS.replace('data-id="which-tail"', 'data-id="which-tail" data-h="300"') + FULL), self.dir)
+        self.assertEqual(re.findall(r'<div class="pad" data-id="([^"]+)" data-h="(\d+)">', out)[0], ("which-tail", "300"))
 
     def test_pad_sits_inside_its_section(self):
         out = self.page()

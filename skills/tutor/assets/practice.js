@@ -16,6 +16,16 @@
   const fillLines = {};  // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
   const modelLines = {};  // 題目代號 → 回傳這題對範本答案的自評（一行字）
 
+  // 題目導覽鈕的狀態：填答格全對是 ok、有答錯是 no、對過範本答案是 graded
+  function mark(section) {
+    const link = document.querySelector('nav.jump a[href="#' + section.id + '"]');
+    if (!link) return;
+    const fills = Array.from(section.querySelectorAll(".fill"));
+    link.classList.toggle("ok", fills.length > 0 && fills.every(function (f) { return f.classList.contains("ok"); }));
+    link.classList.toggle("no", fills.some(function (f) { return f.classList.contains("no"); }));
+    link.classList.toggle("graded", section.classList.contains("graded"));
+  }
+
   // 填答格：全形轉半形、不分大小寫、不管空白；兩邊都是數字就比數值（data-tol 是容許誤差）
   function norm(s) {
     return s.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[−–]/g, "-");
@@ -86,6 +96,7 @@
           el.classList.toggle("ok", f.ok);
           el.classList.toggle("no", !f.ok);
           out.textContent = f.ok ? "對。" : (v ? "不對" : "沒填") + "，答案是 " + answers[0].trim() + "。";
+          mark(section);
         });
         return;
       }
@@ -101,7 +112,8 @@
         else if (!f.tries.length) out.textContent = "";
         else if (done) out.textContent = "答案是 " + answers[0].trim() + "。" + why;
         else if (drill || f.tries.length < 2) out.textContent = "不對，再想一次。";
-        else out.textContent = "還是不對：按下面的「複製給 Claude」貼到對話，看錯在哪一步。";
+        else out.textContent = "還是不對：寫完打開下面的範本答案對步驟，或按「複製給 Claude」貼到對話。";
+        mark(section);
       }
       function check() {
         const v = input.value.trim();
@@ -144,6 +156,7 @@
     function show() {
       score.textContent = "自評：" + earned() + " / " + total + " 分";
       section.classList.toggle("graded", st.seen);
+      mark(section);
     }
     items.forEach(function (li, i) {
       const label = document.createElement("label");

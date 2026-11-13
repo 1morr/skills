@@ -52,8 +52,8 @@ MIN_DRILLS = 3
 MIN_PER_TYPE = 2
 MODES = ("practice", "mock")
 ORIGINAL = "老師原題"
-# 畫布預設高度（畫布座標）；寫不下時讀者按「加長」
-PAD_H = {"drill": 280, "full": 900}
+# 完整題目的畫布預設高度（畫布座標）；寫不下時讀者按「加長」。基本功只填一格，寫了 data-h 才有畫布
+PAD_H = 900
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
@@ -349,13 +349,19 @@ def q_tags(inner: str):
 
 
 def add_pads(inner: str) -> str:
-    """每題的 </section> 前面加一張畫布；data-h 可以在 section 上覆寫預設高度。"""
+    """每題完整題目加一張畫布，排在範本答案前面（沒有範本答案就排在最後）：先寫，往下才是答案。data-h 可以在 section 上覆寫預設高度。
+    基本功只填一格，不加畫布（要打草稿的那一題在 section 寫 data-h）。"""
     out, pos = [], 0
     low = inner.lower()
     for m, a in q_tags(inner):
-        drill = "drill" in a["class"].split()
-        height = int(a.get("data-h") or PAD_H["drill" if drill else "full"])
+        if "drill" in a["class"].split() and not a.get("data-h"):
+            continue
+        height = int(a.get("data-h") or PAD_H)
         end = low.index("</section>", m.end())
+        model = next((d.start() for d in re.finditer(r"<details\b[^>]*>", inner[m.end():end], re.I)
+                      if "model" in (tag_attrs(d.group(0)).get("class") or "").split()), None)
+        if model is not None:
+            end = m.end() + model
         out += [inner[pos:end], f'<div class="pad" data-id="{html.escape(a["data-id"])}" data-h="{height}"></div>\n']
         pos = end
     out.append(inner[pos:])
@@ -449,19 +455,19 @@ def inline_images(page: str, base: Path) -> str:
     return re.sub(r"<img\b[^>]*>", img, page, flags=re.I)
 
 
-HOWTO = """<div class="howto">
-<b>怎麼用這頁</b>
+HOWTO = """<details class="howto">
+<summary>怎麼用這頁</summary>
 <ul>
 <li>先做最上面的「基本功」：每題只考一個判斷，填好按「對答案」馬上知道對錯；錯兩次會公布答案和原因。考前想再練，按「再做一次」。再做下面的整題。</li>
 <li>每題標了對照導讀頁的哪一段，點 § 會在新分頁打開；卡住時去看那題例題的做法。</li>
 <li>畫布：滑鼠按住拖曳就是寫字，觸控筆、手指也可以。按「文字」再點畫布任何地方就能打字；點已經打的字可以改，按 Esc 或點別處收起來。</li>
-<li>工具列還有換顏色、橡皮擦、復原（Ctrl+Z）、加長、清空（要連按兩下）。寫的東西自動存在這台電腦的瀏覽器裡，關掉再開還在。</li>
+<li>工具列還有換顏色、橡皮擦、復原（Ctrl+Z）、加長、清空（要連按兩下）。寫的東西自動存在這台電腦的瀏覽器裡，關掉再開還在。基本功沒有畫布，直接填。</li>
 <li>整題寫完才打開下面的「範本答案和給分點」，照老師的給分點一點一點勾，就知道會拿幾分。有填答格的先對最後的數字。看不出步驟哪裡錯，按「複製給 Claude」，到對話裡按 Ctrl+V 貼上。</li>
 <li>全部做完按上面的「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
+<li>上面每題的按鈕會變色：綠色是填答格全對，紅色是有答錯的，打勾是對過範本答案。</li>
 </ul>
-</div>
+</details>
 """
-
 
 HOWTO_MOCK = """<div class="howto">
 <b>這是模擬卷</b>

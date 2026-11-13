@@ -28,12 +28,12 @@ CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 
 WHY_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 WHY = f'<div class="why"><p>F 是訊號除以雜訊，見 §1</p>{WHY_FIG}</div>'
 # 題目欄開頭的題型表：看到什麼 → 用什麼 → 示範題。題目欄第一段的 § 由 page() 算
-TYPES = '<table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr data-type="f-test"><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table>'
+TYPES = '<div class="cheat"><table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr data-type="f-test"><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table></div>'
 # 定義框前面先用小數字舉例
 EG = '<p>先用 2, 4, 6 算一次：平均是 4。</p>'
 ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
 CALC = ('<div class="calc" id="c1"><p class="formula"><i>R</i>² = SSR / SST</p>'
-        '<p class="subst">= 10556.1 / 11443.3 = 0.9225</p></div>')
+        '<p class="subst">= 10556.1 / 11443.3 = <span class="ans">0.9225</span></p></div>')
 ANOVA = TR + '<figure id="anova"><img src="a.png"><figcaption>Minitab p.3</figcaption></figure>'
 SUMMARY = '<div class="summary"><ul><li>R² 是解釋了的比例</li></ul></div>'
 RECAP = '<h2 class="recap">總結</h2><table><tr><td>看到什麼</td><td>結論</td></tr></table>'
@@ -373,7 +373,7 @@ class OriginFirstRule(unittest.TestCase):
             f"<h2>一</h2>{WHY}" + ans(ORIGIN + '<p>(a)</p>', summary=False) + ans(f'<div>{CALC}</div>'),
             f'<h2>一</h2>{WHY}<DETAILS class="answer"><summary>(a)</summary><TABLE CLASS="x origin">'
             '<tr data-from="convention"><td>0.05</td></tr></TABLE>\n<!-- 先找數字 -->\n'
-            f'<DIV class="calc w" id="c9"><p class="formula">a = b</p><p class="subst">= 1</p></DIV>{SUMMARY}</DETAILS>',
+            f'<DIV class="calc w" id="c9"><p class="formula">a = b</p><p class="subst">= <span class="ans">1</span></p></DIV>{SUMMARY}</DETAILS>',
         ]
         for body in variants:
             with self.subTest(body=body[:40]):
@@ -401,9 +401,9 @@ class CalcRule(unittest.TestCase):
         variants = [
             CALC,
             '<DIV CLASS="calc wide"><span class="formula">MAD ＝ (1/<var>n</var>) Σ|e|</span><br>'
-            '<span class="x subst">= (8 + 4) / 2</span></DIV>',
+            '<span class="x subst">= (8 + 4) / 2 = <B CLASS="big ans">6</B></span></DIV>',
             '<div class="calc"><div class="formula"><span class="frac"><span>a</span><span>b</span></span> = r</div>'
-            '<div class="subst"><span class="frac"><span>16</span><span>40</span></span> = 0.4</div></div>',
+            '<div class="subst"><span class="frac"><span>16</span><span>40</span></span> = <span class="ans">0.4</span></div></div>',
         ]
         for calc in variants:
             with self.subTest(calc=calc[:40]):
@@ -523,7 +523,7 @@ class CourseSectionRule(unittest.TestCase):
             f'<SECTION CLASS="x summary"><p>重點</p></SECTION><h3>甲</h3><p>內容</p>{CHECK}{CHECK}\n<!-- 註解 -->\n',
             f"<h2>一</h2>{SUMMARY}<h3>甲</h3>{CHECK}<h3>乙</h3><p>內容</p>"
             '<DETAILS open CLASS="wide check"><summary>算 r</summary><div class="calc"><p class="formula">r = 1 / 2</p>'
-            '<p class="subst">= 0.5</p></div></DETAILS>',
+            '<p class="subst">= <span class="ans">0.5</span></p></div></DETAILS>',
         ]
         for course in variants:
             with self.subTest(course=course[:40]):
@@ -631,7 +631,7 @@ class SentenceRule(unittest.TestCase):
 
     def test_calc_table_figure_sheet_not_counted(self):
         long = " + ".join(["12"] * (self.cap + 1))
-        body = (f'<h2>一</h2><p>先用 5 個數算一次</p><div class="calc"><p class="formula">S = Σx</p><p class="subst">= {long}</p></div>'
+        body = (f'<h2>一</h2><p>先用 5 個數算一次</p><div class="calc"><p class="formula">S = Σx</p><p class="subst">= {long} = <span class="ans">9</span></p></div>'
                 f"<table><tr><td>{'字' * (self.cap + 1)}</td></tr></table>"
                 f"<div class='tr'><p>{'字' * (self.cap + 1)}</p></div>"
                 f'<figure><img src="a.png"><figcaption>p.2 {"字" * (self.cap + 1)}</figcaption></figure>')
@@ -773,8 +773,8 @@ class TypesTableRule(unittest.TestCase):
 
     def test_formatting_variants_pass(self):
         variants = [
-            '<p>先看這張表。</p>\n<TABLE CLASS="wide types" id="t"><caption>題型</caption><tr><th>看到</th></tr>'
-            '<tr DATA-TYPE = "f-test"><td>ANOVA</td><td>示範：§2、§2.1</td></tr></TABLE>',
+            '<SECTION CLASS="wide cheat"><p>先看這張表。</p>\n<TABLE CLASS="wide types" id="t"><caption>題型</caption><tr><th>看到</th></tr>'
+            '<tr DATA-TYPE = "f-test"><td>ANOVA</td><td>示範：§2、§2.1</td></tr></TABLE><p>F = MSR / MSE</p></SECTION>',
             '<details open><summary>題型表</summary>' + TYPES.replace("{n}", "2") + "</details>",
         ]
         for types in variants:
@@ -786,7 +786,12 @@ class TypesTableRule(unittest.TestCase):
     ROW = '<tr data-type="{slug}"><td>ANOVA 表</td><td>F</td><td>§2</td></tr>'
 
     def table(self, *slugs):
-        return '<table class="types">' + "".join(self.ROW.replace("{slug}", x) for x in slugs) + "</table>"
+        return '<div class="cheat"><table class="types">' + "".join(self.ROW.replace("{slug}", x) for x in slugs) + "</table></div>"
+
+    def test_table_outside_cheat_card_fails(self):
+        bare = TYPES.replace("{n}", "2").replace('<div class="cheat">', "").replace("</table></div>", "</table>")
+        self.assertFalse(ok(page(types=bare)))
+        self.assertFalse(ok(page(types='<div class="cheat"><p>公式</p></div>' + bare)))
 
     def test_row_without_type_fails(self):
         self.assertFalse(ok(page(types=TYPES.replace("{n}", "2").replace(' data-type="f-test"', ""))))
@@ -824,6 +829,88 @@ class NotExaminedRule(unittest.TestCase):
             with self.subTest(text=text):
                 src = page(course=f"<h2>課</h2><p>{text}</p>")
                 self.assertTrue(ok(src), build.lint(src))
+
+
+class AnswerMarkRule(unittest.TestCase):
+    """每個 .calc 把算出來的結果標成 .ans。"""
+    BARE = CALC.replace('<span class="ans">0.9225</span>', "0.9225")
+
+    def test_calc_without_ans_fails(self):
+        self.assertFalse(ok(page("<h2>一</h2>" + self.BARE)))
+
+    def test_ans_outside_calc_does_not_count(self):
+        self.assertFalse(ok(page(f'<h2>一</h2><p>答案是 <span class="ans">0.9225</span></p>{self.BARE}')))
+
+    def test_each_calc_needs_its_own(self):
+        self.assertFalse(ok(page("<h2>一</h2>" + CALC + self.BARE.replace("c1", "c2"))))
+
+    def test_marked_calcs_pass(self):
+        src = page("<h2>一</h2>" + CALC + CALC.replace("c1", "c2"))
+        self.assertTrue(ok(src), build.lint(src))
+
+
+class LabelRule(unittest.TestCase):
+    """框的標籤由樣式加上，內文開頭不重寫。"""
+
+    def test_repeated_label_fails(self):
+        cases = [prob(f'<h2>一</h2><div class="why"><p>為什麼：這題在問顯著性，見 §1</p>{WHY_FIG}</div>'),
+                 prob("<h2>一</h2>" + ans('<div class="trap">\n <p><b>常見錯誤</b>：把 n 算成 8</p></div>')),
+                 page('<h2>一</h2><div class="summary"><p>這頁重點：r 介於 −1 和 1</p></div>'),
+                 page(f'<h2>一</h2>{EG}<div class="def"><p>定義：<dfn>趨勢</dfn>是長期方向</p><p class="test">前後平均不同</p></div>')]
+        for src in cases:
+            with self.subTest(src=src[-120:]):
+                self.assertFalse(ok(src))
+
+    def test_label_word_later_in_text_passes(self):
+        cases = [prob(f'<h2>一</h2><div class="why"><p>這題問顯著性，為什麼要除以 n 見 §1</p>{WHY_FIG}</div>'),
+                 prob("<h2>一</h2>" + ans('<div class="trap"><p>把 n 算成 8 是常見錯誤</p></div>')),
+                 page("<h2>一</h2><p>為什麼：因為資料少。</p><p>常見錯誤：沒有。</p>")]
+        for src in cases:
+            with self.subTest(src=src[-120:]):
+                self.assertTrue(ok(src), build.lint(src))
+
+
+class PanelRule(unittest.TestCase):
+    """查表面板：body 底下的 aside.panel，裡面每張圖一個分頁。"""
+    TAB = '<figure data-tab="Z 表"><img src="a.png" data-zh="a.zh.png"><figcaption>Tables p.1</figcaption></figure>'
+
+    def panel(self, fig):
+        return page(tail=f'<aside class="panel">{fig}</aside>')
+
+    def test_panel_passes(self):
+        self.assertTrue(ok(self.panel(self.TAB)), build.lint(self.panel(self.TAB)))
+        src = page(head=f"<ASIDE data-label='查表' CLASS='wide panel'>{self.TAB}</ASIDE>")
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_other_aside_under_body_fails(self):
+        self.assertFalse(ok(page(tail=f'<aside class="notes">{self.TAB}</aside>')))
+
+    def test_panel_figure_without_tab_fails(self):
+        self.assertFalse(ok(self.panel(self.TAB.replace(' data-tab="Z 表"', ""))))
+
+    def test_panel_figure_still_needs_translation_and_page(self):
+        self.assertFalse(ok(self.panel(self.TAB.replace(' data-zh="a.zh.png"', ""))))
+        self.assertFalse(ok(self.panel(self.TAB.replace("Tables p.1", "Z 表"))))
+
+
+class WarningRule(unittest.TestCase):
+    """整頁太長只提醒、不擋產出。"""
+    FIGS = ZH_FIG * (build.FIGURE_WARN + 1)
+
+    def test_long_prose_warns_but_passes(self):
+        n = build.PER_SECTION - 100
+        src = page("".join(f"<h2>{i}</h2>{prose(n)}" for i in range(build.PROSE_WARN // n + 1)))
+        self.assertTrue(ok(src), build.lint(src))
+        self.assertTrue(any("正文" in w for w in build.warnings(src)))
+
+    def test_many_open_figures_warn(self):
+        self.assertTrue(any("圖" in w for w in build.warnings(page("<h2>一</h2>" + self.FIGS))))
+
+    def test_folded_figures_do_not_count(self):
+        self.assertEqual(build.warnings(page(f"<h2>一</h2><details><summary>圖</summary>{self.FIGS}</details>")), [])
+
+    def test_ordinary_page_has_no_warning(self):
+        self.assertEqual(build.warnings(page()), [])
 
 
 class KindRule(unittest.TestCase):
@@ -900,6 +987,26 @@ class Output(unittest.TestCase):
         self.assertNotIn("例一", ctoc)
         self.assertIn('<a href="#s3">§3 例一</a>', problems)
         self.assertLess(course.index('<details class="toc">'), course.index("<h2"))
+
+    def test_bars_show_position_and_actions(self):
+        out = self.built()
+        self.assertEqual(out.count('class="here" data-act="toc"'), 2)
+        self.assertIn('data-act="print"', out)
+        self.assertNotIn('<button type="button" data-act="panel"', out)
+
+    def test_panel_becomes_tabs_with_a_button(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("a.png", "a.zh.png"):
+                (Path(d) / name).write_bytes(PNG)
+            tab = '<figure data-tab="{}"><img src="a.png" data-zh="a.zh.png"><figcaption>Tables p.1</figcaption></figure>'
+            src = page(tail=f"<aside class='wide panel'>{tab.format('Z 表')}{tab.format('t 表')}</aside>")
+            self.assertEqual(build.lint(src), [])
+            out = build.build(src, Path(d))
+        self.assertIn('<aside id="panel"', out)
+        self.assertIn('<button type="button" data-act="panel"', out)
+        self.assertIn('<button type="button" data-tab="t1" aria-pressed="false">t 表</button>', out)
+        self.assertIn('<figure data-tab="t1" hidden>', out)
+        self.assertNotIn("wide panel", out)
 
     def test_translated_image_becomes_two(self):
         out = self.built(f"<h2>甲</h2>{ZH_FIG}")
