@@ -28,6 +28,7 @@ body {
   margin: 0 auto; max-width: 42rem; padding: 0 1.25rem 5rem;
   background: var(--bg); color: var(--fg);
   font: 17px/1.8 var(--sans); font-kerning: normal; text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
 }
 ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
@@ -121,6 +122,8 @@ ol.steps.circled { list-style: none; padding-left: .2rem; } /* 自己寫 ①②�
 .calc { overflow-x: auto; margin: .9rem 0; padding: .2rem 0 .2rem 1.25rem; font-family: var(--serif); font-size: 1.12rem; line-height: 2; }
 .calc i { font-size: 1em; }
 .calc .formula, .calc .subst { margin: .15rem 0; }
+/* 公式比欄寬時在自己這一行橫向捲動（速查卡、定義框裡的也是），不把整欄撐寬 */
+.formula { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
 .calc .subst { padding-left: 1.5em; }
 .frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; margin: 0 .2em; font-size: .92em; line-height: 1.35; }
 .frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .25em .05em; }
@@ -249,7 +252,7 @@ section.problems {
 }
 /* 螢幕夠寬時左右並排：左邊課件、右邊題目，各自捲動；點連結會讓另一欄跳過去 */
 @media (min-width: 1100px) {
-  body:has(> section.course + section.problems) { max-width: none; height: 100vh; overflow: hidden; padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  body:has(> section.course + section.problems) { max-width: none; height: 100vh; overflow: hidden; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   section.course, section.problems {
     /* 欄寬固定在 42rem、置中：用左右 padding 算，表格才能靠左縮到內容寬 */
     overflow-y: auto; padding: 0 max(2rem, calc((100% - 42rem) / 2)) 6rem; margin: 0;

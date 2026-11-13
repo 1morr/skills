@@ -2,6 +2,9 @@
 
     python practice.py <practice-src.html> -o <topicN-practice.html>
 
+組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次水平溢出（pages/scripts/overflow.py）：
+有溢出就不產出，逐條印出哪個元素超出幾 px；找不到瀏覽器只提醒。
+
 原始檔的 <body> 寫：
     data-title    頁面標題
     data-key      畫布存檔的名字空間（同一台電腦上每份練習頁要不一樣，例如 isom3031-topic4）
@@ -40,6 +43,10 @@ import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
+
+# 共用的水平溢出量測在 plugin 根目錄的 pages/scripts/
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pages" / "scripts"))
+import overflow  # noqa: E402
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 CSS = ASSETS / "practice.css"
@@ -509,7 +516,11 @@ def build(src: str, base: Path) -> str:
     return inline_images(page, base)
 
 
-def main(argv=None) -> int:
+# 模擬卷的題目按「開始計時」才出現、範本答案交卷才出現：量溢出之前先讓它們都出現
+REVEAL = 'document.body.classList.add("started", "submitted");'
+
+
+def main(argv=None, measure=overflow.measure) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -525,6 +536,8 @@ def main(argv=None) -> int:
             print(f"  - {p}", file=sys.stderr)
         return 1
     out.write_text(build(src, args.src.parent), encoding="utf-8")
+    if not overflow.deliverable(out, args.src, measure(out, prepare=REVEAL)):
+        return 1
     print(out)
     return 0
 

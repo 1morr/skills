@@ -485,6 +485,24 @@ class Build(Case):
         self.assertEqual(practice.main([str(self.dir / "p-src.html")]), 0)
         self.assertTrue((self.dir / "p.html").is_file())
 
+    def test_cli_writes_nothing_when_the_page_overflows(self):
+        (self.dir / "p-src.html").write_text(src(), encoding="utf-8")
+        seen = {}
+
+        def measure(out, prepare=""):
+            seen["prepare"] = prepare
+            return ["視窗寬 390px：整頁被撐寬 120px"]
+        self.assertEqual(practice.main([str(self.dir / "p-src.html")], measure=measure), 1)
+        self.assertFalse((self.dir / "p.html").exists())
+        # 模擬卷的題目和範本答案要先出現再量
+        self.assertIn("started", seen["prepare"])
+        self.assertIn("submitted", seen["prepare"])
+
+    def test_cli_writes_page_without_a_browser(self):
+        (self.dir / "p-src.html").write_text(src(), encoding="utf-8")
+        self.assertEqual(practice.main([str(self.dir / "p-src.html")], measure=lambda out, prepare="": None), 0)
+        self.assertTrue((self.dir / "p.html").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

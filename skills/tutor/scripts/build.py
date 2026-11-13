@@ -2,6 +2,9 @@
 
     python build.py <src.html> [-o <out.html>]
 
+組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次水平溢出（pages/scripts/overflow.py）：
+有溢出就不產出，逐條印出哪個元素超出幾 px；找不到瀏覽器只提醒。
+
 只用標準函式庫，CI 才能直接跑測試。
 """
 
@@ -12,6 +15,10 @@ import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
+
+# 共用的水平溢出量測在 plugin 根目錄的 pages/scripts/
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pages" / "scripts"))
+import overflow  # noqa: E402
 
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
@@ -671,7 +678,7 @@ def build(src: str, base: Path) -> str:
     return inject_assets(inline_images(split_bilingual(src), base))
 
 
-def main(argv=None) -> int:
+def main(argv=None, measure=overflow.measure) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -689,6 +696,8 @@ def main(argv=None) -> int:
         print(f"提醒：{w}", file=sys.stderr)
     out = args.out or args.src.with_name(args.src.stem.removesuffix("-src") + ".html")
     out.write_text(build(src, args.src.parent), encoding="utf-8")
+    if not overflow.deliverable(out, args.src, measure(out)):
+        return 1
     print(out)
     return 0
 

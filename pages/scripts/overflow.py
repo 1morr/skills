@@ -8,7 +8,7 @@
 算溢出的是「直向捲動的容器」被撐寬：整頁，或自己上下捲動的欄。摺疊的 <details> 會先全部打開再量。
 表格、算式、程式碼放在自己橫向捲動的容器裡（overflow-x: auto）不算。
 
-組頁腳本（pages/scripts/build.py、tutor 的 build.py 和 practice.py）用 render() 和 problems()；
+組頁腳本（pages/scripts/build.py、tutor 的 build.py 和 practice.py）用 render()、problems()、measure()、deliverable()；
 量的程式是加在暫存的副本上，不會留在交付的頁裡。只用標準函式庫。
 """
 
@@ -34,6 +34,7 @@ WIN_EXES = [("Google", "Chrome", "chrome.exe"), ("Microsoft", "Edge", "msedge.ex
 PROBE = r"""<script>
 addEventListener("load", () => setTimeout(() => {
   document.querySelectorAll("details").forEach((d) => { d.open = true; });
+  /*PREPARE*/
   const root = document.documentElement;
   const name = (e) => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "")
     + (typeof e.className === "string" && e.className.trim() ? "." + e.className.trim().split(/\s+/).join(".") : "");
@@ -91,13 +92,15 @@ def find_browser():
     return next((str(c) for c in candidates if c.is_file()), None)
 
 
-def with_probe(html: str) -> str:
+def with_probe(html: str, prepare: str = "") -> str:
+    probe = PROBE.replace("/*PREPARE*/", prepare)
     ends = [m.start() for m in re.finditer(r"</body\s*>", html, re.I)]
-    return html[:ends[-1]] + PROBE + html[ends[-1]:] if ends else html + PROBE
+    return html[:ends[-1]] + probe + html[ends[-1]:] if ends else html + probe
 
 
-def render(page: Path, width: int = WIDTHS[0]):
-    """用無頭瀏覽器在 width 寬的視窗打開 page 的副本（加了量測）、跑完 JS，回傳畫好的 DOM；找不到瀏覽器回傳 None。"""
+def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
+    """用無頭瀏覽器在 width 寬的視窗打開 page 的副本（加了量測）、跑完 JS，回傳畫好的 DOM；找不到瀏覽器回傳 None。
+    prepare 是量之前先跑的一段 JS：頁面有要按了才出現的內容時，用它先讓內容出現。"""
     browser = find_browser()
     if not browser:
         return None
@@ -107,7 +110,7 @@ def render(page: Path, width: int = WIDTHS[0]):
         # 副本放在原檔旁邊，頁面用相對路徑引用的圖才找得到
         copy = Path(tempfile.mkstemp(prefix=".overflow-", suffix=".html", dir=page.resolve().parent)[1])
         try:
-            copy.write_text(with_probe(page.read_text(encoding="utf-8")), encoding="utf-8")
+            copy.write_text(with_probe(page.read_text(encoding="utf-8"), prepare), encoding="utf-8")
             r = subprocess.run(
                 [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
                  f"--user-data-dir={work}", f"--window-size={width},{HEIGHT}", "--virtual-time-budget=15000",
@@ -133,15 +136,30 @@ def problems(dom: str, width: int) -> list:
     return out
 
 
-def measure(page: Path, widths=WIDTHS):
+def measure(page: Path, widths=WIDTHS, prepare: str = ""):
     """每個寬度量一次，回傳全部的溢出；找不到瀏覽器回傳 None。"""
     out = []
     for width in widths:
-        dom = render(page, width)
+        dom = render(page, width, prepare)
         if dom is None:
             return None
         out += problems(dom, width)
     return out
+
+
+def deliverable(out: Path, src, found) -> bool:
+    """組頁腳本寫出 out 之後呼叫，found 是 measure(out) 的結果。有溢出就刪掉 out、逐條印到 stderr，回傳 False；
+    找不到瀏覽器（None）印一句提醒、照樣交付。"""
+    if found is None:
+        print("提醒：找不到 Chrome 或 Edge，沒有量水平溢出；用瀏覽器自動化工具在寬螢幕和手機寬各確認一次沒有水平捲軸", file=sys.stderr)
+        return True
+    if not found:
+        return True
+    out.unlink()
+    print(f"{src}：{len(found)} 處水平溢出，沒有產出", file=sys.stderr)
+    for p in found:
+        print(f"  - {p}", file=sys.stderr)
+    return False
 
 
 def main(argv=None) -> int:

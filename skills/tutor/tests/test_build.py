@@ -1050,5 +1050,44 @@ class Output(unittest.TestCase):
             self.assertFalse((Path(d) / "guide.html").exists())
 
 
+WIDE_FORMULA = ('<div class="formula"><math display="block">'
+                + "".join(f"<mi>MAD</mi><mo>=</mo><mfrac><mi>e</mi><mi>n</mi></mfrac><mspace width='2em'></mspace>" for _ in range(40))
+                + "</math></div>")
+
+
+class Overflow(unittest.TestCase):
+    def run_main(self, problems=PROBLEMS, types=None, **kw):
+        d = Path(tempfile.mkdtemp())
+        (d / "a.png").write_bytes(PNG)
+        (d / "guide-src.html").write_text(page(problems=problems, types=types), encoding="utf-8")
+        return build.main([str(d / "guide-src.html")], **kw), d / "guide.html"
+
+    def test_overflow_writes_nothing(self):
+        code, out = self.run_main(measure=lambda out: ["視窗寬 390px：整頁被撐寬 120px"])
+        self.assertEqual(code, 1)
+        self.assertFalse(out.exists())
+
+    def test_no_overflow_or_no_browser_writes_the_page(self):
+        for found in ([], None):
+            with self.subTest(found):
+                code, out = self.run_main(measure=lambda out, found=found: found)
+                self.assertEqual(code, 0)
+                self.assertTrue(out.is_file())
+
+    @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
+    def test_wide_formula_in_the_cheat_sheet_scrolls_in_its_own_line(self):
+        # 速查卡的公式行比欄寬：lesson.css 讓它在自己那一行橫向捲動，兩種寬度都不撐寬欄或整頁
+        cheat = TYPES.replace("{n}", "2").replace("</table>", "</table><h4>要背的公式</h4>" + WIDE_FORMULA)
+        code, out = self.run_main(types=cheat)
+        self.assertEqual(code, 0)
+        self.assertTrue(out.is_file())
+
+    @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
+    def test_unbreakable_text_outside_a_scroller_is_refused(self):
+        code, out = self.run_main(problems=PROBLEMS + '<p><code style="white-space:nowrap">' + "x = 1; " * 300 + "</code></p>")
+        self.assertEqual(code, 1)
+        self.assertFalse(out.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
