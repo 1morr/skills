@@ -4,6 +4,7 @@
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
+| [audit](skills/audit/SKILL.md) | `/1morr:audit [範圍] [想知道的事、已經決定的事、對照組]`（只能手動叫用） | 審查一組 skill 或指令檔（省略範圍就是整個 repo），標準是 mattpocock 的 `writing-for-agents`：先出報告（每個 skill 現在怎麼跑、一致性對照表、附 `檔案:行號` 的發現，分成純改寫、改行為、要你決定三類），你回答後寫計劃，確認後一步一個 commit 改完；可以給對照組（用過這個 skill 的專案、產出或對話紀錄）來驗 skill 寫的和實際發生的對不對得上 |
 | [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方單獨交給你決定 |
 | [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [里程碑或 commit 範圍] [想問的事]`（只能手動叫用） | 一個里程碑做完、拆下一個之前：回顧做了什麼、為什麼、對不對、遺留什麼，說明下一個的打算，出一頁臨時回顧頁，對話對齊後把定案寫回 repo 原有的文件 |
 | [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：腳本從 repo 的固定文件讀出里程碑與每張票的進度、進行中的 worktree、等你決定的事與 agent 自己定而你還沒看過的決定、決策（可按決定者與里程碑篩選）、ADR、最近與已封存的 session 紀錄、下一步；文件裡它讀不懂的行會列出來；可以同時看好幾個 repo。頁面不寫進 repo |
