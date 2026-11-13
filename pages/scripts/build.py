@@ -12,11 +12,12 @@
 其他請求一律取消，所以 Mermaid 不能從 CDN 載入；而且它只讀 512 KiB 以內的檔
 （Orca main/index.js 的 readDocPreviewFile 傳 maxTextBytes 524288），內嵌整份 Mermaid 也打不開。
 深色模式跟著 prefers-color-scheme，所以每張圖畫淺色（neutral）、深色（dark）兩份，用 CSS 切換。
+圖可以縮放拖動：頁上內嵌 Panzoom 和同資料夾的 diagram.js、diagram.css。
 
 為什麼用瀏覽器的命令列：playwright 不讓開 file://，得另開 http server，用完常忘了關，
 截圖也會留在 repo 裡；`--dump-dom` 直接開檔案、跑完 JS 就交回 DOM，什麼都不留。
 
-Mermaid 第一次用時從 npm registry 下載固定版本、驗 sha512，存在使用者快取目錄。
+Mermaid 和 Panzoom 第一次用時從 npm registry 下載固定版本、驗 sha512，存在使用者快取目錄。
 只用標準函式庫，CI 才能直接跑測試。
 """
 
@@ -34,24 +35,31 @@ import tempfile
 import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import NamedTuple
 
-MERMAID_VERSION = "11.17.2"
-MERMAID_TARBALL = f"https://registry.npmjs.org/mermaid/-/mermaid-{MERMAID_VERSION}.tgz"
-# npm registry 的 dist.integrity
-MERMAID_SHA512 = "V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg=="
-MERMAID_MEMBER = "package/dist/mermaid.min.js"
+class Pkg(NamedTuple):
+    name: str
+    version: str
+    sha512: str  # npm registry 的 dist.integrity
+    member: str  # tarball 裡要的檔
+
+    @property
+    def tarball(self) -> str:
+        return f"https://registry.npmjs.org/{self.name}/-/{self.name.split('/')[-1]}-{self.version}.tgz"
+
+
+MERMAID = Pkg("mermaid", "11.17.2",
+              "V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==",
+              "package/dist/mermaid.min.js")
+PANZOOM = Pkg("@panzoom/panzoom", "4.6.2",
+              "Zn3B5/hwa6eYIPRSKX0xf2clv8nviTX8AnAU5kU/EugiTDhG41ya2wlBqYrZJYCWQROr/5XkWObZhIkepi89qw==",
+              "package/dist/panzoom.min.js")
+HERE = Path(__file__).resolve().parent
 AUTO_THEME = 'matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral"'
 # 每張圖畫兩份：data-theme 的值 → Mermaid 主題
 THEMES = {"light": "neutral", "dark": "dark"}
 # Orca 遠端預覽讀檔的上限（main/index.js readDocPreviewFile 的 maxTextBytes）
 ORCA_REMOTE_MAX = 524288
-STATIC_CSS = (
-    "<style>pre.mermaid>[data-theme]{display:block}pre.mermaid>[data-theme=dark]{display:none}"
-    "@media (prefers-color-scheme: dark){pre.mermaid>[data-theme=light]{display:none}"
-    "pre.mermaid>[data-theme=dark]{display:block}}"
-    # 標籤的寬度是在這台機器量的；別台的字型較寬時，讓字超出方框而不是被切掉
-    "pre.mermaid foreignObject{overflow:visible}</style>"
-)
 
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 這些屬性的網址會被瀏覽器自動載入；<a href> 是讀者自己點的，不算
@@ -113,15 +121,18 @@ def inline_script(js: str) -> str:
     return "<script>" + re.sub(r"</(script)", r"<\\/\1", js, flags=re.I) + "</script>"
 
 
-def with_mermaid(html: str, js: str, theme=None) -> str:
-    """把 Mermaid 原始碼和初始化放在 </body> 前；theme 是 None 時跟著 prefers-color-scheme。"""
-    t = f'"{theme}"' if theme else AUTO_THEME
-    tail = (inline_script(js) + "\n<script>\n  mermaid.initialize({ startOnLoad: true, theme: "
-            + t + " });\n</script>\n")
+def before_body_end(html: str, tail: str) -> str:
     ends = [m.start() for m in re.finditer(r"</body\s*>", html, re.I)]
     if not ends:
         return html + tail
     return html[:ends[-1]] + tail + html[ends[-1]:]
+
+
+def with_mermaid(html: str, js: str, theme=None) -> str:
+    """把 Mermaid 原始碼和初始化放在 </body> 前；theme 是 None 時跟著 prefers-color-scheme。"""
+    t = f'"{theme}"' if theme else AUTO_THEME
+    return before_body_end(html, inline_script(js) + "\n<script>\n  mermaid.initialize({ startOnLoad: true, theme: "
+                           + t + " });\n</script>\n")
 
 
 PRE = re.compile(r"(<pre\b[^>]*>)(.*?)(</pre\s*>)", re.I | re.S)
@@ -149,8 +160,9 @@ def rename(svg: str, new_id: str) -> str:
     return svg.replace(m.group(1), new_id) if m else svg
 
 
-def embed(html: str, light: list, dark: list) -> str:
-    """把每個 <pre class="mermaid"> 的內容換成畫好的淺色、深色兩份 svg，前面放切換用的樣式。"""
+def embed(html: str, light: list, dark: list, panzoom_js: str) -> str:
+    """把每個 <pre class="mermaid"> 的內容換成畫好的淺色、深色兩份 svg，
+    前面放 diagram.css，</body> 前放 Panzoom 和 diagram.js（縮放拖動）。"""
     blocks = mermaid_blocks(html)
     if not (len(blocks) == len(light) == len(dark)):
         raise ValueError(f"頁上有 {len(blocks)} 張圖，畫好的淺色 {len(light)} 張、深色 {len(dark)} 張")
@@ -158,17 +170,21 @@ def embed(html: str, light: list, dark: list) -> str:
     for i, (m, l, d) in enumerate(zip(blocks, light, dark), 1):
         out.append(html[pos:m.start()])
         if i == 1:
-            out.append(STATIC_CSS)
-        out.append(m.group(1)
+            out.append("<style>\n" + (HERE / "diagram.css").read_text(encoding="utf-8") + "</style>\n")
+        out.append(m.group(1) + '<span class="dz-stage">'
                    + f'<span data-theme="light">{rename(l, f"diagram-{i}-light")}</span>'
                    + f'<span data-theme="dark">{rename(d, f"diagram-{i}-dark")}</span>'
-                   + m.group(3))
+                   + "</span>" + m.group(3))
         pos = m.end()
-    return "".join(out) + html[pos:]
+    page = "".join(out) + html[pos:]
+    if not blocks:
+        return page
+    return before_body_end(page, inline_script(panzoom_js) + "\n"
+                           + inline_script((HERE / "diagram.js").read_text(encoding="utf-8")) + "\n")
 
 
-def verify(tarball: bytes) -> bool:
-    return base64.b64encode(hashlib.sha512(tarball).digest()).decode() == MERMAID_SHA512
+def verify(tarball: bytes, sha512: str) -> bool:
+    return base64.b64encode(hashlib.sha512(tarball).digest()).decode() == sha512
 
 
 def cache_dir() -> Path:
@@ -179,16 +195,16 @@ def cache_dir() -> Path:
     return base / "1morr"
 
 
-def load_mermaid() -> str:
-    cached = cache_dir() / f"mermaid-{MERMAID_VERSION}.min.js"
+def load_npm(pkg: Pkg) -> str:
+    cached = cache_dir() / f"{pkg.name.lstrip('@').replace('/', '-')}-{pkg.version}.min.js"
     if cached.exists():
         return cached.read_text(encoding="utf-8")
-    with urllib.request.urlopen(MERMAID_TARBALL, timeout=60) as r:
+    with urllib.request.urlopen(pkg.tarball, timeout=60) as r:
         tarball = r.read()
-    if not verify(tarball):
-        raise RuntimeError(f"{MERMAID_TARBALL} 的 sha512 對不上，不使用")
+    if not verify(tarball, pkg.sha512):
+        raise RuntimeError(f"{pkg.tarball} 的 sha512 對不上，不使用")
     with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:gz") as t:
-        js = t.extractfile(MERMAID_MEMBER).read().decode("utf-8")
+        js = t.extractfile(pkg.member).read().decode("utf-8")
     cached.parent.mkdir(parents=True, exist_ok=True)
     tmp = cached.with_suffix(".tmp")
     tmp.write_text(js, encoding="utf-8")
@@ -283,7 +299,7 @@ def report(path, problems, what) -> None:
         print(f"  - {p}", file=sys.stderr)
 
 
-def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
+def main(argv=None, load=load_npm, render=render_dom) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -302,7 +318,7 @@ def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
     diagrams = scan(src).diagrams
     if not diagrams:
         return finish(out, src, 0)
-    js = loader()
+    js = load(MERMAID)
     svgs = {}
     with tempfile.TemporaryDirectory(prefix="pages-build-") as d:
         for name, theme in THEMES.items():
@@ -322,7 +338,7 @@ def main(argv=None, loader=load_mermaid, render=render_dom) -> int:
                 report(out, problems, f"渲染問題（{theme} 主題）")
                 return 1
             svgs[name] = drawn(dom)
-    return finish(out, embed(src, svgs["light"], svgs["dark"]), diagrams)
+    return finish(out, embed(src, svgs["light"], svgs["dark"], load(PANZOOM)), diagrams)
 
 
 def finish(out: Path, page: str, diagrams: int) -> int:
