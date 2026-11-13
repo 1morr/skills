@@ -3,7 +3,8 @@
     python -m unittest discover -s tests
 
 用 project-init 的範本搭一個 repo，照範本寫的規則走一輪里程碑（開工、做票、驗收、封存、下一個開工），
-每一站都要：通得過 check_docs.py，而且 dashboard 把每個里程碑、每張票、每條決定、每列 session 紀錄讀出來，
+每一站都要：通得過 check_docs.py，而且 dashboard 把每個里程碑、每張票、每條決定、每列 session 紀錄讀出來
+（做票的紀錄留在票上，封存時由 ticket_notes.py 組進封存檔），
 「讀不到」的清單是空的。兩邊任一邊改了格式而另一邊沒跟上，這裡會紅。
 """
 
@@ -28,6 +29,7 @@ def load(name, rel):
 
 check_docs = load("check_docs", "skills/project-init/scripts/check_docs.py")
 dashboard = load("dashboard", "skills/dashboard/scripts/dashboard.py")
+ticket_notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
 
 
 def fill(name: str) -> str:
@@ -45,7 +47,7 @@ def ticket(number: str, title: str, done: bool = False, decision: str = "") -> s
     text = fill("ticket.md").replace("# NN: <標題>", f"# {number}: {title}")
     if not done:
         return text
-    notes = f"\n{check_docs.SESSION_NOTE}做完{title}\n" + (f"{check_docs.DECISION_NOTE}{decision}\n" if decision else "")
+    notes = f"\n{check_docs.SESSION_NOTE}2026-01-04 做完{title}\n" + (f"{check_docs.DECISION_NOTE}{decision}\n" if decision else "")
     return text.replace("Status: ready-for-agent", "Status: done").replace("- [ ]", "- [x]") + notes
 
 
@@ -109,10 +111,8 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([(t["title"], t["done"], t["dropped"], t["boxes"]) for t in m0["tickets"]],
                          [("01: 閘門", False, False, 2), ("02: 不做的", False, True, 2), ("03: M0 驗收", False, False, 2)])
 
-        # 做完一張票，合併的人抄兩種行
+        # 做完一張票：紀錄留在票上，progress.md 與 decisions.md 沒有人動
         self.write(".scratch/m0/issues/01-gates.md", ticket("01", "閘門", done=True, decision="用 X 不用 Y（Agent 定）"))
-        self.append("docs/progress.md", "| 2026-01-04 | M0 01 | 做完閘門 | 新 session 下 `/implement .scratch/m0/issues/03-m0-acceptance.md` |")
-        self.append("docs/decisions.md", "- 2026-01-04 M0 票 01（Agent 定）：用 X 不用 Y。見票 01")
         data = self.check()
         self.assertEqual([(t["done"], t["checked"]) for t in data["milestones"][0]["tickets"]], [(True, 2), (False, 0), (False, 0)])
         self.assertEqual([(d["milestone"], d["decider"], d["archived"]) for d in data["decisions"]],
@@ -123,7 +123,8 @@ class SkeletonContractTest(unittest.TestCase):
         self.write(".scratch/m0/issues/03-m0-acceptance.md", ticket("03", "M0 驗收", done=True))
         table = self.read("docs/progress.md").split(f"## {check_docs.SESSIONS}\n", 1)[1].strip()
         log = self.read("docs/decisions.md").split(f"## {check_docs.LOG}\n", 1)[1].strip()
-        self.write("docs/archive/M0.md", f"# M0 封存\n\n## {check_docs.SESSIONS}\n\n{table}\n\n## {check_docs.ARCHIVED}\n\n{log}\n\n## {check_docs.USER_TRIAL}\n\n- 啟動後打一個字：可以。\n")
+        rows, decided = (chr(10).join(found) for found in ticket_notes.archive(self.repo, "m0"))
+        self.write("docs/archive/M0.md", f"# M0 封存\n\n## {check_docs.SESSIONS}\n\n{table}\n{rows}\n\n## {check_docs.ARCHIVED}\n\n{log}\n{decided}\n\n## {check_docs.USER_TRIAL}\n\n- 啟動後打一個字：可以。\n")
         head = "\n".join(table.split("\n")[:2])
         self.write("docs/progress.md", self.read("docs/progress.md").replace(table, head + "\n| 2026-01-05 | M1 準備 | M0 已驗收並封存 | 新 session 下 `/1morr:checkpoint M0` |"))
         self.write("docs/decisions.md", self.read("docs/decisions.md").replace(log, "- 2026-01-05 M1（使用者定）：下一個先做核心。"))
@@ -134,7 +135,7 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([(d["milestone"], d["label"], d["decider"], d["archived"]) for d in data["decisions"]],
                          [("M1", "M1", "使用者定", False), ("M0", "M0 票 01", "Agent 定", True), ("M0", "框架", "Agent 定", True)])
         self.assertEqual((len(data["sessions"]), data["next"]), (1, "新 session 下 `/1morr:checkpoint M0`"))
-        self.assertEqual([(a["milestone"], [r["ticket"] for r in a["rows"]]) for a in data["archived_sessions"]], [("M0", ["M0 01", "M0 開工", "框架"])])
+        self.assertEqual([(a["milestone"], [r["ticket"] for r in a["rows"]]) for a in data["archived_sessions"]], [("M0", ["M0 03", "M0 01", "M0 開工", "框架"])])
         self.assertEqual((data["waiting"], data["unseen"]), ("", []))
 
         # 驗收票停在等使用者試
@@ -161,7 +162,7 @@ class SkeletonContractTest(unittest.TestCase):
         self.write(rel, text.rstrip("\n") + "\n\n" + "\n".join(notes) + "\n")
 
     def test_notes_stay_on_the_ticket_until_the_milestone_is_archived(self):
-        notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
+        notes = ticket_notes
         self.open_m0()
         self.finish(".scratch/m0/issues/01-gates.md", "Session 紀錄：2026-01-04 做完閘門", "決定：用 X 不用 Y（Agent 定）", "變更：無")
 
@@ -192,7 +193,7 @@ class SkeletonContractTest(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_changelog_entries_are_read_from_the_file_and_from_tickets(self):
-        notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
+        notes = ticket_notes
         self.write("CHANGELOG.md", fill("changelog.md"))
         self.assertEqual(self.check()["changelog"], [{"version": "Unreleased", "date": "", "entries": []}])
         self.open_m0()

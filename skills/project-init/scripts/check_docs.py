@@ -33,7 +33,8 @@
     - 每張票在第一個 `##` 之前有一行 `Status:`
     - 還沒結束的里程碑（roadmap.md 的狀態不是「已驗收」「不做」開頭）每張票有 `## 驗收` 段，裡面至少一個勾選框
     - roadmap.md 標「進行中」的里程碑（表的「里程碑」欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
-      有一行以 `Session 紀錄：` 開頭，以 `決定：` 開頭的行都標一個決定者；spec 的〈驗收〉底下有 `### 使用者試`
+      有一行 `Session 紀錄：<YYYY-MM-DD> <做了什麼>`，以 `決定：` 開頭的行都標一個決定者、不超過 160 字元
+      （票是這兩種紀錄唯一的來源，封存時加上日期與票號仍在 200 字元內）；spec 的〈驗收〉底下有 `### 使用者試`
 只用標準函式庫。
 """
 
@@ -78,6 +79,8 @@ MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$")
 STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
 DONE = re.compile(r"^\**Status:?\**:?\s*done\b", re.I)
 SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
+DATED_SESSION_NOTE = re.compile(r"^Session 紀錄：\d{4}-\d{2}-\d{2} \S")
+MAX_NOTE_CHARS = 160
 ACCEPTANCE, USER_TRIAL = "驗收", "使用者試"
 ACCEPTANCE_SUFFIXES = ("-acceptance.md", "-close.md")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
@@ -382,11 +385,14 @@ def check_scratch(root: Path) -> list:
                 out.append(f"{rel}/issues/{t.name}：第一個 ## 之前要有一行 `Status:`")
             elif d.name in active and any(DONE.match(line) for line in head):
                 comments = text.split("\n## Comments", 1)
-                if len(comments) < 2 or not any(l.startswith(SESSION_NOTE) for l in comments[1].split("\n")):
-                    out.append(f"{rel}/issues/{t.name}：做完的票要在 `## Comments` 之後留一行「{SESSION_NOTE}<做了什麼>」，合併的人照它寫 progress.md")
+                if len(comments) < 2 or not any(DATED_SESSION_NOTE.match(l) for l in comments[1].split("\n")):
+                    out.append(f"{rel}/issues/{t.name}：做完的票要在 `## Comments` 之後留一行「{SESSION_NOTE}<YYYY-MM-DD> <做了什麼>」，"
+                               f"票是這條紀錄唯一的來源")
                 for l in (comments[1].split("\n") if len(comments) == 2 else []):
                     if l.startswith(DECISION_NOTE) and len(DECIDER.findall(l)) != 1:
                         out.append(f"{rel}/issues/{t.name}：「{DECISION_NOTE}」那一行要標一個決定者：{DECIDER_LIST}")
+                    if l.startswith(DECISION_NOTE) and len(l) > MAX_NOTE_CHARS:
+                        out.append(f"{rel}/issues/{t.name}：「{DECISION_NOTE}」那一行 {len(l)} 字元，上限 {MAX_NOTE_CHARS}。細節寫在它上面的 Comments")
             if listed and d.name.lower() in listed and not listed[d.name.lower()].startswith(CLOSED):
                 criteria = next((lines for title, lines in sections(text) if title == ACCEPTANCE), None)
                 if criteria is None or not any(CHECKBOX.match(l) for _, l in criteria):

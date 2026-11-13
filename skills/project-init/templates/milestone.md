@@ -33,6 +33,11 @@
    - 不滿意的項目各開一張修復票（`NNb-<slug>`，排在驗收票之前），修完再請使用者試。
    - 使用者要 agent 代測：照做，並在 `docs/decisions.md` 記一條（使用者定），寫明哪幾項沒有人親手試過。
    - 使用者說可以了才往下。
-5. **封存**：照 progress.md〈寫法與封存〉建 `docs/archive/<里程碑>.md`，三段：`## Session 紀錄`（整張表連表頭）、`## 決定`（每條的格式同 `docs/decisions.md`）、`## 使用者試`（spec 的使用者試清單逐項寫結果；代測的寫誰測、哪幾項沒有人親手試過）。搬完、commit 之前跑 `python3 scripts/docs_moved_lines.py HEAD docs/progress.md docs/decisions.md -- docs/archive/<里程碑>.md`。
+5. **封存**：建 `docs/archive/<里程碑>.md`，三段：
+   - `## Session 紀錄`：progress.md 裡這個里程碑的整張表連表頭搬過來，後面接 `python3 scripts/ticket_notes.py <里程碑的目錄名> --archive` 印的列。
+   - `## 決定`：`docs/decisions.md` 裡標著這個里程碑的條目搬過來，後面接同一個指令印的條目。
+   - `## 使用者試`：spec 的使用者試清單逐項寫結果；代測的寫誰測、哪幾項沒有人親手試過。
 
-完成條件：spec〈驗收〉每一條都有證據或使用者的回覆；每個發現都歸了位；`docs_moved_lines.py` 印「遺失 0」；progress.md 與 decisions.md 只剩下一個里程碑的。
+   票檔留在 `.scratch/` 不動。commit 之前跑 `python3 scripts/docs_moved_lines.py HEAD docs/progress.md docs/decisions.md -- docs/archive/<里程碑>.md`。同一個 commit 把 `docs/roadmap.md` 里程碑表的狀態改成「已驗收，封存在 `docs/archive/<里程碑>.md`」、下一個里程碑標成進行中，progress.md 加一列，「下一步」寫 `/1morr:checkpoint <封存的里程碑>`。
+
+完成條件：spec〈驗收〉每一條都有證據或使用者的回覆；每個發現都歸了位；`docs_moved_lines.py` 印「遺失 0」；`ticket_notes.py --archive` 印的每一行都在封存檔裡；progress.md 與 decisions.md 只剩下一個里程碑的。

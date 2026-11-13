@@ -578,21 +578,36 @@ class ScratchTest(Repo):
                 self.setUp()
                 self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", status)
                 self.red("01-first.md：做完的票")
-                self.sub(".scratch/m1/issues/01-first.md", "## Comments\n", "## Comments\n\n- code-review 沒處理的發現。\n\nSession 紀錄：閘門就位。\n決定：改用另一個套件（使用者同意）。\n")
+                self.sub(".scratch/m1/issues/01-first.md", "## Comments\n", "## Comments\n\n- code-review 沒處理的發現。\n\nSession 紀錄：2026-01-04 閘門就位。\n決定：改用另一個套件（使用者同意）。\n")
                 self.clean()
+
+    def test_session_note_needs_a_date(self):
+        for note in ("Session 紀錄：閘門就位。", "Session 紀錄：1 月 4 日閘門就位。", "Session 紀錄：2026-01-04"):
+            with self.subTest(note):
+                self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + f"\n{note}\n")
+                self.red("01-first.md：做完的票")
+        self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + "\n隨便一句。\nSession 紀錄：2026-01-04 閘門就位，細節見上。\n")
+        self.clean()
+
+    def test_decision_line_on_a_done_ticket_has_a_length_limit(self):
+        done = TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：2026-01-04 做完。\n"
+        self.write(".scratch/m1/issues/01-first.md", done + "決定：" + "長" * 149 + "（Agent 定）\n")
+        self.red("01-first.md：「決定：」那一行 161 字元")
+        self.write(".scratch/m1/issues/01-first.md", done + "決定：" + "長" * 148 + "（Agent 定）\n" + "別的行不限長度" * 40 + "\n")
+        self.clean()
 
     def test_decision_line_on_a_done_ticket_needs_one_decider(self):
         self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", "Status: done")
         for line in ("決定：改用另一個套件。", "決定：改用另一個套件（使用者定）（Agent 定）。"):
             with self.subTest(line):
-                self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + f"\nSession 紀錄：做完。\n{line}\n")
+                self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + f"\nSession 紀錄：2026-01-04 做完。\n{line}\n")
                 self.red("01-first.md：「決定：」那一行要標一個決定者")
-        self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：做完。\n- 這一行提到決定：但不是開頭。\n")
+        self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：2026-01-04 做完。\n- 這一行提到決定：但不是開頭。\n")
         self.clean()
 
     def test_session_note_before_comments_does_not_count(self):
         self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", "Status: done")
-        self.sub(".scratch/m1/issues/01-first.md", "## What to build\n", "## What to build\n\nSession 紀錄：寫錯地方。\n")
+        self.sub(".scratch/m1/issues/01-first.md", "## What to build\n", "## What to build\n\nSession 紀錄：2026-01-04 寫錯地方。\n")
         self.red("01-first.md：做完的票")
 
     def test_done_tickets_outside_the_active_milestone_are_not_checked(self):

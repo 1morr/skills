@@ -273,7 +273,7 @@ class MergeTicketTest(unittest.TestCase):
         t = self.work / self.TICKET
         text = t.read_text(encoding="utf-8").replace("Status: ready-for-agent", f"Status: {status}")
         text = text.replace("- [ ]", "- [x]") if check else text
-        t.write_text(text + ("\nSession 紀錄：閘門就位。\n" if note else ""), encoding="utf-8")
+        t.write_text(text + ("\nSession 紀錄：2026-01-04 閘門就位。\n" if note else ""), encoding="utf-8")
         self.commit(self.work, message)
 
     def test_finished_ticket_merges(self):
