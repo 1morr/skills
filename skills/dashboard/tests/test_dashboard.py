@@ -219,7 +219,50 @@ class CollectTest(Repo):
         self.assertEqual(d["adrs"], [{"number": "0001", "title": "核心用 Rust", "file": "0001-rust-core.md"}])
         self.assertEqual([(s["date"], s["ticket"], s["result"]) for s in d["sessions"]],
                          [("2026-01-05", "M1 01", "查碼表做完 a|b"), ("2026-01-04", "M1 開工", "拆了 3 張票")])
-        self.assertEqual(d["next"], "新 session 下 `/implement .scratch/m1/issues/02-bar.md`")
+
+    def test_next_step_is_the_first_open_ticket_nothing_blocks(self):
+        step = "新 session 下 `/implement .scratch/m1/issues/%s`"
+        self.assertEqual(self.collect()["next"], step % "01-lookup.md")  # progress.md 寫的是 02，票 01 其實還沒做完
+        self.sub(".scratch/m1/issues/03-m1-acceptance.md", "ready-for-agent\n", "ready-for-agent\nBlocked by: 01, 02\n")
+        self.sub(".scratch/m1/issues/01-lookup.md", "Blocked by: None", "Blocked by: 02")
+        self.assertEqual(self.collect()["next"], step % "02-bar.md")
+        self.sub(".scratch/m1/issues/02-bar.md", "Status: ready-for-agent", "Status: done")
+        self.assertEqual(self.collect()["next"], step % "01-lookup.md")
+        self.sub(".scratch/m1/issues/01-lookup.md", "Status: ready-for-agent", "Status: wontfix")
+        self.assertEqual(self.collect()["next"], step % "03-m1-acceptance.md")
+
+    def test_next_step_falls_back_to_the_last_progress_row(self):
+        for name in ("01-lookup.md", "02-bar.md", "03-m1-acceptance.md"):
+            self.sub(f".scratch/m1/issues/{name}", "ready-for-agent", "done")
+        self.assertEqual(self.collect()["next"], "新 session 下 `/implement .scratch/m1/issues/02-bar.md`")
+        self.sub("docs/roadmap.md", "進行中，已拆 3 張票", "未開工")
+        self.sub(".scratch/m1/issues/02-bar.md", "Status: done", "Status: ready-for-agent")
+        self.assertEqual(self.collect()["next"], "新 session 下 `/implement .scratch/m1/issues/02-bar.md`")
+
+    def test_notes_left_on_a_ticket_are_read_as_sessions_and_decisions(self):
+        self.sub(".scratch/m1/issues/02-bar.md", "## What to build\n", "## What to build\n\n決定：Comments 之前的不算（Agent 定）\n")
+        self.sub(".scratch/m1/issues/02-bar.md", "## Comments\n", "## Comments\n\n審查留了一條。\nSession 紀錄：2026-01-06 候選列做完。\n"
+                 "決定：一頁 `九` 個（使用者同意）\n決定：沒標的\n")
+        d = self.collect()
+        self.assertEqual([(x["date"], x["milestone"], x["label"], x["decider"], x["text"], x["archived"]) for x in d["decisions"]][:2],
+                         [("2026-01-06", "M1", "M1 票 02", "使用者同意", "一頁 九 個", False), ("2026-01-06", "M1", "M1 票 02", "未標", "沒標的", False)])
+        self.assertEqual(len(d["decisions"]), 5)
+        self.assertEqual([(s["date"], s["ticket"], s["result"]) for s in d["sessions"]][0], ("2026-01-06", "M1 02", "候選列做完。"))
+
+    def test_notes_already_copied_into_the_two_files_are_listed_once(self):
+        self.sub(".scratch/m1/issues/01-lookup.md", "## Comments\n", "## Comments\n\nSession 紀錄：2026-01-05 查碼表做完。\n決定：碼表用 fst 存（Agent 定）\n")
+        d = self.collect()
+        self.assertEqual((len(d["decisions"]), len(d["sessions"])), (3, 2))
+
+    def test_notes_of_an_accepted_milestone_come_from_its_archive_only(self):
+        self.write(".scratch/m0/issues/01-gates.md", TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：2026-01-01 閘門。\n決定：用 X（Agent 定）\n")
+        d = self.collect()
+        self.assertEqual((len(d["decisions"]), len(d["sessions"])), (3, 2))
+
+    def test_an_undated_note_takes_the_date_the_ticket_file_changed(self):
+        self.sub(".scratch/m1/issues/02-bar.md", "## Comments\n", "## Comments\n\nSession 紀錄：候選列做完。\n")
+        os.utime(self.repo / ".scratch/m1/issues/02-bar.md", (1767787200, 1767787200))  # 2026-01-07 中午（UTC）
+        self.assertEqual([(s["date"], s["ticket"]) for s in self.collect()["sessions"]][0], ("2026-01-07", "M1 02"))
 
     def test_waiting_for_the_user_and_decisions_the_user_has_not_seen(self):
         d = self.collect()

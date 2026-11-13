@@ -6,21 +6,26 @@
 
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態（看開頭的詞：未開工、進行中、已驗收、不做）
-  .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
+  .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、Blocked by:、勾選框
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
-  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
+                       還沒驗收的里程碑，票在 `## Comments` 之後留的 `Session 紀錄：<日期> …`、`決定：…（<決定者>）`：
+                       票是這兩種紀錄唯一的來源，沒寫日期的用票檔的修改日期。舊骨架把它們抄進下面兩個檔，
+                       那兩個檔已經有同一張票的條目（「M1 票 03」「M1 03」）時不再從票讀一次
+  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（不是做票時定的決定）
   docs/archive/*.md    〈決定〉：已驗收里程碑的決定，里程碑取檔名；舊骨架的段名〈偏差與決定〉也讀
                        〈Session 紀錄〉的表：封存的 session 紀錄。儲存格裡有沒跳脫的 `|` 而多出欄位的列，
                        多的併進「結果」；少了「結果」後面幾欄的照讀；連「結果」都沒有的列在「讀不到的行」
                        這兩處以 `- ` 開頭卻不是 `- YYYY-MM-DD …` 的行，列在頁面的「讀不到的行」
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
+                       下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
 
 資料每次請求時現讀，不存快取。頁面不載入任何外部資源。只用標準函式庫。
 """
 
 import argparse
+import datetime
 import json
 import re
 import subprocess
@@ -48,6 +53,12 @@ STATUS = re.compile(r"^\**Status:?\**:?\s*(\S.*?)\s*$", re.I)
 CHECKBOX = re.compile(r"^\s*[-*] \[([ xX])\]")
 ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
+SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
+COMMENTS = "\n## Comments"
+NOTE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
+TICKET_NUMBER = re.compile(r"^(\d+[a-z]?)-")
+BLOCKED = re.compile(r"^Blocked by:\s*(.*)$", re.I)
+COPIED_DECISION = re.compile(r"票\s*(\d+[a-z]?)")
 WAITING = "等使用者："
 RESULT = "結果"
 STATES = {"未開工": "todo", "進行中": "active", "已驗收": "done", "不做": "dropped"}
@@ -80,15 +91,21 @@ def sections(text: str) -> dict:
     return {title: [line for _, line in lines] for title, lines in numbered_sections(text).items()}
 
 
-def numbered_table(lines) -> list:
-    """第一張表的每一列：(行號, {表頭欄名: 內容})。"""
+def table_rows(lines) -> list:
+    """第一張表的每一行：(行號, [儲存格, …])，含表頭與分隔列；不到兩行就不是表。"""
     rows = []
     for number, line in lines:
         if line.strip().startswith("|"):
             rows.append((number, [c.strip().replace("\\|", "|") for c in CELL_SPLIT.split(line.strip().strip("|"))]))
         elif rows:
             break
-    if len(rows) < 2:
+    return rows if len(rows) >= 2 else []
+
+
+def numbered_table(lines) -> list:
+    """第一張表的每一列：(行號, {表頭欄名: 內容})。"""
+    rows = table_rows(lines)
+    if not rows:
         return []
     head = rows[0][1]
     return [(n, dict(zip(head, r))) for n, r in rows[2:] if len(r) == len(head)]
@@ -113,17 +130,67 @@ def state_of(status: str) -> str:
 def ticket(path: Path) -> dict:
     lines = read(path).split("\n")
     title = next((l.lstrip("# ").strip() for l in lines if l.startswith("# ")), path.stem)
-    status = ""
+    status, blocked = "", []
     for l in lines:
         if l.startswith("## "):
             break
         m = STATUS.match(l)
-        if m:
+        if m and not status:
             status = m.group(1).strip("* ")
-            break
+        m = BLOCKED.match(l)
+        if m:
+            blocked = re.findall(r"\d+[a-z]?", m.group(1))
     boxes = [m.group(1) != " " for m in map(CHECKBOX.match, lines) if m]
-    return {"file": path.name, "title": plain(title), "status": status, "done": status.lower().startswith("done"),
-            "dropped": bool(DROPPED.match(status)), "checked": sum(boxes), "boxes": len(boxes)}
+    number = TICKET_NUMBER.match(path.name)
+    return {"file": path.name, "number": number.group(1) if number else path.stem, "title": plain(title), "status": status,
+            "done": status.lower().startswith("done"), "dropped": bool(DROPPED.match(status)), "blocked": blocked,
+            "checked": sum(boxes), "boxes": len(boxes)}
+
+
+def notes(path: Path) -> dict:
+    """票在 `## Comments` 之後留的紀錄：{date, sessions: [一句], decisions: [(一句, 決定者)]}。"""
+    text = read(path)
+    out = {"date": "", "sessions": [], "decisions": []}
+    for line in text.split(COMMENTS, 1)[1].split("\n") if COMMENTS in text else []:
+        if line.startswith(SESSION_NOTE):
+            rest = line[len(SESSION_NOTE):].strip()
+            dated = NOTE_DATE.match(rest)
+            if dated:
+                out["date"], rest = out["date"] or dated.group(1), dated.group(2)
+            out["sessions"].append(plain(rest))
+        elif line.startswith(DECISION_NOTE):
+            rest = line[len(DECISION_NOTE):].strip()
+            out["decisions"].append((plain(DECIDER.sub("", rest)), decider_of(rest)))
+    if not out["date"] and (out["sessions"] or out["decisions"]):
+        try:
+            out["date"] = datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
+        except OSError:
+            pass
+    return out
+
+
+def ticket_notes(repo: Path, live: list) -> list:
+    """還沒驗收的里程碑裡每張留了紀錄的票：[(里程碑的名字, 票號, 紀錄)]。"""
+    out = []
+    for m in live:
+        for t in m["tickets"]:
+            found = notes(repo / ".scratch" / m["dir"] / "issues" / t["file"])
+            if found["sessions"] or found["decisions"]:
+                out.append((m["name"].split()[0], t["number"], found))
+    return out
+
+
+def next_ticket(listed: list) -> str:
+    """進行中的里程碑裡第一張沒做完、擋它的票都做完（或不做）的票的指令；沒有就是空字串。"""
+    for m in listed:
+        if m["state"] != "active":
+            continue
+        closed = {t["number"] for t in m["tickets"] if t["done"] or t["dropped"]}
+        known = {t["number"] for t in m["tickets"]}
+        for t in m["tickets"]:
+            if t["number"] not in closed and all(b in closed or b not in known for b in t["blocked"]):
+                return f"新 session 下 `/implement .scratch/{m['dir']}/issues/{t['file']}`"
+    return ""
 
 
 def tickets(directory: Path) -> list:
@@ -181,8 +248,9 @@ def decider_of(rest: str) -> str:
     return OLD_DECIDERS.get(word, word)
 
 
-def decisions(repo: Path) -> tuple:
-    """(決定, 讀不到的行)。封存檔裡的決定，里程碑是檔名（`m1.5.md` → `M1.5`）：早期的條目開頭常是「票 05」「拆票」。"""
+def decisions(repo: Path, from_tickets=()) -> tuple:
+    """(決定, 讀不到的行)。封存檔裡的決定，里程碑是檔名（`m1.5.md` → `M1.5`）：早期的條目開頭常是「票 05」「拆票」。
+    `from_tickets` 是 `ticket_notes` 讀到的；decisions.md 已經有同一張票的條目時（舊骨架抄過去的）不重複列。"""
     sources = []
     secs = numbered_sections(read(repo / "docs/decisions.md"))
     sources.append(("docs/decisions.md", "", secs.get("紀錄", []) + secs.get("搬移前的紀錄", [])))
@@ -204,6 +272,11 @@ def decisions(repo: Path) -> tuple:
             label = plain(DECIDER.sub("", head)) if colon else ""
             out.append({"date": m.group(1), "milestone": archive or re.split(r"[\s（(]", label)[0], "label": label,
                         "decider": decider_of(rest), "archived": bool(archive), "text": plain(DECIDER.sub("", body or rest))})
+    copied = {(d["milestone"].upper(), n) for d in out if not d["archived"] for n in COPIED_DECISION.findall(d["label"])}
+    for milestone, number, found in from_tickets:
+        if (milestone.upper(), number) not in copied:
+            out += [{"date": found["date"], "milestone": milestone, "label": f"{milestone} 票 {number}", "decider": decider,
+                     "archived": False, "text": said} for said, decider in found["decisions"]]
     return sorted(out, key=lambda d: d["date"], reverse=True), unreadable
 
 
@@ -217,23 +290,25 @@ def adrs(repo: Path) -> list:
     return out
 
 
-def sessions(repo: Path) -> list:
+def sessions(repo: Path, from_tickets=()) -> tuple:
+    """(session 紀錄，舊的在前；progress.md 最後一列的下一步)。票上的 session 紀錄排進來；progress.md 已經有那張票的列時不重複列。"""
     rows = table(sections(read(repo / "docs/progress.md")).get("Session 紀錄", []))
-    return [{"date": r.get("日期", ""), "ticket": plain(r.get("票", "")), "result": plain(r.get("結果", "")),
-             "next": r.get("下一步", "").strip()} for r in rows]
+    out = [{"date": r.get("日期", ""), "ticket": plain(r.get("票", "")), "result": plain(r.get("結果", "")),
+            "next": r.get("下一步", "").strip()} for r in rows]
+    step = out[-1]["next"] if out else ""
+    copied = {s["ticket"].upper() for s in out}
+    for milestone, number, found in from_tickets:
+        if f"{milestone} {number}".upper() not in copied:
+            out += [{"date": found["date"], "ticket": f"{milestone} {number}", "result": said, "next": ""} for said in found["sessions"]]
+    return sorted(out, key=lambda s: s["date"]), step
 
 
 def archived_sessions(repo: Path) -> tuple:
     """([{里程碑, 檔名, rows}], 讀不到的行)：各封存檔〈Session 紀錄〉的表，新的在前。"""
     out, unreadable = [], []
     for archived in sorted((repo / "docs/archive").glob("*.md")) if (repo / "docs/archive").is_dir() else []:
-        rows = []
-        for number, line in numbered_sections(read(archived)).get("Session 紀錄", []):
-            if line.strip().startswith("|"):
-                rows.append((number, [c.strip().replace("\\|", "|") for c in CELL_SPLIT.split(line.strip().strip("|"))]))
-            elif rows:
-                break
-        if len(rows) < 2:
+        rows = table_rows(numbered_sections(read(archived)).get("Session 紀錄", []))
+        if not rows:
             continue
         head, found = rows[0][1], []
         for number, cells in rows[2:]:
@@ -304,16 +379,19 @@ def collect(repo: Path) -> dict:
     repo = repo.resolve()
     ms, odd_states = milestones(repo)
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
-    log = sessions(repo)
-    decided, unreadable = decisions(repo)
+    loose = unlisted(repo, ms)
+    kept = ticket_notes(repo, [m for m in ms + loose if m["state"] in ("todo", "active")])
+    log, step = sessions(repo, kept)
+    decided, unreadable = decisions(repo, kept)
     old_sessions, odd_rows = archived_sessions(repo)
-    step = log[-1]["next"] if log else ""
+    if not step.startswith(WAITING):
+        step = next_ticket(ms) or step
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
             "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": step,
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": odd_states + unreadable + odd_rows, "unlisted": unlisted(repo, ms)}
+            "unreadable": odd_states + unreadable + odd_rows, "unlisted": loose}
 
 
 PAGE = r"""<!doctype html>

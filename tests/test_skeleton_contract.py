@@ -160,7 +160,6 @@ class SkeletonContractTest(unittest.TestCase):
         text = self.read(rel).replace("Status: ready-for-agent", "Status: done").replace("- [ ]", "- [x]")
         self.write(rel, text.rstrip("\n") + "\n\n" + "\n".join(notes) + "\n")
 
-    @unittest.expectedFailure
     def test_notes_stay_on_the_ticket_until_the_milestone_is_archived(self):
         notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
         self.open_m0()
