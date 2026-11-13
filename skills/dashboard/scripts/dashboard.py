@@ -8,6 +8,7 @@
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容；〈搬移前的紀錄〉（同步時從舊格式搬來的）也讀
+  docs/archive/*.md    〈偏差與決定〉：舊骨架把決定跟著里程碑封存在這裡，沒搬的照樣讀
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
@@ -25,8 +26,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 DECIDERS = ("使用者定", "使用者同意", "Agent 定")
+# 早期的寫法，顯示時歸到現在的三種
+OLD_DECIDERS = {"使用者決定": "使用者定", "擁有者決定": "使用者定", "協調者決定": "Agent 定"}
 DECISION = re.compile(r"^- (\d{4}-\d{2}-\d{2}) (.*)$")
-DECIDER = re.compile("（(%s)）" % "|".join(DECIDERS))
+DECIDER = re.compile("（(%s)[^）]{0,12}）" % "|".join(DECIDERS + tuple(OLD_DECIDERS)))
 STATUS = re.compile(r"^\**Status:?\**:?\s*(\S.*?)\s*$", re.I)
 CHECKBOX = re.compile(r"^\s*[-*] \[([ xX])\]")
 ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
@@ -130,7 +133,10 @@ def milestones(repo: Path) -> list:
 def decisions(repo: Path) -> list:
     out = []
     secs = sections(read(repo / "docs/decisions.md"))
-    for line in secs.get("紀錄", []) + secs.get("搬移前的紀錄", []):
+    lines = secs.get("紀錄", []) + secs.get("搬移前的紀錄", [])
+    for archived in sorted((repo / "docs/archive").glob("*.md")) if (repo / "docs/archive").is_dir() else []:
+        lines += sections(read(archived)).get("偏差與決定", [])
+    for line in lines:
         m = DECISION.match(line)
         if not m:
             continue
@@ -138,7 +144,7 @@ def decisions(repo: Path) -> list:
         who = DECIDER.search(rest)
         head, _, body = rest.partition("：")
         out.append({"date": m.group(1), "milestone": plain(DECIDER.sub("", head)).split(" ")[0] if head else "",
-                    "decider": who.group(1) if who else "不明", "text": plain(DECIDER.sub("", body or rest))})
+                    "decider": OLD_DECIDERS.get(who.group(1), who.group(1)) if who else "不明", "text": plain(DECIDER.sub("", body or rest))})
     return sorted(out, key=lambda d: d["date"], reverse=True)
 
 
