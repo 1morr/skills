@@ -76,14 +76,15 @@ commit、文件、票、fixture、log 摘錄與截圖：
 
 - **先有設計稿，再寫介面**。不論產品是網頁、原生 App 還是桌面程式，每個畫面先用 `impeccable:impeccable` 做成靜態 HTML 的設計稿，放在 `docs/design/`，使用者逐頁確認後才開做它的票。有爭議的地方給 A／B 兩個方案。只改文案、修 bug、不動版面的票不用。
 - 設計稿要涵蓋的寬度、深淺色與設計系統寫在 brief；實作照定稿做，要偏離先問使用者。
-- 設計稿排成一個只產出文件的階段，寫進 `docs/roadmap.md`，在第一個有畫面的里程碑開工前完成。
+- 設計稿排成一個只產出文件的階段，寫進 `docs/roadmap.md`，在第一個有畫面的里程碑開工前完成。之後才新增或大改的畫面，在那張票的第一步用 `impeccable:impeccable` 出設計，使用者確認後才實作。
+- 做對比版：每一版在自己的 worktree 做，只讀 brief 與設計系統，別的版本的設計稿留到使用者比較時才打開。
 - UI 改動實跑驗證，附截圖或讀回的畫面文字。
 
 ## Skills
 
-- 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR，照〈使用者確認〉先給草稿），結論寫回 brief。
+- 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR，照〈使用者確認〉先給草稿），結論寫回 brief；收尾的「下一步」是 `/grill-with-docs 照 docs/agents/milestone.md 寫 plan 與 roadmap`。
 - 里程碑開工（使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`）、做驗收票 `NN-<里程碑>-acceptance`：先讀 `docs/agents/milestone.md`，照它的步驟做。
-- 訪談、寫 plan 的 session 收尾在「plan 與 roadmap 已更新」。之後的里程碑留在 roadmap，開工時才有 spec。
+- 寫 plan 與 roadmap（訪談之後、第一個里程碑開工之前）：照 `docs/agents/milestone.md`〈寫 plan 與 roadmap〉。之後的里程碑留在 roadmap，開工時才有 spec。
 - 做票：一張票一個 session，`/implement`；整批跑票：`/1morr:ticket-coordinator`。
 - 里程碑之間：`/1morr:checkpoint`；想看懂某樣東西現在怎麼運作：`/1morr:explain`。
 - 新功能與修 bug：`mattpocock-skills:tdd`。設計模組邊界：`mattpocock-skills:codebase-design`。

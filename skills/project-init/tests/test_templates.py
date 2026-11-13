@@ -97,7 +97,8 @@ class MilestoneDocTest(unittest.TestCase):
     def test_instructions_point_at_it_and_it_names_what_the_check_enforces(self):
         self.assertIn("docs/agents/milestone.md", fill("instructions.md"))
         text = fill("milestone.md")
-        for needle in ("/to-tickets docs/roadmap.md 拆 <里程碑> 的票", "NN-<里程碑>-acceptance", check_docs.USER_TRIAL,
+        for needle in ("/to-tickets docs/roadmap.md 拆 <里程碑> 的票", "/to-tickets docs/roadmap.md 拆 M0 的票", "寫 plan 與 roadmap",
+                       "NN-<里程碑>-acceptance", check_docs.USER_TRIAL,
                        check_docs.WAITING + "試用", *check_docs.SPEC_SECTIONS):
             self.assertIn(needle, text)
 

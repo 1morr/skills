@@ -1,6 +1,17 @@
-# 里程碑：開工與驗收
+# 里程碑：規劃、開工與驗收
 
-里程碑開工的 session 與做驗收票的 session 照這份做。其餘的票照 `AGENTS.md`〈每個 session 的流程〉。
+寫 plan 的 session、里程碑開工的 session、做驗收票的 session 照這份做。其餘的票照 `AGENTS.md`〈每個 session 的流程〉。
+
+## 寫 plan 與 roadmap
+
+在 brief 訪談之後、第一個里程碑開工之前，一個 session 做完。這個 session 不寫 spec、不拆票。
+
+1. 讀 brief 全文。〈待決〉裡會影響架構或順序的，先問使用者定下來。
+2. 寫 `docs/plan.md` 各節，照它檔頭的寫法；技術選型先查成熟產品與套件的現況，說明採用了誰的做法。
+3. 寫 `docs/roadmap.md`：里程碑表，每個里程碑一小節（目標、範圍要點、驗收的方向）。M0 是 tracer bullet；有 UI 的專案把設計稿排成一個只產出文件的階段。
+4. 每節的草稿先給使用者看，確認後才寫入（`AGENTS.md`〈使用者確認〉）。
+
+完成條件：brief 的每個功能都落在某個里程碑或 roadmap〈不排里程碑〉；`python3 scripts/check_docs.py` 通過；progress.md 加了一列，「下一步」是 `/to-tickets docs/roadmap.md 拆 M0 的票`。
 
 ## 開工
 

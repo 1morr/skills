@@ -16,7 +16,7 @@
 
 | 日期 | 票 | 結果 | 下一步 |
 | --- | --- | --- | --- |
-| {{DATE}} | 框架 | `/1morr:project-init` 建立文件骨架、文件檢查與 commit-msg hook | 新 session 下 `/grill-with-docs` 填 brief，再寫 plan |
+| {{DATE}} | 框架 | `/1morr:project-init` 建立文件骨架、文件檢查與 commit-msg hook | 新 session 下 `/grill-with-docs 填 docs/design-brief.md` |
 
 ## 偏差與決定
 

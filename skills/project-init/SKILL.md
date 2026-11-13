@@ -7,7 +7,7 @@ argument-hint: "[專案一句話]"
 
 替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / roadmap / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
-`/grill-with-docs` 填 brief → 寫 plan 與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
+`/grill-with-docs` 填 brief → 同一個指令寫 plan 與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
 參數：$ARGUMENTS
 
@@ -88,4 +88,12 @@ python3 scripts/check_commit_msg.py --subject "Add stuff"      # exit 1
 ## 6. 交付
 
 1. commit：`docs: scaffold agent workflow, brief and plan skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
-2. 告訴使用者：建了哪些檔；下一步在新 session 下 `/grill-with-docs` 填 brief（progress.md 的第一列已經寫了同一句）；要用額度門檻跑整批票的話，照 plugin README〈額度門檻〉設定一次。
+2. 告訴使用者建了哪些檔，並印出下一個 session 要貼的訪談指令，`<…>` 換成實際內容：
+
+   ```
+   /grill-with-docs 填 docs/design-brief.md：<專案一句話>。<使用者在這次對話提過的平台、限制、參考產品>
+   逐節訪談，每題附你的建議。brief、GLOSSARY.md、ADR 的每段草稿先給我看，我確認後才寫入。
+   外部事實先查證，寫進 docs/research/ 並編號。
+   ```
+
+3. 要用額度門檻跑整批票的話，照 plugin README〈額度門檻〉設定一次。
