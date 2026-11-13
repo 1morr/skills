@@ -13,7 +13,7 @@ argument-hint: "[repo 路徑…] [static]"
 
 ## 1. 要看哪些 repo
 
-參數給了路徑就用它們，可以好幾個，頁面上方切換；沒給就是目前的 repo（`git rev-parse --show-toplevel`）。
+參數給了路徑就用它們，可以好幾個，頁面上方切換；沒給就是目前的 repo。
 
 ## 2. 開頁面
 
@@ -30,3 +30,5 @@ argument-hint: "[repo 路徑…] [static]"
 - 怎麼關：伺服器是這個 session 的背景工作，session 結束就停；要先關就說一聲。
 - 頁面出現「讀不到的檔」時，照它列的轉告：那個 repo 還沒照 project-init 的骨架，在那個 repo 下 `/1morr:project-init` 會走同步。
 - 頁面出現「讀不到的行」時，轉告有幾條、在哪幾個檔，以及頁面在每一行底下寫的原因：照那個寫法改，它就會列進去。
+
+完成條件：對話裡有網址（或檔案的完整路徑）和怎麼關；`data.json` 的 `missing`、`unreadable` 不是空的時，各轉告了。
