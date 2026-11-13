@@ -13,6 +13,9 @@
   大小與寫法
     - 字元上限（Python `len`）：AGENTS.md 6,000、docs/progress.md 20,000、docs/design-brief.md 30,000、docs/plan.md 60,000；不存在的檔不查
     - docs/design-brief.md、docs/plan.md 不寫票號（「票 12」「票12」）；程式碼區塊裡的不算
+  程式碼
+    - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或 plan 的章節號（「plan §3.2」「brief §4」）；
+      不是 git repo 就不查
   .scratch/
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
@@ -21,6 +24,7 @@
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +33,9 @@ ROADMAP = "docs/roadmap.md"
 BRIEF, PLAN = "docs/design-brief.md", "docs/plan.md"
 BUDGETS = {"AGENTS.md": 6000, PROGRESS: 20000, BRIEF: 30000, PLAN: 60000}
 TICKET_NUMBER = re.compile(r"票\s*\d")
+SECTION_REF = re.compile(r"(?:plan|brief)(?:\.md)?\s*§\s*\d", re.I)
+NOT_CODE = ("docs/", ".scratch/", "scripts/check_docs.py", "scripts/tests/test_check_docs.py")
+MAX_SCANNED_BYTES = 1_000_000
 SCRATCH = ".scratch"
 MILESTONES, SESSIONS, DEVIATIONS = "里程碑", "Session 紀錄", "偏差與決定"
 STATE = "狀態"
@@ -174,6 +181,32 @@ def check_current_state(root: Path) -> list:
     return out
 
 
+def tracked_files(root: Path) -> list:
+    try:
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
+
+
+def check_code_refs(root: Path) -> list:
+    """章節號只在文件與票裡用：程式碼引用了，節就搬不動。"""
+    out = []
+    for rel in tracked_files(root):
+        if rel.lower().endswith(".md") or rel.startswith(NOT_CODE):
+            continue
+        p = root / rel
+        if not p.is_file() or p.stat().st_size > MAX_SCANNED_BYTES:
+            continue
+        data = p.read_bytes()
+        if b"\0" in data:
+            continue
+        for n, line in enumerate(data.decode("utf-8", "replace").split("\n"), 1):
+            if SECTION_REF.search(line):
+                out.append(f"{rel}:{n}：引用了 brief 或 plan 的章節號。改引 ADR 編號或事實編號，或直接寫出理由")
+    return out
+
+
 def check_scratch(root: Path) -> list:
     out = []
     base = root / SCRATCH
@@ -206,7 +239,7 @@ def run(root: Path) -> list:
             out += check((root / rel).read_text(encoding="utf-8"))
         else:
             out.append(f"找不到 {rel}")
-    return out + check_budgets(root) + check_current_state(root) + check_scratch(root)
+    return out + check_budgets(root) + check_current_state(root) + check_code_refs(root) + check_scratch(root)
 
 
 def main(argv) -> int:

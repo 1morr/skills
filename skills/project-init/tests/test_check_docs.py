@@ -8,6 +8,7 @@ import contextlib
 import importlib.util
 import io
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -269,6 +270,42 @@ class CurrentStateTest(Repo):
 
     def test_ticket_numbers_elsewhere_are_fine(self):
         self.write("docs/roadmap.md", (self.root / "docs/roadmap.md").read_text(encoding="utf-8") + "\n- 票 12 留下的項目。\n")
+        self.clean()
+
+
+@unittest.skipUnless(shutil.which("git"), "要 git")
+class CodeRefsTest(Repo):
+    def track(self):
+        for args in (("init", "-q"), ("add", "-A")):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+
+    def test_code_citing_a_section_number(self):
+        for text in ("// 見 plan §3.2", "# brief §4 的規則", "/* docs/plan.md § 11 */"):
+            with self.subTest(text):
+                self.setUp()
+                self.write("src/engine.rs", f"fn main() {{}}\n{text}\n")
+                self.track()
+                self.red("src/engine.rs:2：引用了 brief 或 plan 的章節號")
+
+    def test_citing_an_adr_or_a_fact_is_fine(self):
+        self.write("src/engine.rs", "// ADR 0003、事實 B3；計畫裡寫的 plan 與 brief 兩個字本身不算；§ 單獨出現也不算\n")
+        self.track()
+        self.clean()
+
+    def test_docs_tickets_and_markdown_may_cite_sections(self):
+        self.write("docs/notes.txt", "plan §3.2\n")
+        self.write(".scratch/m1/issues/01-first.md", TICKET.replace("Blocked by: None", "Blocked by: None\n讀: plan §3.2；brief §4"))
+        self.write("src/README.md", "見 plan §3.2\n")
+        self.track()
+        self.clean()
+
+    def test_untracked_binary_and_non_repo_are_skipped(self):
+        self.write("src/engine.rs", "// plan §3.2\n")
+        self.clean()  # 不是 git repo
+        subprocess.run(["git", "-C", str(self.root), "init", "-q"], check=True, capture_output=True)
+        self.clean()  # 沒被追蹤
+        (self.root / "src/blob.bin").write_bytes(b"\0plan \xc2\xa73.2")
+        subprocess.run(["git", "-C", str(self.root), "add", "src/blob.bin"], check=True, capture_output=True)
         self.clean()
 
 

@@ -52,6 +52,7 @@
 ## 事實與查證
 
 - 外部服務、平台框架、程式庫的行為只信兩處：`docs/research/` 各檔的〈事實〉段，以及現查（context7、官方文件）。沒寫的先查再用，查到的補進對應主題的檔，給編號、附來源；新開的檔加進 brief〈事實索引〉。
+- 程式碼、測試與註解要指向文件時，引 ADR 編號或事實編號；brief 與 plan 的章節號只寫在文件與票裡，節才能搬動（`scripts/check_docs.py` 擋）。
 - 現況以指令為準：`git log`、`git status`、測試輸出。progress.md 與 repo 不符時以 repo 為準並修 progress.md。
 
 ## 上下文紀律
