@@ -264,7 +264,7 @@ class CollectTest(Repo):
         os.utime(self.repo / ".scratch/m1/issues/02-bar.md", (1767787200, 1767787200))  # 2026-01-07 中午（UTC）
         self.assertEqual([(s["date"], s["ticket"]) for s in self.collect()["sessions"]][0], ("2026-01-07", "M1 02"))
 
-    CHANGELOG = ("# Changelog\n\n- 說明裡的清單不算\n\n## [Unreleased]\n\n### Added\n\n- **候選列**：一頁九個，\n  可以翻頁。\n  - 用 `PageDown`。\n\n"
+    CHANGELOG = ("# Changelog\n\n- 說明裡的清單不算\n\n## [Unreleased]\n\n### Added\n\n- **候選列**：一頁九個，\n  可以翻頁。\n  - 用 `PageDown`\n  and more\n\n"
                  "## [0.1.0] - 2026-01-02\n\n升級說明。\n\n- **不在分類底下**：不算條目。\n\n### Added\n\n- **碼表**: 查得到字。\n\n### Fixed\n\n"
                  "- 舊寫法沒有功能名\n\n### Improved\n\n- **別的分類**：不讀。\n\n```\n## [9.9.9] - 2026-09-09\n```\n")
 
@@ -273,7 +273,7 @@ class CollectTest(Repo):
         self.write("CHANGELOG.md", self.CHANGELOG)
         d = self.collect()
         self.assertEqual([(v["version"], v["date"], [(e["kind"], e["feature"], e["text"], e["pending"]) for e in v["entries"]]) for v in d["changelog"]], [
-            ("Unreleased", "", [("Added", "候選列", "一頁九個， 可以翻頁。 用 PageDown。", "")]),
+            ("Unreleased", "", [("Added", "候選列", "一頁九個，可以翻頁。用 PageDown and more", "")]),
             ("0.1.0", "2026-01-02", [("Added", "碼表", "查得到字。", ""), ("Fixed", "", "舊寫法沒有功能名", "")])])
         self.assertEqual(d["unreadable"], [])
 
@@ -292,6 +292,15 @@ class CollectTest(Repo):
         self.assertEqual([(u["file"], u["line"], u["text"]) for u in d["unreadable"]], [(".scratch/m1/issues/02-bar.md", 17, "變更：改了一些")])
         self.write("CHANGELOG.md", self.CHANGELOG)
         self.assertEqual([(e["feature"], e["pending"]) for e in self.collect()["changelog"][0]["entries"]], [("候選列", ""), ("候選列", "M1 02")])
+
+    def test_features_line_up_their_changes_newest_first(self):
+        self.assertEqual(self.collect()["features"], [])
+        self.write("CHANGELOG.md", self.CHANGELOG.replace("- 舊寫法沒有功能名", "- 舊寫法沒有功能名\n- **候選列**：不再閃。"))
+        self.sub(".scratch/m1/issues/02-bar.md", "## Comments\n", "## Comments\n\n變更：Changed｜碼表｜換成新的。\n變更：Added｜匯出｜可以匯出。\n")
+        self.assertEqual([(f["name"], f["since"], [(e["version"], e["kind"], e["text"], e["pending"]) for e in f["entries"]]) for f in self.collect()["features"]], [
+            ("候選列", "0.1.0", [("Unreleased", "Added", "一頁九個，可以翻頁。用 PageDown and more", ""), ("0.1.0", "Fixed", "不再閃。", "")]),
+            ("碼表", "0.1.0", [("Unreleased", "Changed", "換成新的。", "M1 02"), ("0.1.0", "Added", "查得到字。", "")]),
+            ("匯出", "Unreleased", [("Unreleased", "Added", "可以匯出。", "M1 02")])])
 
     def test_waiting_for_the_user_and_decisions_the_user_has_not_seen(self):
         d = self.collect()

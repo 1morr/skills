@@ -20,6 +20,7 @@
   CHANGELOG.md         Keep a Changelog 的版本段（`## [Unreleased]`、`## [<版號>] - <日期>`）與六個分類底下的條目
                        `- **<功能>**：<一句>`（續行算進同一條）。已發版的段落裡不是這個寫法的條目照列、沒有功能名；
                        〈[Unreleased]〉裡不是這個寫法的列在「讀不到的行」。沒有這個檔就沒有這一區
+                       「功能」區把同一個 <功能> 的條目排成一條時間線（新的在前），最早那一條的版本是它出現的版本
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
                        下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
@@ -326,7 +327,8 @@ def changelog(repo: Path, from_tickets=()) -> tuple:
                 unreadable.append({"file": "CHANGELOG.md", "line": number, "text": plain(line[2:])[:80],
                                    "why": "未發版的條目要寫成「- **<功能>**：<一句>」，沒有列進變更"})
         elif line[0] in " \t" and entry is not None:
-            entry["text"] = (entry["text"] + " " + plain(line.strip().lstrip("-* "))).strip()
+            more = plain(line.strip().lstrip("-* "))  # 中文續行直接接上，兩邊都是英數才補空格
+            entry["text"] += (" " if entry["text"][-1:].isascii() and more[:1].isascii() else "") + more
         else:
             entry = None
     pending = []
@@ -339,6 +341,18 @@ def changelog(repo: Path, from_tickets=()) -> tuple:
             versions.insert(0, {"version": UNRELEASED, "date": "", "entries": []})
         next(v for v in versions if v["version"] == UNRELEASED)["entries"] += pending
     return versions, unreadable
+
+
+def features(versions: list) -> list:
+    """[{name, since, entries: [{version, date, kind, text, pending}]}]：帶功能名的條目依功能分組，最近改過的功能在前，
+    每個功能的條目新的在前；`since` 是最早那一條所在的版本。"""
+    out = {}
+    for v in versions:
+        for e in v["entries"]:
+            if e["feature"]:
+                out.setdefault(e["feature"], []).append({"version": v["version"], "date": v["date"], "kind": e["kind"],
+                                                         "text": e["text"], "pending": e["pending"]})
+    return [{"name": name, "since": found[-1]["version"], "entries": found} for name, found in out.items()]
 
 
 def adrs(repo: Path) -> list:
@@ -449,7 +463,7 @@ def collect(repo: Path) -> dict:
     if not step.startswith(WAITING):
         step = next_ticket(ms) or step
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
-            "adrs": adrs(repo), "changelog": changes, "sessions": log[-30:][::-1], "next": step,
+            "adrs": adrs(repo), "changelog": changes, "features": features(changes), "sessions": log[-30:][::-1], "next": step,
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
@@ -524,7 +538,7 @@ td.nowrap { white-space: nowrap; width: 1%; }
 <script>
 "use strict";
 let DATA = JSON.parse(document.getElementById("data").textContent);
-const view = { project: 0, decider: "", milestone: "", query: "", archived: false, open: {} };
+const view = { project: 0, decider: "", milestone: "", query: "", archived: false, feature: "", repeated: false, open: {} };
 const el = (tag, attrs, ...kids) => {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -575,6 +589,27 @@ function changelogView(p) {
         el("ul", { class: "plain" }, v.entries.filter(e => e.kind === k).map(e => entryItem(e)))]) : el("div", { class: "empty" }, "還沒有條目。"));
     box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; });
 }
+const versionName = v => (v === "Unreleased" ? "未發版" : v);
+function featuresView(p) {
+  if (!p.features.length) return el("div", { class: "empty" }, p.changelog.length ? "CHANGELOG.md 還沒有帶功能名的條目。" : "沒有 CHANGELOG.md。");
+  const repeated = p.features.filter(f => f.entries.length > 1).length, needle = view.feature.toLowerCase();
+  const list = p.features.filter(f => (!view.repeated || f.entries.length > 1)
+    && (!needle || (f.name + f.entries.map(e => e.text).join(" ")).toLowerCase().includes(needle)));
+  return [
+    el("div", { class: "filters" },
+      el("button", { class: "chip", "aria-pressed": String(!view.repeated), onclick: () => { view.repeated = false; render(); } }, `全部 ${p.features.length}`),
+      el("button", { class: "chip", "aria-pressed": String(view.repeated), onclick: () => { view.repeated = true; render(); } }, `改過不只一次 ${repeated}`),
+      el("input", { type: "search", placeholder: "搜尋功能", "aria-label": "搜尋功能", value: view.feature, id: "fq",
+        oninput: e => { view.feature = e.target.value; render(); } })),
+    list.length ? el("div", { class: "grid" }, list.slice(0, 120).map(f => { const id = p.name + "/feature/" + f.name;
+      const card = el("details", { class: "card", open: view.open[id] ?? false },
+        el("summary", {}, el("div", { class: "name" }, f.name),
+          el("div", { class: "small num" }, `${versionName(f.since)} 起　${f.entries.length} 條` + (f.entries.some(e => e.pending) ? "，有待組裝的" : ""))),
+        el("div", { class: "body" }, el("ul", { class: "plain" }, f.entries.map(e => entryItem({ text: e.text, pending: e.pending }, `${versionName(e.version)}　${KIND[e.kind]}`)))));
+      card.addEventListener("toggle", () => { view.open[id] = card.open; }); return card; }))
+      : el("div", { class: "empty" }, "沒有符合的功能。"),
+    list.length > 120 ? el("div", { class: "small" }, `只顯示最近改過的 120 個，共 ${list.length} 個；用搜尋縮小範圍。`) : null];
+}
 function decisionsView(p) {
   // 已封存里程碑的決定預設收起；選了某個里程碑或在搜尋時照樣找得到
   const pool = p.decisions.filter(d => view.archived || view.milestone || view.query || !d.archived);
@@ -595,7 +630,7 @@ function decisionsView(p) {
       el("select", { "aria-label": "里程碑", onchange: e => { view.milestone = e.target.value; render(); } },
         el("option", { value: "" }, "所有里程碑"), names.map(n => el("option", { value: n, selected: view.milestone === n }, n))),
       el("input", { type: "search", placeholder: "搜尋決策", "aria-label": "搜尋決策", value: view.query, id: "q",
-        oninput: e => { view.query = e.target.value; render(); document.getElementById("q").focus(); } })),
+        oninput: e => { view.query = e.target.value; render(); } })),
     list.length ? el("div", { class: "table-wrap" }, el("table", {},
       el("thead", {}, el("tr", {}, ["日期", "里程碑", "決定者", "決定"].map(h => el("th", {}, h)))),
       el("tbody", {}, list.slice(0, 300).map(d => el("tr", {},
@@ -613,7 +648,8 @@ function render() {
   const tabs = document.getElementById("tabs"); tabs.replaceChildren();
   if (DATA.projects.length > 1) DATA.projects.forEach((q, i) => tabs.append(el("button", { class: "tab", role: "tab",
     "aria-selected": String(i === view.project), onclick: () => { view.project = i; view.milestone = ""; render(); } }, q.name)));
-  const q = document.activeElement && document.activeElement.id === "q", pos = q ? document.activeElement.selectionStart : 0;
+  const typing = ["q", "fq"].includes(document.activeElement && document.activeElement.id) ? document.activeElement.id : "";
+  const pos = typing ? document.activeElement.selectionStart : 0;
   document.getElementById("app").replaceChildren(...[
     p.missing.length ? el("div", { class: "now" }, "讀不到的檔：" + p.missing.join("、") + "。這個 repo 還沒照 project-init 的骨架，對應的區塊會是空的。") : null,
     p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 行不是約定的寫法`),
@@ -629,6 +665,7 @@ function render() {
     p.milestones.length ? el("div", { class: "grid" }, p.milestones.map(m => milestoneCard(m, p.name))) : el("div", { class: "empty" }, "roadmap.md 沒有里程碑表。"),
     p.unlisted.length ? [el("h2", {}, "不在 roadmap 的工作"),
       el("div", { class: "grid" }, p.unlisted.map(m => milestoneCard(m, p.name + "/unlisted")))] : null,
+    el("h2", {}, "功能"), featuresView(p),
     el("h2", {}, "變更"), changelogView(p),
     el("h2", {}, "決策"), decisionsView(p),
     el("h2", {}, "架構決定（ADR）"),
@@ -642,7 +679,7 @@ function render() {
       const box = el("details", { class: "more", open: view.open[id] ?? false }, el("summary", { class: "small" }, `${a.milestone} 封存的 session 紀錄（${a.rows.length} 列）`),
         el("div", { class: "table-wrap" }, el("table", {}, el("tbody", {}, a.rows.map(s => el("tr", {}, el("td", { class: "nowrap num" }, s.date), el("td", { class: "nowrap" }, s.ticket), el("td", {}, s.result)))))));
       box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; })].flat(Infinity).filter(Boolean));
-  if (q) { const input = document.getElementById("q"); input.focus(); input.setSelectionRange(pos, pos); }
+  if (typing) { const input = document.getElementById(typing); input.focus(); input.setSelectionRange(pos, pos); }
 }
 render();
 if (location.protocol.startsWith("http")) {
