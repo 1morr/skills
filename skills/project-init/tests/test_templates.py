@@ -22,7 +22,7 @@ SKILL = Path(__file__).resolve().parents[1]
 ROOT = SKILL.parents[1]
 TEMPLATES = SKILL / "templates"
 MERGE = ROOT / "orca/scripts/merge-ticket.sh"
-# SKILL.md〈寫骨架〉列的佔位
+# scripts/scaffold.py 填的佔位
 PLACEHOLDERS = {"PROJECT": "Demo", "ONE_LINE": "示範專案。", "DATE": "2026-01-02", "MAIN_BRANCH": "main"}
 
 
@@ -47,12 +47,10 @@ class PlaceholderTest(unittest.TestCase):
             for name in re.findall(r"\{\{(\w+)\}\}", p.read_text(encoding="utf-8")):
                 self.assertIn(name, PLACEHOLDERS, f"{p.name} 用了 {{{{{name}}}}}，SKILL.md 和這裡的清單都要有")
 
-    def test_skill_lists_the_same_placeholders_and_templates(self):
-        skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    def test_the_scaffold_script_fills_the_same_placeholders(self):
+        script = (SKILL / "scripts" / "scaffold.py").read_text(encoding="utf-8")
         for name in PLACEHOLDERS:
-            self.assertIn("{{%s}}" % name, skill)
-        for p in TEMPLATES.iterdir():
-            self.assertIn(f"`{p.name}`", skill, f"SKILL.md〈寫骨架〉沒有列 {p.name}")
+            self.assertIn("{{%s}}" % name, script)
 
 
 class SkeletonTest(unittest.TestCase):

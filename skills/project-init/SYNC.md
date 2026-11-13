@@ -1,13 +1,13 @@
 # 同步已有骨架的 repo
 
-repo 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md` 或 `.scratch/` 時走這份：把它對齊現在的範本，一類一類列出差異，使用者選了才動。`<T>`、`<S>`、`<X>` 同 SKILL.md。
+SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的範本，一類一類列出差異，使用者選了才動。`<T>`、`<S>` 同 SKILL.md。
 
 ## 1. 盤點
 
 1. 讀指令檔（`AGENTS.md`，或還在用的 `CLAUDE.md`）、`docs/progress.md`，記下進行中的里程碑和還沒做完的票。
 2. `python3 <S>/check_docs.py <repo>`：用現在的檢查跑一次，不複製進去。違規逐條留著，第 2 步歸類。
-3. 逐檔比對 SKILL.md〈寫骨架〉表的目的地與〈閘門〉複製的六個檔，各歸一類：
-   - **照抄檔**（`scripts/check_docs.py`、`scripts/check_commit_msg.py`、`scripts/docs_moved_lines.py`、三個測試、`.githooks/commit-msg`、`.githooks/pre-commit`（專案已有自己的 pre-commit 時，把文件檢查接進去，不覆蓋）、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則（例如檢查改寫進專案自己的工具）列出來，保留。
+3. `python3 <S>/scaffold.py --list` 印出每個範本與它在專案裡的路徑。逐檔比對，各歸一類：
+   - **照抄檔**（`scripts/` 下的三支腳本與 `scripts/tests/` 的三個測試、`.githooks/commit-msg`、`.githooks/pre-commit`（專案已有自己的 pre-commit 時，把文件檢查接進去，不覆蓋）、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則列出來，保留。專案用自己的工具做同樣的檢查時（規則寫進專案的測試或 lint，不用 `check_docs.py`）：不複製腳本，改成逐條對 `<S>/check_docs.py` 開頭列的規則，專案沒擋的各列一條。
    - **指令檔**：照 `<T>/instructions.md` 的 `##` 段逐段比對。範本有而專案沒有的規則、專案還在用的舊說法各列一條；專案自己的段落（架構規則、帳號、舊版）原樣保留。
    - **內容檔**（brief、架構、roadmap、progress、decisions）：只看結構，內容照舊。
 

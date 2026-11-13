@@ -536,6 +536,23 @@ class ScratchTest(Repo):
         self.write(".scratch/notes/draft.md", "隨手記")
         self.clean()
 
+    def test_ticket_without_acceptance_criteria(self):
+        for old, new in (("## 驗收\n\n- [ ] 條件\n", "- [ ] 條件\n"), ("- [ ] 條件\n", "條件寫成一句話。\n"), ("## 驗收", "## Acceptance criteria")):
+            with self.subTest(old=old, new=new):
+                self.write(".scratch/m1/issues/01-first.md", TICKET.replace(old, new))
+                self.red("m1/issues/01-first.md：要有 `## 驗收` 段")
+
+    def test_how_the_criteria_are_ticked_and_what_else_the_ticket_holds_do_not_matter(self):
+        self.write(".scratch/m1/issues/01-first.md", TICKET.replace("- [ ] 條件\n", "說明。\n\n* [x] 條件\n  - [ ] 子項\n").replace("## What to build", "## 為什麼"))
+        self.clean()
+
+    def test_tickets_of_a_closed_milestone_need_no_criteria(self):
+        self.write(".scratch/m0/spec.md", SPEC)
+        self.write(".scratch/m0/issues/01-m0-acceptance.md", "# 01\n\n**Status:** done\n\n- [x] 舊格式沒有驗收段\n")
+        self.clean()
+        self.sub("docs/roadmap.md", "已驗收，封存在", "未開工，還沒做完，原本寫封存在")
+        self.red("m0/issues/01-m0-acceptance.md：要有 `## 驗收` 段")
+
     def test_ticket_without_status(self):
         self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent\n", "")
         self.red("Status:")

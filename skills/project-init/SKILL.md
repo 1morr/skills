@@ -5,13 +5,11 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查（pre-commit、commit-msg 兩個 hook 與 CI）。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
-
-`/grill-with-docs` 填 brief → 同一個指令寫架構與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查（pre-commit、commit-msg 兩個 hook 與 CI）。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填。
 
 參數：$ARGUMENTS
 
-`<T>` 是 `${CLAUDE_SKILL_DIR}/templates`，`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<X>` 是 `${CLAUDE_SKILL_DIR}/tests`。
+`<T>` 是 `${CLAUDE_SKILL_DIR}/templates`，`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`。
 
 ## 1. 探查
 
@@ -35,49 +33,26 @@ argument-hint: "[專案一句話]"
 
 ## 3. 寫骨架
 
-從 `<T>` 複製到專案，已存在的檔不覆蓋、改成把缺的段落補進去：
+1. `python3 <S>/scaffold.py <專案目錄> --project <專案名稱> --one-line <專案一句話，句號結尾> --main-branch <預設分支>`。它把範本與閘門寫進專案、填好佔位，每個檔印一行。
+2. 印「已存在」的檔沒有被動過：逐個和那一行最後的範本路徑比對，把專案缺的段落補進去，專案自己的內容照舊。
+3. `AGENTS.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪；所有 `<!-- -->` 註解，除了寫明留給 M0 票 01 的，都刪掉。
+4. 擋路檔照第 2 步的回答處理。
 
-| 範本 | 寫到 |
-| --- | --- |
-| `instructions.md` | `AGENTS.md` |
-| `design-brief.md` | `docs/design-brief.md` |
-| `architecture.md` | `ARCHITECTURE.md` |
-| `roadmap.md` | `docs/roadmap.md` |
-| `progress.md` | `docs/progress.md` |
-| `decisions.md` | `docs/decisions.md` |
-| `development.md` | `docs/development.md` |
-| `ticket.md` | `docs/agents/ticket-template.md` |
-| `gitattributes` | `.gitattributes` |
-| `ci.yml` | `.github/workflows/ci.yml` |
-| `commit-msg` | `.githooks/commit-msg`（`chmod +x`） |
-| `pre-commit` | `.githooks/pre-commit`（`chmod +x`） |
-| `issue-tracker.md` | `docs/agents/issue-tracker.md` |
-| `triage-labels.md` | `docs/agents/triage-labels.md` |
-| `domain.md` | `docs/agents/domain.md` |
-| `milestone.md` | `docs/agents/milestone.md` |
-
-另外建空目錄的佔位：`docs/adr/`、`docs/research/`、`docs/archive/`、`scripts/experiments/` 各放一個 `.gitkeep`。
-
-佔位：`{{PROJECT}}` 專案名稱，`{{ONE_LINE}}` 專案一句話（句號結尾），`{{DATE}}` 今天（`YYYY-MM-DD`），`{{MAIN_BRANCH}}` 預設分支。`instructions.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪；所有 `<!-- -->` 註解，除了寫明留給 M0 票 01 的，都刪掉。擋路檔照第 2 步的回答處理。
-
-完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md ARCHITECTURE.md` 沒有結果；表上每個目的地都有檔；Claude Code 讀得到 `AGENTS.md`：專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`。
+完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md ARCHITECTURE.md` 沒有結果；`scaffold.py` 再跑一次，每一行都是「已存在」；Claude Code 讀得到 `AGENTS.md`：專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`。
 
 ## 4. 票的慣例
 
-`docs/agents/milestone.md` 是里程碑開工與驗收票的步驟，`AGENTS.md` 指向它。另外三個檔告訴 mattpocock 的工程 skill（`/to-tickets`、`/implement`、`code-review`）票放哪、狀態怎麼寫、名詞表在哪。第 3 步寫的是他的 `/setup-matt-pocock-skills` 選「local markdown、預設標籤、單一名詞表」時的結果，加上里程碑的慣例，使用者不必再跑那個指令。
+探查時 `docs/agents/issue-tracker.md` 就在的（使用者跑過 `/setup-matt-pocock-skills`），照它選的 tracker：
 
-探查時 `docs/agents/issue-tracker.md` 就在的（使用者之前設定過）：
+- local markdown：把它〈Conventions〉底下的清單換成 `<T>/issue-tracker.md` 同一段的清單，其餘不動。
+- GitHub 或別的 tracker：停下來告訴使用者，這套流程和 `/1morr:ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
 
-- 是 local markdown 的：把它〈Conventions〉底下的清單換成 `<T>/issue-tracker.md` 同一段的清單，其餘不動。
-- 是 GitHub 或別的 tracker：停下來告訴使用者，這套流程和 `/1morr:ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
-
-完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`；`triage-labels.md`、`domain.md`、`milestone.md` 都在。
+完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`。
 
 ## 5. 閘門
 
-1. 複製 `<S>/check_docs.py`、`<S>/check_commit_msg.py`、`<S>/docs_moved_lines.py` 到專案的 `scripts/`；複製 `<X>/test_check_docs.py`、`<X>/test_check_commit_msg.py`、`<X>/test_docs_moved_lines.py` 到 `scripts/tests/`。
-2. `git config core.hooksPath .githooks`。
-3. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
+1. `git config core.hooksPath .githooks`。
+2. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
 
 完成條件：下面四條都親自跑過、結果如括號所寫。
 
