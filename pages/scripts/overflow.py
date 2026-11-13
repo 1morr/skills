@@ -70,8 +70,22 @@ addEventListener("load", () => setTimeout(() => {
   meta.name = "overflow-report";
   meta.content = JSON.stringify(found);
   document.head.append(meta);
+  if (parent !== window) parent.postMessage({ overflowReport: meta.content }, "*");
 }, 1500));
 </script>"""
+
+# 無頭 Chrome 的視窗最窄 500px：更窄的寬度改把副本放進這個寬度的 <iframe>（iframe 的寬就是頁面的 viewport），
+# 量完用 postMessage 把結果交給外層寫成同一個 <meta>
+MIN_WINDOW = 500
+FRAME = """<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0">
+<iframe src="{src}" style="width:{width}px;height:{height}px;border:0"></iframe>
+<script>addEventListener("message", (e) => {{
+  if (!e.data || typeof e.data.overflowReport !== "string") return;
+  const meta = document.createElement("meta");
+  meta.name = "overflow-report";
+  meta.content = e.data.overflowReport;
+  document.head.append(meta);
+}});</script></body></html>"""
 
 REPORT = re.compile(r'<meta name="' + META + r'" content="([^"]*)"')
 
@@ -111,10 +125,14 @@ def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
         copy = Path(tempfile.mkstemp(prefix=".overflow-", suffix=".html", dir=page.resolve().parent)[1])
         try:
             copy.write_text(with_probe(page.read_text(encoding="utf-8"), prepare), encoding="utf-8")
+            target = copy
+            if width < MIN_WINDOW:
+                target = work / "frame.html"
+                target.write_text(FRAME.format(src=copy.as_uri(), width=width, height=HEIGHT), encoding="utf-8")
             r = subprocess.run(
                 [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
-                 f"--user-data-dir={work}", f"--window-size={width},{HEIGHT}", "--virtual-time-budget=15000",
-                 "--dump-dom", copy.as_uri()],
+                 f"--user-data-dir={work / 'profile'}", f"--window-size={max(width, MIN_WINDOW)},{HEIGHT}",
+                 "--allow-file-access-from-files", "--virtual-time-budget=15000", "--dump-dom", target.as_uri()],
                 capture_output=True, timeout=180)
         finally:
             copy.unlink(missing_ok=True)

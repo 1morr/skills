@@ -15,7 +15,7 @@
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人，目標是考 90 分：左右兩欄的 HTML 導讀頁（左邊逐頁講課件、右邊逐題做例題和作業，附速查卡和自測），還沒交的作業另出答案紙；再出練習頁和計時模擬卷，填答格在頁面上對答案，整題寫完照範本答案的給分點自評，結果貼回對話安排複習 |
 
-bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。explain、checkpoint、diff、dashboard 共用 [`pages/`](pages/)：解說頁的寫法與組頁腳本（`PAGE.md`、`scripts/build.py`）、量水平溢出的腳本（`scripts/overflow.py`，tutor 的組頁腳本也用它：頁面在寬螢幕或手機寬出現水平捲軸就不產出）、頁面的配色與字體（`TOKENS.md`）、把頁面交給你的方式（`HANDOFF.md`：開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）。
+bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程（`COORDINATOR.md`）、Claude Code TUI 的已知行為（`TUI.md`）和腳本。explain、checkpoint、diff、dashboard 共用 [`pages/`](pages/)：解說頁的寫法與組頁腳本（`PAGE.md`、`scripts/build.py`）、量水平溢出的腳本（`scripts/overflow.py`，tutor 的組頁腳本也用它：頁面在寬螢幕或手機寬出現水平捲軸就不產出）、頁面的配色、字體和文章頁的樣式（`TOKENS.md`、`scripts/tokens.css`、`scripts/page.css`：組頁時內嵌，頁面不自己寫 CSS）、把頁面交給你的方式（`HANDOFF.md`：開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）。
 
 ## 安裝
 

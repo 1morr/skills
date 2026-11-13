@@ -60,6 +60,13 @@ class Lint(unittest.TestCase):
         self.assertTrue(ok(page('<pre><code>import mermaid from "https://cdn.x/m.mjs"</code></pre>')))
         self.assertTrue(ok(page('<p>import 一個 "https://x.y" 的模組</p>')))
 
+    def test_page_defining_its_own_tokens(self):
+        self.assertFalse(ok(page(head="<style>:root{--paper:#fff;--ink:#000}</style>")))
+        self.assertFalse(ok(page(head="<STYLE>\n:root {\n  --font-doc : Georgia;\n}\n</STYLE>")))
+        # 用變數、定義自己的變數、補自己的 class 都可以；內文提到變數名也可以
+        self.assertTrue(ok(page("<p>顏色取 <code>--paper: …</code></p>",
+                                "<style>.mine{color:var(--ink);--gap:1rem;background:var(--paper)}</style>")))
+
     def test_page_loading_mermaid_itself(self):
         self.assertFalse(ok(page(DIAGRAM + '<script>mermaid.initialize({startOnLoad:true})</script>')))
         self.assertTrue(ok(page(DIAGRAM + '<p>mermaid.initialize 是 build.py 放的</p>')))
@@ -78,10 +85,20 @@ class Build(unittest.TestCase):
         self.assertIn(build.MERMAID.url, out)
 
     def test_no_diagram_no_libs(self):
-        src = page("<p>沒有圖</p>")
-        self.assertEqual(build.build(src), src)
-        self.assertEqual(build.build(page('<pre class="code">flowchart</pre>')),
-                         page('<pre class="code">flowchart</pre>'))
+        for src in (page("<p>沒有圖</p>"), page('<pre class="code">flowchart</pre>')):
+            out = build.build(src)
+            self.assertNotIn("<script", out)
+            self.assertNotIn("dz-bar", out)
+
+    def test_shared_styles_come_first_in_head(self):
+        out = build.build(page("<p>內容</p>", "<style>.mine{color:red}</style>"))
+        head = out[:out.index("</head>")]
+        order = [head.index(x) for x in ("--paper:", "main {", ".mine{color:red}")]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual(out.count("--paper: oklch(0.985"), 1)
+        # 沒有 <head> 的頁也拿得到樣式
+        self.assertIn("--paper:", build.build("<p>只有一段</p>"))
+        self.assertIn("--paper:", build.build("<!DOCTYPE html><HTML lang=zh><body><p>x</p></body></HTML>"))
 
     def test_libs_are_pinned_with_integrity(self):
         out = build.build(page(DIAGRAM))
@@ -201,7 +218,7 @@ class Cli(unittest.TestCase):
         code, d = self.run_main("m0-src.html", page("<p>沒有圖</p>"), render=render)
         self.assertEqual(code, 0)
         self.assertEqual(seen, list(build.overflow.WIDTHS))
-        self.assertEqual((d / "m0.html").read_text(encoding="utf-8"), page("<p>沒有圖</p>"))
+        self.assertEqual((d / "m0.html").read_text(encoding="utf-8"), build.build(page("<p>沒有圖</p>")))
 
     def test_overflow_at_any_width_writes_nothing(self):
         for bad in build.overflow.WIDTHS:
@@ -277,6 +294,13 @@ class RealOverflow(unittest.TestCase):
         tall = "<p>一段</p>" * 200
         found = self.measure(f'<div class="pane">{tall}<span class="src">{self.LONG}</span></div>')
         self.assertTrue(any("div.pane" in p for p in found), found)
+
+    def test_phone_width_is_really_measured(self):
+        # 450px 寬的一塊：在 1440 和無頭 Chrome 最窄的 500px 視窗都放得下，只有真的 390px 才超出
+        found = self.measure('<div class="block" style="width:450px;height:20px"></div>')
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("390px", found[0])
+        self.assertIn("div.block", found[0])
 
     def test_probe_is_not_left_in_the_page(self):
         d = Path(tempfile.mkdtemp())

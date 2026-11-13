@@ -11,7 +11,7 @@
 
 ## Token 與字體
 
-照 `<P>/TOKENS.md`：整頁的顏色和字體只從那組變數取。
+照 `<P>/TOKENS.md`：把 `<P>/scripts/tokens.css` 整份放進頁面 `<style>` 的開頭，整頁的顏色和字體只從那組變數取。
 
 整段新增或刪除的底色：`color-mix(in oklch, var(--del-bg) 60%, var(--paper))`（新增同理）。
 

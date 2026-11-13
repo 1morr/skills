@@ -1,0 +1,76 @@
+/* explain 和 checkpoint 的文章頁樣式；build.py 把它接在 tokens.css 後面內嵌進 <head>。
+   元件各用在哪寫在 pages/PAGE.md〈外觀〉：這裡加了或改了 class，那張表跟著改。
+   寬的東西（表格、程式碼、圖）各自橫向捲動，文字一律可以換行，頁面不出現水平捲軸。 */
+* { box-sizing: border-box; }
+html { text-autospace: normal; -webkit-text-size-adjust: 100%; background: var(--paper); }
+body {
+  margin: 0; color: var(--ink); background: var(--paper);
+  font-family: var(--font-doc); font-size: 1.0625rem; line-height: 1.7; overflow-wrap: break-word;
+}
+::selection { background: var(--accent); color: var(--paper); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { max-width: 70ch; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+
+h1, h2, h3, h4 { font-family: var(--font-ui); text-wrap: balance; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 .5rem; }
+h2 { font-size: 1.375rem; line-height: 1.4; margin: 3.5rem 0 1rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.125rem; line-height: 1.5; margin: 2.25rem 0 .5rem; }
+h4 { font-size: 1rem; margin: 1.5rem 0 .25rem; }
+@media (max-width: 600px) { h1 { font-size: 1.625rem; } }
+p { margin: .8rem 0; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: .25rem 0; }
+a { color: var(--accent); text-underline-offset: .2em; }
+
+/* 行內的程式名、路徑、指令：長路徑可以在任何字斷行 */
+code { font-family: var(--font-code); font-size: .9em; background: var(--panel); padding: 0 .25em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { font-family: var(--font-code); font-size: .8125rem; line-height: 1.55; background: var(--panel); border-radius: 6px; padding: 1rem; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; }
+blockquote { margin: 1rem 0; padding: .1rem 1rem; background: var(--panel); border-left: 3px solid var(--rule); }
+
+/* 頁首：日期、範圍這類次要資訊 */
+.meta, .cap, footer { font-family: var(--font-ui); font-size: .875rem; line-height: 1.6; color: var(--ink-2); }
+/* 結論或一段話摘要：整頁最顯眼的一塊，一頁一個 */
+.lede { font-size: 1.1875rem; line-height: 1.65; background: var(--note-bg); border-left: 4px solid var(--note-bar); padding: .6rem 1.25rem; margin: 1.5rem 0; }
+.lede p { margin: .4rem 0; }
+/* 圖說：接在圖下面 */
+.cap { margin-top: -.25rem; }
+footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+
+/* 來源：接在句子後面的小字，樣式加上〔〕；長的來源照常換行 */
+.src { font-family: var(--font-ui); font-size: .875rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.src::before { content: "〔"; }
+.src::after { content: "〕"; }
+/* 標籤：決定者、推斷這類幾個字的分類。.guess 是推斷（虛線框） */
+.tag, .good, .bad, .warn {
+  font-family: var(--font-ui); font-size: .875rem; line-height: 1.5; padding: 0 .35em; border-radius: 3px;
+  display: inline-block; max-width: 100%;
+}
+.tag { color: var(--ink-2); border: 1px solid var(--rule); margin-left: .2em; }
+.tag.guess { border-style: dashed; }
+/* 狀態：過了、沒過、有但書 */
+.good { color: var(--ins-ink); background: var(--ins-bg); }
+.bad { color: var(--del-ink); background: var(--del-bg); }
+.warn { color: var(--note-ink); background: var(--note-bg); }
+
+/* 表格：欄多時在自己的框裡橫向捲動 */
+table {
+  display: block; width: fit-content; max-width: 100%; overflow-x: auto; border-collapse: collapse;
+  font-family: var(--font-ui); font-size: .9375rem; line-height: 1.5; margin: 1rem 0;
+}
+th, td { text-align: left; vertical-align: top; padding: .5rem .75rem .5rem 0; border-bottom: 1px solid var(--rule); min-width: 4.5em; }
+th { font-weight: 600; color: var(--ink-2); font-size: .875rem; }
+td.n, th.n { font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; }
+
+/* 要讀者確認的一題：一題一塊；.rec 是裡面的建議 */
+.q { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: .25rem 1.25rem 1rem; margin: 1.5rem 0; }
+.q h3 { margin-top: 1rem; }
+.rec { border-left: 3px solid var(--ins-bar); padding-left: .75rem; }
+
+/* 摺疊：條數多的清單、想看才看的細節 */
+details { margin: 1rem 0; border: 1px solid var(--rule); border-radius: 6px; padding: .5rem 1rem; }
+summary { font-family: var(--font-ui); font-weight: 600; cursor: pointer; }
+details[open] > summary { margin-bottom: .5rem; }
+
+pre.mermaid { text-align: center; }
+img, svg, video { max-width: 100%; height: auto; }

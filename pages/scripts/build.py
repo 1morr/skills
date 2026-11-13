@@ -1,4 +1,5 @@
-"""把解說頁的原始 HTML 組成可以交付的頁：原始頁自己不准載入外部資源；有 Mermaid 圖就在頁尾放上
+"""把解說頁的原始 HTML 組成可以交付的頁：在 <head> 內嵌同資料夾的 tokens.css 和 page.css（配色、字體、
+文章頁的元件；原始頁只寫內容，自己的 <style> 只補這兩份沒有的東西）。原始頁自己不准載入外部資源；有 Mermaid 圖就在頁尾放上
 從 jsDelivr 載入 Mermaid、Panzoom 的 <script>（固定版本、附 integrity），再內嵌同資料夾的 diagram.js、
 diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本機的 Chrome 或 Edge 無頭打開，確認每張圖
 都畫出來、縮放按鈕都掛上了，並在寬螢幕和手機寬各量一次水平溢出（overflow.py）。
@@ -6,7 +7,7 @@ diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本
     python build.py <page-src.html> [-o <page.html>]
 
 成功時印出輸出檔路徑和「N 張圖都畫出來了」，退出碼 0。有問題時印到 stderr、退出碼 1：
-- 原始頁會從外部載入東西：不產出。外部資源只有這支放的兩個函式庫。
+- 原始頁會從外部載入東西，或自己重新定義配色變數：不產出。外部資源只有這支放的兩個函式庫。
 - 有水平溢出：不產出，逐條印出哪個元素在哪個寬度超出幾 px。
 - 找不到瀏覽器或圖畫不出來：照樣產出。
 
@@ -36,6 +37,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 HERE = Path(__file__).resolve().parent
+STYLES = ("tokens.css", "page.css")
 sys.path.insert(0, str(HERE))
 import overflow  # noqa: E402  同資料夾的 overflow.py：找瀏覽器、無頭打開、量水平溢出
 
@@ -63,6 +65,8 @@ REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 這些屬性的網址會被瀏覽器自動載入；<a href> 是讀者自己點的，不算
 LOADING_ATTRS = {"src", "srcset", "poster", "data"}
 # 從遠端載東西的寫法：script 裡的 import … from "…"、import("…")；style 裡的 @import、url(…)
+# 原始頁自己定義 tokens.css 的變數：兩份對不上時，頁面會和其他頁長得不一樣
+OWN_TOKEN = re.compile(r"--(paper|panel|rule|ink|ink-2|accent|font-ui|font-doc|font-code)\s*:")
 REMOTE_IN_CODE = {
     "script": re.compile(r"""\bimport\b[^;"'`]*?["'`](https?:)?//""", re.I),
     "style": re.compile(r"""(@import\s+(url\(\s*)?|\burl\(\s*)["']?(https?:)?//""", re.I),
@@ -96,6 +100,8 @@ class Scan(HTMLParser):
         m = REMOTE_IN_CODE[self.code_tag].search(data)
         if m:
             self.problems.append(f"<{self.code_tag}> 裡從外部載入（{m.group(0)}…）：外部資源只有 build.py 放的 Mermaid 和 Panzoom，其他的改成內嵌或拿掉")
+        if self.code_tag == "style" and OWN_TOKEN.search(data):
+            self.problems.append(f"<style> 裡自己定義了配色或字體變數（{OWN_TOKEN.search(data).group(0)}…）：拿掉，build.py 會放 tokens.css")
         if self.code_tag == "script" and "mermaid.initialize" in data:
             self.problems.append("頁面自己載入了 Mermaid：拿掉，build.py 會放")
 
@@ -126,8 +132,19 @@ def before_body_end(html: str, tail: str) -> str:
     return html[:ends[-1]] + tail + html[ends[-1]:]
 
 
+def with_styles(html: str) -> str:
+    """把 tokens.css 和 page.css 放在 <head> 的最前面：原始頁自己的 <style> 排在後面，補得上、也蓋得過。"""
+    style = "<style>\n" + "".join((HERE / name).read_text(encoding="utf-8") for name in STYLES) + "</style>\n"
+    for opener in (r"<head\b[^>]*>", r"<html\b[^>]*>", r"<!doctype[^>]*>"):
+        m = re.search(opener, html, re.I)
+        if m:
+            return html[:m.end()] + "\n" + style + html[m.end():]
+    return style + html
+
+
 def build(html: str) -> str:
-    """有 <pre class="mermaid"> 才在 </body> 前放 diagram.css、Mermaid 和 Panzoom 的 <script src>、diagram.js。"""
+    """內嵌樣式；有 <pre class="mermaid"> 再在 </body> 前放 diagram.css、Mermaid 和 Panzoom 的 <script src>、diagram.js。"""
+    html = with_styles(html)
     if not scan(html).diagrams:
         return html
     css = (HERE / "diagram.css").read_text(encoding="utf-8")

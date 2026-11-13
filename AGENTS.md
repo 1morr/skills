@@ -8,7 +8,7 @@
 | --- | --- |
 | `skills/<名稱>/` | 一個 skill：`SKILL.md`（`name` 等於資料夾名）、附屬 md、`scripts/`、`tests/` |
 | `orca/` | 用 Orca 開子 session 的 skill 共用的流程（`COORDINATOR.md`）、已知行為（`TUI.md`）與腳本 |
-| `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`）、交付方式（`HANDOFF.md`）與組頁腳本 |
+| `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`，值在 `scripts/tokens.css`）、交付方式（`HANDOFF.md`）、組頁與量溢出的腳本和樣式 |
 | `tests/` | 本檔規則的檢查 |
 
 - skill 之間不用 `../` 互連。對方是 model-invoked 就寫「呼叫 Skill 工具載入 `<名稱>`」，要跑它的腳本時用 `${CLAUDE_PLUGIN_ROOT}/skills/<名稱>` 定義縮寫；兩個 skill 都要的檔搬到 `orca/` 或 `pages/`。
