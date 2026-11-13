@@ -17,7 +17,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 1. 照 COORDINATOR.md「開工」。
 2. 讀 prompt（參數是檔案路徑就讀檔）和專案的 CLAUDE.md / AGENTS.md，找出：任務的來源（題目、評分指引、需求文件）、現有的舊產出。任務要自己找的數據，來源寫**原始來源**（網站、指標、取得方式）；repo 裡處理過的數據檔（檔名帶期間、篩過的）算舊產出，因為它帶著上一次的讀法。
-   - **外部版本**：使用者附上的現成版本（檔案、資料夾、zip、claude.ai artifact 連結）不開 session，審查時和其他版一起渲染、打分。zip 解到 `<批次目錄>/external/<名稱>/`；artifact 用 `read_artifact` 讀出存成檔。版數 0 時直接跳到〈審查〉。
+   - **外部版本**：使用者附上的現成版本（檔案、資料夾、zip、claude.ai artifact 連結）不開 session，審查時和其他版一起渲染、打分。zip 解到 `<批次目錄>/external/<名稱>/`；artifact 用 `read_artifact` 讀出存成檔。
    - **使用者的偏好**（例如「我覺得 X 比較簡潔順眼」）記進 ledger，報告裡要正面回應。
 3. 擬**清除清單**：
    - 刪：舊產出本身和它的輸出檔（PDF、截圖、build 產物）。
@@ -27,14 +27,22 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 5. 用 AskUserQuestion 一次問完：版數、清除清單、prompt 修改（原樣 / 採用建議）、COORDINATOR.md〈授權〉。
 6. 批次目錄 `<scratchpad>/bake-off-<任務名>/`（任務名用英文 kebab-case，會出現在分支名裡），ledger 放在裡面。
 
+版數 0（只比現成版本）：第 3、4 步不做，第 5 步只問授權；建好批次目錄和 ledger 後直接到〈審查〉。
+
+完成條件：第 5 步的每一項使用者都回覆了；批次目錄和 ledger 建好了。
+
 ## 起點
 
-1. 從主分支開 base 分支，在臨時 worktree 裡清理，主目錄保持原樣：`git -C <repo> worktree add -b bake/<任務名>/base <批次目錄>/base <主分支>`，照清除清單刪改，`git add` 只點名清單上的檔，commit（例如 `chore(<scope>): clear <產出> for a fresh redo`），再 `git -C <repo> worktree remove <批次目錄>/base`。清單是空的就 `git -C <repo> branch bake/<任務名>/base <主分支>`。用 `git show --stat bake/<任務名>/base` 核對和清單一致。
+1. 從主分支開 base 分支，在臨時 worktree 裡清理，主目錄保持原樣：`git -C <repo> worktree add -b bake/<任務名>/base <批次目錄>/base <主分支>`，照清除清單刪改，`git add` 只點名清單上的檔，commit（例如 `chore(<scope>): clear <產出> for a fresh redo`），再 `git -C <repo> worktree remove <批次目錄>/base`。清單是空的就 `git -C <repo> branch bake/<任務名>/base <主分支>`。
 2. 照 [`frame.md`](frame.md) 寫 `<批次目錄>/prompt.md`，`{{TASK_PROMPT}}` 放使用者確認過的 prompt 原文。
+
+完成條件：`git show --stat bake/<任務名>/base` 列出的檔和清除清單一致；`prompt.md` 裡沒有剩下的 `{{`。
 
 ## 開版
 
 每一版一行呼叫一次：`bash <O>/scripts/open-worktree.sh <repo 選擇器> <任務名>-<版號> bake/<任務名>/base bake/<任務名>/<版號> <批次目錄>/prompt.md`。它從 base 開 worktree 和分支，開子 session 讀 prompt.md。印 `started: NO` 就讀畫面查原因。每一版各掛一個等待。
+
+完成條件：每一版都印了 `started: yes`，ledger 有它的 worktree、分支、handle、jsonl。
 
 ## 計畫關卡
 
@@ -42,6 +50,8 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 2. 逐版標出問題：取材碰到舊版或歷史、漏了任務的要求、產出沒辦法直接看。各版讀法不同的地方另標「讀法」，只記下來，留給比較。
 3. 給使用者一張對照表（版、要讀的檔、做法、產出形式、你的標註），再用 AskUserQuestion 問一次：全部照計畫做 / 照標註修正後做 / 使用者自己寫意見。
 4. 每一版各送一則「計畫核可，開始做。」，後面接著**只屬於這一版的**修正。
+
+完成條件：每一版都收到了核可訊息，給它的修正記在 ledger 那一版的段落。
 
 ## 進行中
 
@@ -74,14 +84,17 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 4. **基礎版還要改的地方**：位置和改法；基礎版的讀法和使用者選的不同時列在這裡。
 5. **可以從別版合進來的**：來源、內容、理由。
 6. 每一版一句話的總評。
+7. 下一步：合併之後可以用 `/1morr:review-loop` 一輪一輪審到可以交。
 
-報告到這裡就停，等使用者指示。使用者只回了選哪一版時，先用 AskUserQuestion 逐條問讀法（附原文）。結尾提一句：合併之後可以用 `/1morr:review-loop` 一輪一輪審到可以交。
+報告到這裡就停，等使用者指示。使用者只回了選哪一版時，先用 AskUserQuestion 逐條問讀法（附原文）。
 
 ## 收尾（使用者指示後才做）
 
 - **合併選定版**：要改的和要搬進來的交給基礎版的子 session 做。比較已經結束，訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每項附來源的絕對路徑和位置。驗收它的 commit 後，在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `git merge --no-ff bake/<任務名>/<版號>`（base 的清除 commit 一起進來，舊產出正好被取代）。push 照 COORDINATOR.md「規則」。選的是外部版本時，由你把它放到產出原本的位置、改好、commit。
 - **寫回讀法**：使用者拍板的讀法連同原文、其他讀法、拍板的回覆，寫進專案記錄決定的地方（例如評核資料夾的 README），和合併同一個 commit。之後 review-loop 會把它當成定案。
 - **清 worktree**：每一版跑 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`。沒合併的分支會留著，列給使用者決定要不要刪。
+
+完成條件：`git worktree list` 沒有這一批的 worktree；合併 commit 在主分支上；留下的分支都列給了使用者。
 
 ## Ledger
 
