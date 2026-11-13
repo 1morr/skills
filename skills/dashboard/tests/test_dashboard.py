@@ -25,7 +25,7 @@ ROADMAP = """# 路線圖
 
 | 里程碑 | 目標 | 拆票前讀 | 狀態 |
 | --- | --- | --- | --- |
-| M0 骨架 | 閘門就位 | brief | 2026-01-02 驗收，紀錄封存在 [`docs/archive/M0.md`](archive/M0.md) |
+| M0 骨架 | 閘門就位 | brief | 已驗收（2026-01-02），封存在 [`docs/archive/M0.md`](archive/M0.md) |
 | M1 核心 | 第一個功能 | `ARCHITECTURE.md` | 進行中，已拆 3 張票 |
 | M2 介面 | 畫面 | brief §4 | 未開工 |
 
@@ -122,6 +122,19 @@ class CollectTest(Repo):
         self.assertEqual([(t["title"], t["done"], t["checked"], t["boxes"]) for t in m1["tickets"]],
                          [("01: 查碼表", False, 1, 2), ("02: 候選列", False, 0, 2), ("03: M1 驗收", False, 0, 0)])
         self.assertEqual((m1["goal"], m1["detail"], m1["scope"]), ("第一個功能", "打出第一個字。", ["查碼表", "候選列"]))
+
+    def test_state_is_the_word_the_status_starts_with(self):
+        for status, state in (("不做：併進 M1", "dropped"), ("未開工。驗收條件待定", "todo"), ("進行中，等使用者驗收", "active"), ("已驗收", "done")):
+            with self.subTest(status=status):
+                self.write("docs/roadmap.md", ROADMAP.replace("| 未開工 |", f"| {status} |"))
+                d = self.collect()
+                self.assertEqual((d["milestones"][2]["state"], d["unreadable"]), (state, []))
+
+    def test_a_status_that_starts_with_another_word_is_reported(self):
+        self.sub("docs/roadmap.md", "| 未開工 |", "| 待驗收，做完了 |")
+        d = self.collect()
+        self.assertEqual(d["milestones"][2]["state"], "todo")
+        self.assertEqual([(u["file"], u["line"], u["text"]) for u in d["unreadable"]], [("docs/roadmap.md", 9, "M2 介面：待驗收，做完了")])
 
     def test_finishing_a_ticket_changes_the_data(self):
         before = self.collect()

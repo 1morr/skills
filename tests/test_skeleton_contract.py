@@ -127,7 +127,7 @@ class SkeletonContractTest(unittest.TestCase):
         head = "\n".join(table.split("\n")[:2])
         self.write("docs/progress.md", self.read("docs/progress.md").replace(table, head + "\n| 2026-01-05 | M1 準備 | M0 已驗收並封存 | 新 session 下 `/1morr:checkpoint M0` |"))
         self.write("docs/decisions.md", self.read("docs/decisions.md").replace(log, "- 2026-01-05 M1（使用者定）：下一個先做核心。"))
-        self.set_state("M0 骨架", "[`docs/archive/M0.md`](archive/M0.md)")
+        self.set_state("M0 骨架", "已驗收，封存在 [docs/archive/M0.md](archive/M0.md)")
         self.sub("docs/roadmap.md", self.roadmap_row("M0 骨架"), self.roadmap_row("M0 骨架") + "\n| M1 核心 | 第一個功能 | brief §4 | 進行中 |")
         data = self.check()
         self.assertEqual([(m["name"], m["state"]) for m in data["milestones"]], [("M0 骨架", "done"), ("M1 核心", "active")])

@@ -5,7 +5,7 @@
                                                            # 起本機伺服器，印出網址；頁面每 3 秒重讀一次
 
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
-  docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
+  docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態（看開頭的詞：未開工、進行中、已驗收、不做）
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
@@ -46,7 +46,7 @@ STATUS = re.compile(r"^\**Status:?\**:?\s*(\S.*?)\s*$", re.I)
 CHECKBOX = re.compile(r"^\s*[-*] \[([ xX])\]")
 ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
-DONE_WORDS = ("archive/", "驗收", "完成", "定稿", "封存")
+STATES = {"未開工": "todo", "進行中": "active", "已驗收": "done", "不做": "dropped"}
 
 
 def read(path: Path) -> str:
@@ -76,18 +76,23 @@ def sections(text: str) -> dict:
     return {title: [line for _, line in lines] for title, lines in numbered_sections(text).items()}
 
 
-def table(lines) -> list:
-    """第一張表的每一列，以表頭欄名為 key。"""
+def numbered_table(lines) -> list:
+    """第一張表的每一列：(行號, {表頭欄名: 內容})。"""
     rows = []
-    for line in lines:
+    for number, line in lines:
         if line.strip().startswith("|"):
-            rows.append([c.strip().replace("\\|", "|") for c in CELL_SPLIT.split(line.strip().strip("|"))])
+            rows.append((number, [c.strip().replace("\\|", "|") for c in CELL_SPLIT.split(line.strip().strip("|"))]))
         elif rows:
             break
     if len(rows) < 2:
         return []
-    head = rows[0]
-    return [dict(zip(head, r)) for r in rows[2:] if len(r) == len(head)]
+    head = rows[0][1]
+    return [(n, dict(zip(head, r))) for n, r in rows[2:] if len(r) == len(head)]
+
+
+def table(lines) -> list:
+    """第一張表的每一列，以表頭欄名為 key。"""
+    return [row for _, row in numbered_table(list(enumerate(lines, 1)))]
 
 
 def plain(text: str) -> str:
@@ -97,9 +102,8 @@ def plain(text: str) -> str:
 
 
 def state_of(status: str) -> str:
-    if status.startswith("進行中"):
-        return "active"
-    return "done" if any(w in status for w in DONE_WORDS) and not status.startswith("未") else "todo"
+    """狀態開頭的詞對應的代號；不是約定的四個詞就是空字串。"""
+    return next((state for word, state in STATES.items() if status.startswith(word)), "")
 
 
 def ticket(path: Path) -> dict:
@@ -134,17 +138,21 @@ def spec(directory: Path) -> dict:
     return {"detail": plain(goal)[:400], "scope": scope[:40]}
 
 
-def milestones(repo: Path) -> list:
-    out = []
-    for row in table(sections(read(repo / "docs/roadmap.md")).get("里程碑", [])):
+def milestones(repo: Path) -> tuple:
+    """(里程碑, 讀不到的行)。狀態開頭不是約定的詞時當成未開工，並列進讀不到的行。"""
+    out, unreadable = [], []
+    for number, row in numbered_table(numbered_sections(read(repo / "docs/roadmap.md")).get("里程碑", [])):
         name = plain(row.get("里程碑", ""))
         if not name:
             continue
         status = plain(row.get("狀態", ""))
+        if not state_of(status):
+            unreadable.append({"file": "docs/roadmap.md", "line": number, "text": f"{name}：{status}"[:80],
+                               "why": "狀態要以「%s」其中一個開頭，先當成未開工" % "、".join(STATES)})
         directory = repo / ".scratch" / name.split()[0].lower()
-        out.append({"name": name, "goal": plain(row.get("目標", "")), "status": status, "state": state_of(status),
+        out.append({"name": name, "goal": plain(row.get("目標", "")), "status": status, "state": state_of(status) or "todo",
                     "dir": directory.name, "tickets": tickets(directory), **spec(directory)})
-    return out
+    return out, unreadable
 
 
 def unlisted(repo: Path, listed: list) -> list:
@@ -184,7 +192,8 @@ def decisions(repo: Path) -> tuple:
             m = DECISION.match(line)
             if not m:
                 if line.startswith("- "):
-                    unreadable.append({"file": rel, "line": number, "text": plain(line[2:])[:80]})
+                    unreadable.append({"file": rel, "line": number, "text": plain(line[2:])[:80],
+                                       "why": "決定要以「- YYYY-MM-DD 」開頭，沒有列進決策"})
                 continue
             rest = m.group(2)
             head, colon, body = rest.partition("：")
@@ -258,14 +267,14 @@ def title_of(repo: Path) -> str:
 
 def collect(repo: Path) -> dict:
     repo = repo.resolve()
-    ms = milestones(repo)
+    ms, odd_states = milestones(repo)
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
     log = sessions(repo)
     decided, unreadable = decisions(repo)
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
             "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": log[-1]["next"] if log else "",
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": unreadable, "unlisted": unlisted(repo, ms)}
+            "unreadable": odd_states + unreadable, "unlisted": unlisted(repo, ms)}
 
 
 PAGE = r"""<!doctype html>
@@ -346,7 +355,7 @@ const el = (tag, attrs, ...kids) => {
   for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) n.append(kid);
   return n;
 };
-const STATE = { done: "已完成", active: "進行中", todo: "未開工" };
+const STATE = { done: "已驗收", active: "進行中", todo: "未開工", dropped: "不做" };
 function command(text) {
   const parts = String(text || "").split(/`([^`]*)`/);
   return parts.map((p, i) => (i % 2 ? el("code", {}, p) : p));
@@ -412,8 +421,8 @@ function render() {
   const q = document.activeElement && document.activeElement.id === "q", pos = q ? document.activeElement.selectionStart : 0;
   document.getElementById("app").replaceChildren(...[
     p.missing.length ? el("div", { class: "now" }, "讀不到的檔：" + p.missing.join("、") + "。這個 repo 還沒照 project-init 的骨架，對應的區塊會是空的。") : null,
-    p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 條決定不是「- YYYY-MM-DD …」的寫法，沒有列進決策`),
-      el("ul", { class: "plain" }, p.unreadable.map(u => el("li", {}, el("span", {}, u.text), el("span", { class: "small num" }, `${u.file}:${u.line}`))))) : null,
+    p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 行不是約定的寫法`),
+      el("ul", { class: "plain" }, p.unreadable.map(u => el("li", {}, el("span", {}, u.text, el("div", { class: "small" }, u.why)), el("span", { class: "small num" }, `${u.file}:${u.line}`))))) : null,
     el("div", { class: "now" },
       el("div", { class: "small" }, "下一步"), el("div", {}, p.next ? command(p.next) : "progress.md 沒有 session 紀錄。"),
       p.working.length ? [el("div", { class: "small", style: "margin-top:.7rem" }, `正在做（${p.working.length} 個 worktree）`),

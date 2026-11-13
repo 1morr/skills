@@ -56,7 +56,7 @@ ROADMAP = """# 路線圖
 
 | 里程碑 | 目標 | 拆票前讀 | 狀態 |
 | --- | --- | --- | --- |
-| M0 骨架 | 閘門 | brief | 完成，[已封存](archive/M0.md) |
+| M0 骨架 | 閘門 | brief | 已驗收，封存在 [`docs/archive/M0.md`](archive/M0.md) |
 | M1 核心 | 第一個功能 | plan §2 | 進行中，已拆 3 張票 |
 | M2 介面 | 畫面 | brief §4 | 未開工 |
 
@@ -237,7 +237,7 @@ class DecisionsTest(Repo):
 
 class MilestonesTest(Repo):
     def test_two_active(self):
-        self.sub("docs/roadmap.md", "| 完成，[已封存](archive/M0.md) |", "| 進行中，還有 1 張 |")
+        self.sub("docs/roadmap.md", "| 已驗收，封存在 [`docs/archive/M0.md`](archive/M0.md) |", "| 進行中，還有 1 張 |")
         self.red("最多一個")
 
     def test_none_active_is_fine(self):
@@ -258,8 +258,26 @@ class MilestonesTest(Repo):
 
     def test_other_sections_columns_and_wording_do_not_matter(self):
         self.sub("docs/roadmap.md", "## M2 介面\n\n目標：畫面。\n", "## M2 介面\n\n已開工，見 spec。\n\n## M3 發佈\n\n進行中的字出現在表外不算。\n")
-        self.sub("docs/roadmap.md", "| 里程碑 | 目標 | 拆票前讀 | 狀態 |\n| --- | --- | --- | --- |", "| 狀態 | 里程碑 | 目標 | 拆票前讀 |\n| --- | --- | --- | --- |")
-        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |", "| 等 M1 進行中的票做完 | M2 介面 | 畫面 | brief §4 |")
+        text = (self.root / "docs/roadmap.md").read_text(encoding="utf-8")
+        rows = [l for l in text.split("\n") if l.startswith("|")]
+        for row in rows:  # 狀態欄搬到最前面
+            cells = row.strip("|").split("|")
+            text = text.replace(row, "|" + "|".join(cells[-1:] + cells[:-1]) + "|")
+        self.write("docs/roadmap.md", text)
+        self.sub("docs/roadmap.md", "| 未開工 | M2 介面 | 畫面 | brief §4 |", "| 未開工，等 M1 進行中的票做完 | M2 介面 | 畫面 | brief §4 |")
+        self.clean()
+
+
+class MilestoneStateTest(Repo):
+    def test_state_that_starts_with_another_word(self):
+        for state in ("完成，[已封存](archive/M0.md)", "2026-01-02 驗收", "[`docs/archive/M0.md`](archive/M0.md)", "待驗收", ""):
+            with self.subTest(state=state):
+                self.write("docs/roadmap.md", ROADMAP.replace("已驗收，封存在 [`docs/archive/M0.md`](archive/M0.md)", state))
+                self.red("docs/roadmap.md:9：狀態要以「未開工」、「進行中」、「已驗收」、「不做」其中一個開頭")
+
+    def test_what_follows_the_word_is_free(self):
+        self.sub("docs/roadmap.md", "| 未開工 |", "| 不做：併進 M1（2026-01-05 使用者定） |")
+        self.sub("docs/roadmap.md", "已驗收，封存在 [`docs/archive/M0.md`](archive/M0.md)", "已驗收（2026-01-02）")
         self.clean()
 
 
