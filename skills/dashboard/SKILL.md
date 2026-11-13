@@ -1,11 +1,11 @@
 ---
 name: dashboard
-description: 開一頁會自動更新的專案總覽：里程碑與票的進度、決策、ADR、最近的 session
+description: 開一頁會自動更新的專案總覽：里程碑與票的進度、功能與變更、決策、ADR、最近的 session
 disable-model-invocation: true
-argument-hint: "[repo 路徑…，預設目前的 repo] [static：只產生一個 HTML 檔]"
+argument-hint: "[repo 路徑…] [static]"
 ---
 
-開一頁專案總覽給使用者看自己正在做什麼。頁面的內容全部由腳本從 repo 的固定文件讀出來（`docs/roadmap.md`、`.scratch/`、`docs/decisions.md`、`docs/adr/`、`docs/progress.md`），你不寫、不改頁面，也不改 repo。
+開一頁專案總覽給使用者看自己正在做什麼。頁面的內容全部由腳本從 repo 的固定文件讀出來（讀哪些檔、各取什麼，列在 `<S>/dashboard.py` 開頭），你不寫、不改頁面，也不改 repo。
 
 參數：$ARGUMENTS
 
@@ -29,4 +29,4 @@ argument-hint: "[repo 路徑…，預設目前的 repo] [static：只產生一�
 - 網址（或檔案的完整路徑），以及頁面每 3 秒重讀一次文件、票合併或文件一改就會跟著變。
 - 怎麼關：伺服器是這個 session 的背景工作，session 結束就停；要先關就說一聲。
 - 頁面出現「讀不到的檔」時，照它列的轉告：那個 repo 還沒照 project-init 的骨架，在那個 repo 下 `/1morr:project-init` 會走同步。
-- 頁面出現「讀不到的行」時，轉告有幾條、在哪幾個檔：那幾條決定的開頭不是 `- YYYY-MM-DD `，改成這個寫法就會列進決策。
+- 頁面出現「讀不到的行」時，轉告有幾條、在哪幾個檔，以及頁面在每一行底下寫的原因：照那個寫法改，它就會列進去。
