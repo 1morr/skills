@@ -1,6 +1,6 @@
 # 同步已有骨架的 repo
 
-repo 已經有 `docs/progress.md`、`docs/plan.md` 或 `.scratch/` 時走這份：把它對齊現在的範本，一類一類列出差異，使用者選了才動。`<T>`、`<S>`、`<X>` 同 SKILL.md。
+repo 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md` 或 `.scratch/` 時走這份：把它對齊現在的範本，一類一類列出差異，使用者選了才動。`<T>`、`<S>`、`<X>` 同 SKILL.md。
 
 ## 1. 盤點
 
@@ -9,7 +9,7 @@ repo 已經有 `docs/progress.md`、`docs/plan.md` 或 `.scratch/` 時走這份�
 3. 逐檔比對 SKILL.md〈寫骨架〉表的目的地與〈閘門〉複製的四個檔，各歸一類：
    - **照抄檔**（`scripts/check_docs.py`、`scripts/check_commit_msg.py`、兩個測試、`.githooks/commit-msg`、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則（例如檢查改寫進專案自己的工具）列出來，保留。
    - **指令檔**：照 `<T>/instructions.md` 的 `##` 段逐段比對。範本有而專案沒有的規則、專案還在用的舊說法各列一條；專案自己的段落（架構規則、帳號、舊版）原樣保留。
-   - **內容檔**（brief、plan、roadmap、progress）：只看結構，內容照舊。
+   - **內容檔**（brief、架構、roadmap、progress、decisions）：只看結構，內容照舊。
 
 完成條件：每條檢查違規、每個不同的段落都歸到第 2 步的某一項，或標成「專案自己的，保留」。
 
@@ -25,7 +25,8 @@ repo 已經有 `docs/progress.md`、`docs/plan.md` 或 `.scratch/` 時走這份�
 | 誰寫 progress | 指令檔要每張票改 `docs/progress.md` | 改成票留 `Session 紀錄：`、合併的人寫；`.gitattributes` 的 `docs/progress.md merge=union` 拿掉 |
 | 使用者試 | 驗收票沒有試用這一步 | 加 `docs/agents/milestone.md`，指令檔指向它；進行中里程碑的 spec 補〈使用者試〉 |
 | 使用者確認 | 指令檔沒有〈使用者確認〉 | 照範本加 |
-| 章節號 | 檢查報「引用了 brief 或 plan 的章節號」 | 少於一百處：逐處改成 ADR 或事實編號。更多：開成 `.scratch/<effort>/` 的工作，或在專案的檢查裡只擋新增 |
+| 架構文檔 | 有 `docs/plan.md`，沒有 `ARCHITECTURE.md` | 操作步驟（建置、在裝置上驗、排除故障）整段搬到 `docs/development.md`，逐行比對沒丟；剩下的搬到根目錄的 `ARCHITECTURE.md`、拿掉節的編號，引用它的地方跟著改。還超過 15,000 字元：開成 `.scratch/<effort>/` 的工作，一節一張票，改寫附「舊的每個決定 → 新位置」對照表，那之前專案的檢查先放寬這個上限並註明由哪張票收回 |
+| 章節號 | 檢查報「引用了 brief 或架構文檔的章節號」 | 用腳本把編號換成節的標題（`plan §4` → `architecture〈開發環境與閘門〉`）；程式碼引用上千處、文件又還沒瘦身的，在專案的檢查裡只擋新增 |
 | 票號與大小 | 檢查報「寫了票號」或超過字元上限 | 開成 `.scratch/<effort>/` 的工作：只寫現況、搬走細節，改寫附「舊的每個決定 → 新位置」對照表 |
 | 擋路檔 | 指令檔是 `CLAUDE.md` | 照 SKILL.md 第 2 步問 |
 

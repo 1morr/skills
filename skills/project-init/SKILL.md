@@ -5,9 +5,9 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
-`/grill-with-docs` 填 brief → 同一個指令寫 plan 與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
+`/grill-with-docs` 填 brief → 同一個指令寫架構與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
 參數：$ARGUMENTS
 
@@ -16,7 +16,7 @@ argument-hint: "[專案一句話]"
 ## 1. 探查
 
 1. 目前目錄不是 git repo：問使用者要不要 `git init`。查預設分支名。
-2. 已經有 `docs/progress.md`、`docs/plan.md`、`docs/roadmap.md` 或 `.scratch/`：這是已有骨架的 repo，改讀 [SYNC.md](SYNC.md) 照它做，下面第 2–6 步不做。
+2. 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md`、`docs/roadmap.md` 或 `.scratch/`：這是已有骨架的 repo，改讀 [SYNC.md](SYNC.md) 照它做，下面第 2–6 步不做。
 3. 已有的 `AGENTS.md`、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
 4. 找**擋路檔**：專案目錄和它上面每一層的 `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`（`~/.claude/CLAUDE.md` 不算）。有任何一個，Claude Code 就只讀它們、不讀 `AGENTS.md`。
 5. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
@@ -41,7 +41,7 @@ argument-hint: "[專案一句話]"
 | --- | --- |
 | `instructions.md` | `AGENTS.md` |
 | `design-brief.md` | `docs/design-brief.md` |
-| `plan.md` | `docs/plan.md` |
+| `architecture.md` | `ARCHITECTURE.md` |
 | `roadmap.md` | `docs/roadmap.md` |
 | `progress.md` | `docs/progress.md` |
 | `decisions.md` | `docs/decisions.md` |
@@ -59,7 +59,7 @@ argument-hint: "[專案一句話]"
 
 佔位：`{{PROJECT}}` 專案名稱，`{{ONE_LINE}}` 專案一句話（句號結尾），`{{DATE}}` 今天（`YYYY-MM-DD`），`{{MAIN_BRANCH}}` 預設分支。`instructions.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪；所有 `<!-- -->` 註解，除了寫明留給 M0 票 01 的，都刪掉。擋路檔照第 2 步的回答處理。
 
-完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md` 沒有結果；表上每個目的地都有檔；Claude Code 讀得到 `AGENTS.md`：專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`。
+完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md ARCHITECTURE.md` 沒有結果；表上每個目的地都有檔；Claude Code 讀得到 `AGENTS.md`：專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`。
 
 ## 4. 票的慣例
 
@@ -76,7 +76,7 @@ argument-hint: "[專案一句話]"
 
 1. 複製 `<S>/check_docs.py`、`<S>/check_commit_msg.py` 到專案的 `scripts/`；複製 `<X>/test_check_docs.py`、`<X>/test_check_commit_msg.py` 到 `scripts/tests/`。
 2. `git config core.hooksPath .githooks`。
-3. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 票 01，plan §4 已經寫了。
+3. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
 
 完成條件：下面三條都親自跑過、結果如括號所寫。
 
@@ -88,7 +88,7 @@ python3 scripts/check_commit_msg.py --subject "Add stuff"      # exit 1
 
 ## 6. 交付
 
-1. commit：`docs: scaffold agent workflow, brief and plan skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
+1. commit：`docs: scaffold agent workflow, brief and architecture skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
 2. 告訴使用者建了哪些檔，並印出下一個 session 要貼的訪談指令，`<…>` 換成實際內容：
 
    ```

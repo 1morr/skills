@@ -275,7 +275,7 @@ class BudgetTest(Repo):
 
 class CurrentStateTest(Repo):
     def test_ticket_number_in_brief_or_plan(self):
-        for rel in (m.BRIEF, m.PLAN):
+        for rel in (m.BRIEF, m.ARCHITECTURE):
             for text in ("照 M1 票 12 的做法", "（票3）"):
                 with self.subTest(rel=rel, text=text):
                     self.setUp()
@@ -285,7 +285,7 @@ class CurrentStateTest(Repo):
     def test_other_wording_is_fine(self):
         text = "# 文件\n\n## 1. 節\n\n- 拆票後以票為準；M0 的第一張票接上；門票 3 張不是票號的寫法也不要用。\n\n```\n票 12\n```\n"
         self.write(m.BRIEF, text.replace("門票 3 張不是票號的寫法也不要用", "見 ADR 0003、事實 B3"))
-        self.write(m.PLAN, text.replace("門票 3 張不是票號的寫法也不要用", "見 ADR 0003、事實 B3"))
+        self.write(m.ARCHITECTURE, text.replace("門票 3 張不是票號的寫法也不要用", "見 ADR 0003、事實 B3"))
         self.clean()
 
     def test_ticket_numbers_elsewhere_are_fine(self):
@@ -300,15 +300,15 @@ class CodeRefsTest(Repo):
             subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
 
     def test_code_citing_a_section_number(self):
-        for text in ("// 見 plan §3.2", "# brief §4 的規則", "/* docs/plan.md § 11 */"):
+        for text in ("// 見 plan §3.2", "# brief §4 的規則", "/* docs/plan.md § 11 */", "// ARCHITECTURE.md §2"):
             with self.subTest(text):
                 self.setUp()
                 self.write("src/engine.rs", f"fn main() {{}}\n{text}\n")
                 self.track()
-                self.red("src/engine.rs:2：引用了 brief 或 plan 的章節號")
+                self.red("src/engine.rs:2：引用了 brief 或架構文檔的章節號")
 
     def test_citing_an_adr_or_a_fact_is_fine(self):
-        self.write("src/engine.rs", "// ADR 0003、事實 B3；計畫裡寫的 plan 與 brief 兩個字本身不算；§ 單獨出現也不算\n")
+        self.write("src/engine.rs", "// ADR 0003、事實 B3、architecture〈依賴規則〉；plan 與 brief 兩個字本身不算；§ 單獨出現也不算\n")
         self.track()
         self.clean()
 
