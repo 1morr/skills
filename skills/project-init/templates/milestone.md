@@ -8,7 +8,7 @@
 
 1. 讀 brief 全文。〈待決〉裡會影響架構或順序的，先問使用者定下來。
 2. 寫 `ARCHITECTURE.md` 各節，照它檔頭的寫法；技術選型先查成熟產品與套件的現況，在那一節寫明採用了誰的做法；難回頭、不看脈絡會覺得奇怪、而且真的有取捨的選型另寫一篇 ADR。
-3. 寫 `docs/roadmap.md`：里程碑表，每個里程碑一小節（目標、範圍要點、驗收的方向）。M0 是 tracer bullet；有 UI 的專案把設計稿排成一個只產出文件的階段。
+3. 寫 `docs/roadmap.md`：里程碑表，每個里程碑一小節（目標、範圍要點、驗收的方向）。M0 是 tracer bullet；有 UI 的專案把設計稿排成一個只產出文件的階段，在表裡佔一列（`AGENTS.md`〈UI〉）。
 4. 每節的草稿先給使用者看，確認後才寫入（`AGENTS.md`〈使用者確認〉）；定下的每個選擇在 `docs/decisions.md` 記一條。
 
 完成條件：brief 的每個功能都落在某個里程碑或 roadmap〈不排里程碑〉；`python3 scripts/check_docs.py` 通過；progress.md 加了一列，「下一步」是 `/to-tickets docs/roadmap.md 拆 M0 的票`。

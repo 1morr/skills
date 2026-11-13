@@ -45,7 +45,7 @@
 3. 驗證：`docs/development.md`〈全部檢查〉加 test；貼指令輸出。
 4. 影響架構的決定另寫 ADR；要推翻已定的決定照〈使用者確認〉。
 5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<做了什麼，一句>`，做票時定的每個選擇各加一行 `決定：<一句>（<決定者>）`；commit。票的分支不改 progress.md 與 decisions.md：平行的票都改它們會互撞。
-6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進去（progress.md 一列 session 紀錄含下一步、decisions.md 每個決定一條）並 commit。
+6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進去（progress.md 一列 session 紀錄含下一步、decisions.md 每個決定一條）並 commit。事實編號、資料庫 migration 編號這類全專案遞增的號，票在分支上先用當時的下一號；合併時撞號，合併的人把後合併的那張改成下一個空號，連同引用它的地方。
 7. 驗收票被其他所有票擋、不會平行，它自己在分支上改這兩個檔。
 
 完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、Comments 有 `Session 紀錄：` 一行、已 commit。缺一就還沒完成。
@@ -78,7 +78,7 @@ commit、文件、票、fixture、log 摘錄與截圖：
 
 - **先有設計稿，再寫介面**。不論產品是網頁、原生 App 還是桌面程式，每個畫面先用 `impeccable:impeccable` 做成靜態 HTML 的設計稿，放在 `docs/design/`，使用者逐頁確認後才開做它的票。有爭議的地方給 A／B 兩個方案。只改文案、修 bug、不動版面的票不用。
 - 設計稿要涵蓋的寬度、深淺色與設計系統寫在 brief；實作照定稿做，要偏離先問使用者。
-- 設計稿排成一個只產出文件的階段，寫進 `docs/roadmap.md`，在第一個有畫面的里程碑開工前完成。之後才新增或大改的畫面，在那張票的第一步用 `impeccable:impeccable` 出設計，使用者確認後才實作。
+- 設計稿排成一個只產出文件的階段，在第一個有畫面的里程碑開工前完成。它和里程碑一樣開工：`docs/roadmap.md` 的里程碑表佔一列（`D 設計稿`）、`.scratch/d/` 有 spec 與票，一個畫面一張票，使用者確認定稿才是 `done`。之後才新增或大改的畫面，在那張票的第一步用 `impeccable:impeccable` 出設計，使用者確認後才實作。
 - 做對比版：每一版在自己的 worktree 做，只讀 brief 與設計系統，別的版本的設計稿留到使用者比較時才打開。
 - UI 改動實跑驗證，附截圖或讀回的畫面文字。
 

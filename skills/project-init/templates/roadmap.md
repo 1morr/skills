@@ -18,9 +18,10 @@
 
 - `docs/development.md`〈全部檢查〉補上這個技術棧的 lint、format、typecheck 與 test，CI（`.github/workflows/ci.yml`）跑同一組；幾秒內跑得完的接進 `.githooks/pre-commit`。
 - `ARCHITECTURE.md`〈依賴規則〉的強制工具與它的測試。
-- 幾張票能在各自的 worktree 同時跑全部檢查：測試用的埠、暫存目錄、資料庫不寫死；進版控的生成物（型別檔、資料包）由全部檢查重新產生並比對。
+- 幾張票能在各自的 worktree 同時跑全部檢查：測試用的埠、暫存目錄、資料庫不寫死；進版控的生成物（型別檔、資料包、截圖）由全部檢查重新產生並比對，測試不就地改寫它們。
+- 一次只能給一張票用的資源（模擬器、實機、付費帳號）有鎖，拿不到鎖的票等，用法寫在 `docs/development.md`。
 
-已經就位（project-init 建的）：`scripts/check_docs.py`、`scripts/check_commit_msg.py`，pre-commit 與 commit-msg 兩個 hook，以及只跑這兩支腳本的 CI。
+已經就位（project-init 建的）：`scripts/` 的 `check_docs.py`、`check_commit_msg.py`、`docs_moved_lines.py`，pre-commit 與 commit-msg 兩個 hook，以及只跑文件檢查與腳本測試的 CI。
 
 ## 不排里程碑
 
