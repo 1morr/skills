@@ -144,6 +144,31 @@ class CollectTest(Repo):
         self.assertNotEqual(before, after)
         self.assertEqual((after["milestones"][1]["tickets"][0]["done"], after["milestones"][1]["tickets"][0]["checked"]), (True, 2))
 
+    def test_only_acceptance_boxes_count_as_progress(self):
+        self.sub(".scratch/m1/issues/01-lookup.md", "## Comments\n", "## Comments\n\n- [ ] 之後想到的待辦\n- [x] 順手做掉的\n")
+        t = self.collect()["milestones"][1]["tickets"][0]
+        self.assertEqual((t["checked"], t["boxes"]), (1, 2))
+
+    def test_a_ticket_without_an_acceptance_section_counts_boxes_above_comments(self):
+        self.write(".scratch/m1/issues/01-lookup.md", "# 01: 查碼表\n\nStatus: ready-for-agent\n\n## Acceptance criteria\n\n"
+                   "- [x] 查得到\n- [ ] 綠燈\n\n## Comments\n\n- [ ] 之後想到的\n")
+        t = self.collect()["milestones"][1]["tickets"][0]
+        self.assertEqual((t["checked"], t["boxes"]), (1, 2))
+
+    def test_a_table_row_with_the_wrong_number_of_cells_is_reported(self):
+        self.sub("docs/roadmap.md", "| M2 介面 | 畫面 | brief §4 | 未開工 |", "| M2 介面 | 畫面：A | B 兩版 | brief §4 | 未開工 |")
+        self.sub("docs/progress.md", "| 2026-01-04 | M1 開工 | 拆了 3 張票 |", "| 2026-01-04 | M1 開工 | 拆了 3 張票 | 多一格 |")
+        d = self.collect()
+        self.assertEqual([x["name"] for x in d["milestones"]], ["M0 骨架", "M1 核心"])
+        self.assertEqual([(u["file"], u["line"]) for u in d["unreadable"]], [("docs/roadmap.md", 9), ("docs/progress.md", 9)])
+        self.assertIn("5 欄", d["unreadable"][0]["why"])
+
+    def test_an_escaped_pipe_is_not_an_extra_cell(self):
+        # PROGRESS 的第二列有 a\|b
+        d = self.collect()
+        self.assertEqual(d["unreadable"], [])
+        self.assertIn("a|b", d["sessions"][0]["result"])
+
     def test_status_only_counts_before_the_first_section(self):
         self.sub(".scratch/m1/issues/01-lookup.md", "## Comments\n", "## Comments\n\nStatus: done\n")
         self.assertFalse(self.collect()["milestones"][1]["tickets"][0]["done"])
@@ -381,6 +406,18 @@ class PageTest(Repo):
         embedded = page.split('<script id="data" type="application/json">')[1].split("</script>")[0]
         self.assertEqual(json.loads(embedded), m.data([self.repo]))
 
+    def test_only_the_served_page_polls(self):
+        static, served = m.render(m.data([self.repo])), m.render(m.data([self.repo]), live=True)
+        self.assertIn("const LIVE = false;", static)
+        self.assertIn("const LIVE = true;", served)
+        self.assertNotIn("__LIVE__", static + served)
+
+    def test_colors_come_from_the_shared_tokens_file(self):
+        page = m.render(m.data([self.repo]))
+        tokens = m.TOKENS.read_text(encoding="utf-8")
+        self.assertIn(tokens, page)
+        self.assertEqual(page.count("--paper: oklch"), tokens.count("--paper: oklch"))
+
     def test_static_output(self):
         out = self.root / "out.html"
         self.assertEqual(m.main([str(self.repo), "-o", str(out)]), 0)
@@ -405,6 +442,7 @@ class ServeTest(Repo):
         first = json.loads(get("/data.json"))
         self.assertEqual([p["name"] for p in first["projects"]], ["demo", "other"])
         self.assertIn("專案總覽", get("/"))
+        self.assertIn("const LIVE = true;", get("/"))
         self.sub(".scratch/m1/issues/01-lookup.md", "Status: ready-for-agent", "Status: done")
         second = json.loads(get("/data.json"))
         self.assertTrue(second["projects"][0]["milestones"][1]["tickets"][0]["done"])

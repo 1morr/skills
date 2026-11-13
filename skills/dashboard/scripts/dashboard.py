@@ -1,4 +1,4 @@
-"""從 repo 的固定文件產生專案總覽頁：里程碑與票的進度、決策、ADR、最近的 session。
+"""從 repo 的固定文件產生專案總覽頁：里程碑與票的進度、功能與變更、決策、ADR、最近的 session。
 
     python dashboard.py <repo>... [-o <輸出.html>]          # 產生一頁靜態 HTML，印出路徑
     python dashboard.py --serve [--port 8765] [--host 127.0.0.1] <repo>...
@@ -6,7 +6,9 @@
 
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態（看開頭的詞：未開工、進行中、已驗收、不做）
-  .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、Blocked by:、勾選框
+                       欄數和表頭不一樣的列（儲存格裡有沒跳脫的 `|`）列在「讀不到的行」；docs/progress.md 的表也是
+  .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、Blocked by:、〈驗收〉裡的勾選框
+                       （票沒有〈驗收〉這一段時，數 `## Comments` 之前的）
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
                        還沒驗收的里程碑，票在 `## Comments` 之後留的 `Session 紀錄：<日期> …`、`決定：…（<決定者>）`、
                        `變更：<分類>｜<功能>｜<一句>`（列在「變更」的未發版裡，標「待組裝」；`變更：無` 不列）：
@@ -26,7 +28,8 @@
                        下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
 
-資料每次請求時現讀，不存快取。頁面不載入任何外部資源。只用標準函式庫。
+資料每次請求時現讀，不存快取。頁面不載入任何外部資源；配色取 plugin 根目錄的 pages/scripts/tokens.css。
+只有 --serve 的頁面會每 3 秒重讀，靜態頁不會。只用標準函式庫。
 """
 
 import argparse
@@ -60,6 +63,9 @@ ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
 COMMENTS = "\n## Comments"
+ACCEPTANCE = "驗收"
+# 配色和字體的唯一來源，和 explain、checkpoint 的頁面同一份
+TOKENS = Path(__file__).resolve().parents[3] / "pages" / "scripts" / "tokens.css"
 NOTE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
 TICKET_NUMBER = re.compile(r"^(\d+[a-z]?)-")
 BLOCKED = re.compile(r"^Blocked by:\s*(.*)$", re.I)
@@ -113,18 +119,19 @@ def table_rows(lines) -> list:
     return rows if len(rows) >= 2 else []
 
 
-def numbered_table(lines) -> list:
-    """第一張表的每一列：(行號, {表頭欄名: 內容})。"""
+def numbered_table(lines, file: str, unreadable: list) -> list:
+    """第一張表的每一列：(行號, {表頭欄名: 內容})。欄數和表頭不一樣的列不讀，記進 unreadable。"""
     rows = table_rows(lines)
     if not rows:
         return []
-    head = rows[0][1]
-    return [(n, dict(zip(head, r))) for n, r in rows[2:] if len(r) == len(head)]
-
-
-def table(lines) -> list:
-    """第一張表的每一列，以表頭欄名為 key。"""
-    return [row for _, row in numbered_table(list(enumerate(lines, 1)))]
+    head, out = rows[0][1], []
+    for number, cells in rows[2:]:
+        if len(cells) == len(head):
+            out.append((number, dict(zip(head, cells))))
+        else:
+            unreadable.append({"file": file, "line": number, "text": plain(" | ".join(cells))[:80],
+                               "why": f"這一列有 {len(cells)} 欄，表頭是 {len(head)} 欄，沒有列進來；儲存格裡的 | 寫成 \\|"})
+    return out
 
 
 def plain(text: str) -> str:
@@ -151,7 +158,10 @@ def ticket(path: Path) -> dict:
         m = BLOCKED.match(l)
         if m:
             blocked = re.findall(r"\d+[a-z]?", m.group(1))
-    boxes = [m.group(1) != " " for m in map(CHECKBOX.match, lines) if m]
+    parts = sections("\n".join(lines))
+    # 進度只看驗收條件：Comments 裡順手記的待辦不算
+    criteria = parts[ACCEPTANCE] if ACCEPTANCE in parts else lines[:next((i for i, l in enumerate(lines) if l.startswith(COMMENTS.strip())), len(lines))]
+    boxes = [m.group(1) != " " for m in map(CHECKBOX.match, criteria) if m]
     number = TICKET_NUMBER.match(path.name)
     return {"file": path.name, "number": number.group(1) if number else path.stem, "title": plain(title), "status": status,
             "done": status.lower().startswith("done"), "dropped": bool(DROPPED.match(status)), "blocked": blocked,
@@ -231,7 +241,7 @@ def spec(directory: Path) -> dict:
 def milestones(repo: Path) -> tuple:
     """(里程碑, 讀不到的行)。狀態開頭不是約定的詞時當成未開工，並列進讀不到的行。"""
     out, unreadable = [], []
-    for number, row in numbered_table(numbered_sections(read(repo / "docs/roadmap.md")).get("里程碑", [])):
+    for number, row in numbered_table(numbered_sections(read(repo / "docs/roadmap.md")).get("里程碑", []), "docs/roadmap.md", unreadable):
         name = plain(row.get("里程碑", ""))
         if not name:
             continue
@@ -366,8 +376,10 @@ def adrs(repo: Path) -> list:
 
 
 def sessions(repo: Path, from_tickets=()) -> tuple:
-    """(session 紀錄，舊的在前；progress.md 最後一列的下一步)。票上的 session 紀錄排進來；progress.md 已經有那張票的列時不重複列。"""
-    rows = table(sections(read(repo / "docs/progress.md")).get("Session 紀錄", []))
+    """(session 紀錄，舊的在前；progress.md 最後一列的下一步；讀不到的行)。票上的 session 紀錄排進來；progress.md 已經有那張票的列時不重複列。"""
+    unreadable = []
+    rows = [row for _, row in numbered_table(numbered_sections(read(repo / "docs/progress.md")).get("Session 紀錄", []),
+                                             "docs/progress.md", unreadable)]
     out = [{"date": r.get("日期", ""), "ticket": plain(r.get("票", "")), "result": plain(r.get("結果", "")),
             "next": r.get("下一步", "").strip()} for r in rows]
     step = out[-1]["next"] if out else ""
@@ -375,7 +387,7 @@ def sessions(repo: Path, from_tickets=()) -> tuple:
     for milestone, number, found in from_tickets:
         if f"{milestone} {number}".upper() not in copied:
             out += [{"date": found["date"], "ticket": f"{milestone} {number}", "result": said, "next": ""} for said in found["sessions"]]
-    return sorted(out, key=lambda s: s["date"]), step
+    return sorted(out, key=lambda s: s["date"]), step, unreadable
 
 
 def archived_sessions(repo: Path) -> tuple:
@@ -456,7 +468,7 @@ def collect(repo: Path) -> dict:
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
     loose = unlisted(repo, ms)
     kept = ticket_notes(repo, [m for m in ms + loose if m["state"] in ("todo", "active")])
-    log, step = sessions(repo, kept)
+    log, step, odd_sessions = sessions(repo, kept)
     decided, unreadable = decisions(repo, kept)
     old_sessions, odd_rows = archived_sessions(repo)
     changes, odd_entries = changelog(repo, kept)
@@ -467,26 +479,14 @@ def collect(repo: Path) -> dict:
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": odd_states + unreadable + odd_rows + odd_entries, "unlisted": loose}
+            "unreadable": odd_states + odd_sessions + unreadable + odd_rows + odd_entries, "unlisted": loose}
 
 
 PAGE = r"""<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>專案總覽</title>
 <style>
-:root { color-scheme: light dark;
-  --paper: oklch(0.985 0.004 85); --panel: oklch(0.962 0.006 85); --rule: oklch(0.88 0.008 85);
-  --ink: oklch(0.25 0.012 260); --ink-2: oklch(0.47 0.012 260); --accent: oklch(0.5 0.15 255);
-  --ins-bg: oklch(0.93 0.055 165); --ins-ink: oklch(0.38 0.1 165); --ins-bar: oklch(0.6 0.13 165);
-  --note-bg: oklch(0.955 0.04 85); --note-ink: oklch(0.4 0.07 70); --note-bar: oklch(0.72 0.13 75);
-  --font-ui: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace; }
-@media (prefers-color-scheme: dark) { :root {
-  --paper: oklch(0.2 0.012 260); --panel: oklch(0.235 0.014 260); --rule: oklch(0.34 0.014 260);
-  --ink: oklch(0.92 0.008 85); --ink-2: oklch(0.72 0.01 260); --accent: oklch(0.75 0.12 255);
-  --ins-bg: oklch(0.33 0.05 165); --ins-ink: oklch(0.88 0.08 165); --ins-bar: oklch(0.66 0.13 165);
-  --note-bg: oklch(0.27 0.025 80); --note-ink: oklch(0.86 0.06 85); --note-bar: oklch(0.74 0.12 80); } }
-* { box-sizing: border-box; }
+__TOKENS__* { box-sizing: border-box; }
 html { text-autospace: normal; }
 body { margin: 0; overflow-wrap: anywhere; background: var(--paper); color: var(--ink); font: 1rem/1.6 var(--font-ui); }
 main { max-width: 72rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
@@ -538,6 +538,7 @@ td.nowrap { white-space: nowrap; width: 1%; }
 <script>
 "use strict";
 let DATA = JSON.parse(document.getElementById("data").textContent);
+const LIVE = __LIVE__;
 const view = { project: 0, decider: "", milestone: "", query: "", archived: false, feature: "", repeated: false, open: {} };
 const el = (tag, attrs, ...kids) => {
   const n = document.createElement(tag);
@@ -682,7 +683,8 @@ function render() {
   if (typing) { const input = document.getElementById(typing); input.focus(); input.setSelectionRange(pos, pos); }
 }
 render();
-if (location.protocol.startsWith("http")) {
+if (!LIVE) document.getElementById("live").textContent = "靜態頁，內容停在產生的時候；要自動更新，叫 dashboard 時不要加 static。";
+else {
   const live = document.getElementById("live"); let last = JSON.stringify(DATA);
   const tick = async () => {
     try {
@@ -701,9 +703,11 @@ def data(repos: list) -> dict:
     return {"projects": [collect(r) for r in repos]}
 
 
-def render(payload: dict) -> str:
+def render(payload: dict, live: bool = False) -> str:
+    """live：頁面要不要每 3 秒向伺服器重讀 data.json；只有 --serve 的頁是。"""
+    page = PAGE.replace("__TOKENS__", TOKENS.read_text(encoding="utf-8")).replace("__LIVE__", "true" if live else "false")
     # </script> 不能出現在內嵌的 JSON 裡
-    return PAGE.replace("__DATA__", json.dumps(payload, ensure_ascii=False).replace("</", "<\\/"))
+    return page.replace("__DATA__", json.dumps(payload, ensure_ascii=False).replace("</", "<\\/"))
 
 
 def handler(repos: list):
@@ -712,7 +716,7 @@ def handler(repos: list):
             if self.path.split("?")[0] == "/data.json":
                 body, kind = json.dumps(data(repos), ensure_ascii=False).encode("utf-8"), "application/json"
             elif self.path.split("?")[0] in ("/", "/index.html"):
-                body, kind = render(data(repos)).encode("utf-8"), "text/html"
+                body, kind = render(data(repos), live=True).encode("utf-8"), "text/html"
             else:
                 self.send_error(404)
                 return
