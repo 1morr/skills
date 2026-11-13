@@ -191,7 +191,6 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([r["ticket"] for r in data["archived_sessions"][0]["rows"]], ["M0 02", "M0 01", "M0 開工", "框架"])
         self.assertEqual((len(data["sessions"]), data["next"]), (1, "新 session 下 `/1morr:checkpoint M0`"))
 
-    @unittest.expectedFailure
     def test_changelog_entries_are_read_from_the_file_and_from_tickets(self):
         notes = ticket_notes
         self.write("CHANGELOG.md", fill("changelog.md"))

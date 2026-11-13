@@ -8,7 +8,8 @@
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態（看開頭的詞：未開工、進行中、已驗收、不做）
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、Blocked by:、勾選框
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
-                       還沒驗收的里程碑，票在 `## Comments` 之後留的 `Session 紀錄：<日期> …`、`決定：…（<決定者>）`：
+                       還沒驗收的里程碑，票在 `## Comments` 之後留的 `Session 紀錄：<日期> …`、`決定：…（<決定者>）`、
+                       `變更：<分類>｜<功能>｜<一句>`（列在「變更」的未發版裡，標「待組裝」；`變更：無` 不列）：
                        票是這兩種紀錄唯一的來源，沒寫日期的用票檔的修改日期。舊骨架把它們抄進下面兩個檔，
                        那兩個檔已經有同一張票的條目（「M1 票 03」「M1 03」）時不再從票讀一次
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（不是做票時定的決定）
@@ -16,6 +17,9 @@
                        〈Session 紀錄〉的表：封存的 session 紀錄。儲存格裡有沒跳脫的 `|` 而多出欄位的列，
                        多的併進「結果」；少了「結果」後面幾欄的照讀；連「結果」都沒有的列在「讀不到的行」
                        這兩處以 `- ` 開頭卻不是 `- YYYY-MM-DD …` 的行，列在頁面的「讀不到的行」
+  CHANGELOG.md         Keep a Changelog 的版本段（`## [Unreleased]`、`## [<版號>] - <日期>`）與六個分類底下的條目
+                       `- **<功能>**：<一句>`（續行算進同一條）。已發版的段落裡不是這個寫法的條目照列、沒有功能名；
+                       〈[Unreleased]〉裡不是這個寫法的列在「讀不到的行」。沒有這個檔就沒有這一區
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
                        下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
@@ -59,6 +63,12 @@ NOTE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
 TICKET_NUMBER = re.compile(r"^(\d+[a-z]?)-")
 BLOCKED = re.compile(r"^Blocked by:\s*(.*)$", re.I)
 COPIED_DECISION = re.compile(r"票\s*(\d+[a-z]?)")
+KINDS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
+CHANGE_NOTE, NO_CHANGE = "變更：", "變更：無"
+CHANGE = re.compile(r"^變更：(%s)｜([^｜]+)｜(.+)$" % "|".join(KINDS))
+UNRELEASED = "Unreleased"
+VERSION_HEAD = re.compile(r"^## \[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?")
+ENTRY = re.compile(r"^- \*\*(.+?)\*\*[：:]\s*(.*)$")
 WAITING = "等使用者："
 RESULT = "結果"
 STATES = {"未開工": "todo", "進行中": "active", "已驗收": "done", "不做": "dropped"}
@@ -148,10 +158,12 @@ def ticket(path: Path) -> dict:
 
 
 def notes(path: Path) -> dict:
-    """票在 `## Comments` 之後留的紀錄：{date, sessions: [一句], decisions: [(一句, 決定者)]}。"""
+    """票在 `## Comments` 之後留的紀錄：{date, sessions: [一句], decisions: [(一句, 決定者)], changes: [(分類, 功能, 一句)],
+    odd: [(行號, 格式不對的「變更：」行)]}。"""
     text = read(path)
-    out = {"date": "", "sessions": [], "decisions": []}
-    for line in text.split(COMMENTS, 1)[1].split("\n") if COMMENTS in text else []:
+    out = {"date": "", "sessions": [], "decisions": [], "changes": [], "odd": []}
+    start = text[:text.index(COMMENTS)].count("\n") + 1 if COMMENTS in text else 0
+    for number, line in enumerate(text.split(COMMENTS, 1)[1].split("\n") if COMMENTS in text else [], start):
         if line.startswith(SESSION_NOTE):
             rest = line[len(SESSION_NOTE):].strip()
             dated = NOTE_DATE.match(rest)
@@ -161,6 +173,11 @@ def notes(path: Path) -> dict:
         elif line.startswith(DECISION_NOTE):
             rest = line[len(DECISION_NOTE):].strip()
             out["decisions"].append((plain(DECIDER.sub("", rest)), decider_of(rest)))
+        elif CHANGE.match(line.strip()):
+            kind, feature, said = CHANGE.match(line.strip()).groups()
+            out["changes"].append((kind, plain(feature), plain(said)))
+        elif line.startswith(CHANGE_NOTE) and line.strip() != NO_CHANGE:
+            out["odd"].append((number, line.strip()))
     if not out["date"] and (out["sessions"] or out["decisions"]):
         try:
             out["date"] = datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
@@ -170,13 +187,14 @@ def notes(path: Path) -> dict:
 
 
 def ticket_notes(repo: Path, live: list) -> list:
-    """還沒驗收的里程碑裡每張留了紀錄的票：[(里程碑的名字, 票號, 紀錄)]。"""
+    """還沒驗收的里程碑裡每張留了紀錄的票：[(里程碑的名字, 票號, 紀錄)]；紀錄多一個 `file`，是票相對 repo 的路徑。"""
     out = []
     for m in live:
         for t in m["tickets"]:
-            found = notes(repo / ".scratch" / m["dir"] / "issues" / t["file"])
-            if found["sessions"] or found["decisions"]:
-                out.append((m["name"].split()[0], t["number"], found))
+            rel = f".scratch/{m['dir']}/issues/{t['file']}"
+            found = notes(repo / rel)
+            if any(found[k] for k in ("sessions", "decisions", "changes", "odd")):
+                out.append((m["name"].split()[0], t["number"], dict(found, file=rel)))
     return out
 
 
@@ -278,6 +296,49 @@ def decisions(repo: Path, from_tickets=()) -> tuple:
             out += [{"date": found["date"], "milestone": milestone, "label": f"{milestone} 票 {number}", "decider": decider,
                      "archived": False, "text": said} for said, decider in found["decisions"]]
     return sorted(out, key=lambda d: d["date"], reverse=True), unreadable
+
+
+def changelog(repo: Path, from_tickets=()) -> tuple:
+    """(版本段，照檔案的順序：[{version, date, entries: [{kind, feature, text, pending}]}], 讀不到的行)。
+    `pending` 是還在票上、沒組進檔案的條目的票（「M1 03」），算在未發版裡；檔案裡的條目是空字串。"""
+    versions, unreadable, version, kind, entry, fenced = [], [], None, None, None, False
+    for number, line in enumerate(read(repo / "CHANGELOG.md").split("\n"), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        if fenced or not line.strip():
+            continue
+        head = VERSION_HEAD.match(line)
+        if line.startswith("## "):
+            version, kind, entry = ({"version": head.group(1), "date": head.group(2) or "", "entries": []} if head else None), None, None
+            if version:
+                versions.append(version)
+        elif line.startswith("### "):
+            kind, entry = (line[4:].strip() if line[4:].strip() in KINDS else None), None
+        elif version is None or kind is None:
+            entry = None
+        elif line.startswith("- "):
+            m = ENTRY.match(line)
+            if m or version["version"] != UNRELEASED:
+                entry = {"kind": kind, "feature": plain(m.group(1)) if m else "", "text": plain(m.group(2) if m else line[2:]), "pending": ""}
+                version["entries"].append(entry)
+            else:
+                entry = None
+                unreadable.append({"file": "CHANGELOG.md", "line": number, "text": plain(line[2:])[:80],
+                                   "why": "未發版的條目要寫成「- **<功能>**：<一句>」，沒有列進變更"})
+        elif line[0] in " \t" and entry is not None:
+            entry["text"] = (entry["text"] + " " + plain(line.strip().lstrip("-* "))).strip()
+        else:
+            entry = None
+    pending = []
+    for milestone, number, found in from_tickets:
+        pending += [{"kind": k, "feature": feature, "text": said, "pending": f"{milestone} {number}"} for k, feature, said in found["changes"]]
+        unreadable += [{"file": found["file"], "line": n, "text": odd[:80],
+                        "why": "要寫成「變更：<%s>｜<功能>｜<一句>」或「變更：無」，沒有列進變更" % "|".join(KINDS)} for n, odd in found["odd"]]
+    if pending:
+        if not any(v["version"] == UNRELEASED for v in versions):
+            versions.insert(0, {"version": UNRELEASED, "date": "", "entries": []})
+        next(v for v in versions if v["version"] == UNRELEASED)["entries"] += pending
+    return versions, unreadable
 
 
 def adrs(repo: Path) -> list:
@@ -384,14 +445,15 @@ def collect(repo: Path) -> dict:
     log, step = sessions(repo, kept)
     decided, unreadable = decisions(repo, kept)
     old_sessions, odd_rows = archived_sessions(repo)
+    changes, odd_entries = changelog(repo, kept)
     if not step.startswith(WAITING):
         step = next_ticket(ms) or step
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
-            "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": step,
+            "adrs": adrs(repo), "changelog": changes, "sessions": log[-30:][::-1], "next": step,
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": odd_states + unreadable + odd_rows, "unlisted": loose}
+            "unreadable": odd_states + unreadable + odd_rows + odd_entries, "unlisted": loose}
 
 
 PAGE = r"""<!doctype html>
@@ -497,6 +559,22 @@ function milestoneCard(m, key) {
   card.addEventListener("toggle", () => { view.open[id] = card.open; });
   return card;
 }
+const KIND = { Added: "新增", Changed: "修改", Deprecated: "將移除", Removed: "移除", Fixed: "修正", Security: "安全" };
+function entryItem(e, lead) {
+  return el("li", {}, el("span", {}, lead ? el("span", { class: "small" }, lead + "　") : null, e.feature ? el("b", {}, e.feature + "：") : null, e.text),
+    e.pending ? el("span", { class: "badge agent" }, "待組裝　" + e.pending) : null);
+}
+function changelogView(p) {
+  if (!p.changelog.length) return el("div", { class: "empty" }, "沒有 CHANGELOG.md。");
+  return p.changelog.map(v => { const id = p.name + "/changelog/" + v.version, waiting = v.entries.filter(e => e.pending).length;
+    const box = el("details", { class: "more", open: view.open[id] ?? v.version === "Unreleased" },
+      el("summary", {}, el("span", { class: "name" }, v.version === "Unreleased" ? "未發版" : v.version),
+        el("span", { class: "small num" }, `　${v.date ? v.date + "　" : ""}${v.entries.length} 條` + (waiting ? `，${waiting} 條還在票上、待組裝` : ""))),
+      v.entries.length ? Object.keys(KIND).filter(k => v.entries.some(e => e.kind === k)).map(k => [
+        el("div", { class: "small", style: "margin-top:.6rem" }, `${KIND[k]}（${k}）`),
+        el("ul", { class: "plain" }, v.entries.filter(e => e.kind === k).map(e => entryItem(e)))]) : el("div", { class: "empty" }, "還沒有條目。"));
+    box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; });
+}
 function decisionsView(p) {
   // 已封存里程碑的決定預設收起；選了某個里程碑或在搜尋時照樣找得到
   const pool = p.decisions.filter(d => view.archived || view.milestone || view.query || !d.archived);
@@ -551,6 +629,7 @@ function render() {
     p.milestones.length ? el("div", { class: "grid" }, p.milestones.map(m => milestoneCard(m, p.name))) : el("div", { class: "empty" }, "roadmap.md 沒有里程碑表。"),
     p.unlisted.length ? [el("h2", {}, "不在 roadmap 的工作"),
       el("div", { class: "grid" }, p.unlisted.map(m => milestoneCard(m, p.name + "/unlisted")))] : null,
+    el("h2", {}, "變更"), changelogView(p),
     el("h2", {}, "決策"), decisionsView(p),
     el("h2", {}, "架構決定（ADR）"),
     p.adrs.length ? el("ul", { class: "plain" }, p.adrs.map(a => el("li", {}, el("span", {}, a.title), el("span", { class: "small num" }, a.file)))) : el("div", { class: "empty" }, "沒有 ADR。"),

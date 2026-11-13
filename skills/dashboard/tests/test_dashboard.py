@@ -264,6 +264,35 @@ class CollectTest(Repo):
         os.utime(self.repo / ".scratch/m1/issues/02-bar.md", (1767787200, 1767787200))  # 2026-01-07 中午（UTC）
         self.assertEqual([(s["date"], s["ticket"]) for s in self.collect()["sessions"]][0], ("2026-01-07", "M1 02"))
 
+    CHANGELOG = ("# Changelog\n\n- 說明裡的清單不算\n\n## [Unreleased]\n\n### Added\n\n- **候選列**：一頁九個，\n  可以翻頁。\n  - 用 `PageDown`。\n\n"
+                 "## [0.1.0] - 2026-01-02\n\n升級說明。\n\n- **不在分類底下**：不算條目。\n\n### Added\n\n- **碼表**: 查得到字。\n\n### Fixed\n\n"
+                 "- 舊寫法沒有功能名\n\n### Improved\n\n- **別的分類**：不讀。\n\n```\n## [9.9.9] - 2026-09-09\n```\n")
+
+    def test_changelog_versions_and_entries(self):
+        self.assertEqual(self.collect()["changelog"], [])
+        self.write("CHANGELOG.md", self.CHANGELOG)
+        d = self.collect()
+        self.assertEqual([(v["version"], v["date"], [(e["kind"], e["feature"], e["text"], e["pending"]) for e in v["entries"]]) for v in d["changelog"]], [
+            ("Unreleased", "", [("Added", "候選列", "一頁九個， 可以翻頁。 用 PageDown。", "")]),
+            ("0.1.0", "2026-01-02", [("Added", "碼表", "查得到字。", ""), ("Fixed", "", "舊寫法沒有功能名", "")])])
+        self.assertEqual(d["unreadable"], [])
+
+    def test_an_unreleased_entry_without_a_feature_is_reported(self):
+        self.write("CHANGELOG.md", self.CHANGELOG.replace("- **候選列**：一頁九個，", "- 候選列一頁九個，"))
+        d = self.collect()
+        self.assertEqual(d["changelog"][0]["entries"], [])
+        self.assertEqual([(u["file"], u["line"], u["text"]) for u in d["unreadable"]], [("CHANGELOG.md", 9, "候選列一頁九個，")])
+
+    def test_changes_still_on_tickets_are_pending_in_unreleased(self):
+        self.sub(".scratch/m1/issues/02-bar.md", "## Comments\n", "## Comments\n\nSession 紀錄：2026-01-06 做完。\n變更：Changed｜候選列｜改成一頁 `五` 個。\n變更：無\n變更：改了一些\n")
+        self.write(".scratch/m0/issues/01-gates.md", TICKET + "\n變更：Added｜閘門｜已驗收的里程碑不從票讀。\n")
+        d = self.collect()
+        self.assertEqual(d["changelog"], [{"version": "Unreleased", "date": "", "entries": [
+            {"kind": "Changed", "feature": "候選列", "text": "改成一頁 五 個。", "pending": "M1 02"}]}])
+        self.assertEqual([(u["file"], u["line"], u["text"]) for u in d["unreadable"]], [(".scratch/m1/issues/02-bar.md", 17, "變更：改了一些")])
+        self.write("CHANGELOG.md", self.CHANGELOG)
+        self.assertEqual([(e["feature"], e["pending"]) for e in self.collect()["changelog"][0]["entries"]], [("候選列", ""), ("候選列", "M1 02")])
+
     def test_waiting_for_the_user_and_decisions_the_user_has_not_seen(self):
         d = self.collect()
         self.assertEqual((d["waiting"], [x["text"] for x in d["unseen"]]), ("", ["碼表用 fst 存。"]))
