@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查（pre-commit、commit-msg 兩個 hook 與 CI）。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
 `/grill-with-docs` 填 brief → 同一個指令寫架構與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
@@ -50,6 +50,7 @@ argument-hint: "[專案一句話]"
 | `gitattributes` | `.gitattributes` |
 | `ci.yml` | `.github/workflows/ci.yml` |
 | `commit-msg` | `.githooks/commit-msg`（`chmod +x`） |
+| `pre-commit` | `.githooks/pre-commit`（`chmod +x`） |
 | `issue-tracker.md` | `docs/agents/issue-tracker.md` |
 | `triage-labels.md` | `docs/agents/triage-labels.md` |
 | `domain.md` | `docs/agents/domain.md` |
@@ -78,12 +79,13 @@ argument-hint: "[專案一句話]"
 2. `git config core.hooksPath .githooks`。
 3. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
 
-完成條件：下面三條都親自跑過、結果如括號所寫。
+完成條件：下面四條都親自跑過、結果如括號所寫。
 
 ```
 python3 scripts/check_docs.py                                  # exit 0
 python3 -m unittest discover -s scripts/tests                  # OK
 python3 scripts/check_commit_msg.py --subject "Add stuff"      # exit 1
+sh .githooks/pre-commit                                        # exit 0
 ```
 
 ## 6. 交付

@@ -7,7 +7,7 @@ repo 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md` 或 `.scr
 1. 讀指令檔（`AGENTS.md`，或還在用的 `CLAUDE.md`）、`docs/progress.md`，記下進行中的里程碑和還沒做完的票。
 2. `python3 <S>/check_docs.py <repo>`：用現在的檢查跑一次，不複製進去。違規逐條留著，第 2 步歸類。
 3. 逐檔比對 SKILL.md〈寫骨架〉表的目的地與〈閘門〉複製的四個檔，各歸一類：
-   - **照抄檔**（`scripts/check_docs.py`、`scripts/check_commit_msg.py`、兩個測試、`.githooks/commit-msg`、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則（例如檢查改寫進專案自己的工具）列出來，保留。
+   - **照抄檔**（`scripts/check_docs.py`、`scripts/check_commit_msg.py`、兩個測試、`.githooks/commit-msg`、`.githooks/pre-commit`（專案已有自己的 pre-commit 時，把文件檢查接進去，不覆蓋）、`docs/agents/milestone.md`、`docs/agents/ticket-template.md`、`docs/agents/issue-tracker.md` 的〈Conventions〉清單）：和範本 `diff`。專案自己加的規則（例如檢查改寫進專案自己的工具）列出來，保留。
    - **指令檔**：照 `<T>/instructions.md` 的 `##` 段逐段比對。範本有而專案沒有的規則、專案還在用的舊說法各列一條；專案自己的段落（架構規則、帳號、舊版）原樣保留。
    - **內容檔**（brief、架構、roadmap、progress、decisions）：只看結構，內容照舊。
 

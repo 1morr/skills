@@ -107,6 +107,40 @@ class MilestoneDocTest(unittest.TestCase):
             self.assertIn(needle, text)
 
 
+@unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "要 git 和 sh")
+class PreCommitHookTest(unittest.TestCase):
+    """在真的 repo 裡用 git commit 觸發 hook：骨架過得去，文件壞了就擋下。"""
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp(prefix="project-init-hook-")).resolve()
+        self.addCleanup(shutil.rmtree, self.repo, ignore_errors=True)
+        for name, rel in (("progress.md", "docs/progress.md"), ("roadmap.md", "docs/roadmap.md"), ("decisions.md", "docs/decisions.md"),
+                          ("instructions.md", "AGENTS.md"), ("pre-commit", ".githooks/pre-commit")):
+            p = self.repo / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(fill(name), encoding="utf-8")
+        (self.repo / ".githooks/pre-commit").chmod(0o755)
+        (self.repo / "scripts/tests").mkdir(parents=True)
+        shutil.copy(SKILL / "scripts/check_docs.py", self.repo / "scripts/check_docs.py")
+        shutil.copy(SKILL / "tests/test_check_docs.py", self.repo / "scripts/tests/test_check_docs.py")
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "core.hooksPath", ".githooks")
+
+    def git(self, *args, check=True):
+        env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+        return subprocess.run(["git", "-C", str(self.repo), *args], env=env, capture_output=True, text=True, check=check)
+
+    def test_the_skeleton_commits_and_a_broken_doc_is_stopped(self):
+        self.git("add", "-A")
+        self.git("commit", "-qm", "docs: scaffold")
+        p = self.repo / "docs/progress.md"
+        p.write_text(p.read_text(encoding="utf-8").replace("## Session 紀錄", "## 紀錄"), encoding="utf-8")
+        r = self.git("commit", "-qam", "docs: break it", check=False)
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Session 紀錄", r.stderr)
+        self.assertEqual(self.git("log", "--format=%s").stdout.strip(), "docs: scaffold")
+
+
 class CommitTypesTest(unittest.TestCase):
     def test_same_types_as_merge_ticket(self):
         line = next(l for l in MERGE.read_text(encoding="utf-8").split("\n") if l.startswith("CC="))

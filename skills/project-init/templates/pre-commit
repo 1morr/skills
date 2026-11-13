@@ -1,0 +1,22 @@
+#!/bin/sh
+# 每次 commit 前跑的快檢查；完整的一組見 docs/development.md〈全部檢查〉。
+# M0 的第一張票把這個技術棧的 format、lint、typecheck 接在最後一行之前。
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# git 給 hook 的 GIT_DIR、GIT_INDEX_FILE 會被檢查裡用到的 git 指令繼承，測試在暫存目錄開的 repo 會寫錯地方。
+for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
+  unset "$name"
+done
+
+for py in python3 python; do
+  if "$py" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+    "$py" scripts/check_docs.py || exit 1
+    "$py" -m unittest discover -s scripts/tests >/dev/null 2>&1 || {
+      echo "pre-commit: scripts/tests 沒過，跑 $py -m unittest discover -s scripts/tests 看是哪一條" >&2
+      exit 1
+    }
+    exit 0
+  fi
+done
+echo "pre-commit: 找不到 Python 3，文件檢查沒跑" >&2
+exit 1
