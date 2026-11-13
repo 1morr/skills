@@ -1,14 +1,6 @@
-/* build.py 內嵌進組好的頁：圖的深淺色切換、縮放拖動的按鈕和放大檢視。顏色取 TOKENS.md 的變數。 */
+/* build.py 內嵌進組好的頁，給 diagram.js 用：縮放拖動的按鈕和放大檢視。顏色取 TOKENS.md 的變數。 */
 pre.mermaid { position: relative; overflow: hidden; }
 pre.mermaid > .dz-stage { display: block; }
-pre.mermaid [data-theme] { display: block; }
-pre.mermaid [data-theme=dark] { display: none; }
-@media (prefers-color-scheme: dark) {
-  pre.mermaid [data-theme=light] { display: none; }
-  pre.mermaid [data-theme=dark] { display: block; }
-}
-/* 標籤的寬度是在組頁的機器量的；別台的字型較寬時，讓字超出方框而不是被切掉 */
-pre.mermaid foreignObject { overflow: visible; }
 
 .dz-bar {
   position: absolute; top: .5rem; right: .5rem; z-index: 1;
@@ -29,6 +21,6 @@ pre.dz-open {
   width: auto; max-width: none; height: auto; margin: 0; padding: 3rem 1rem 1rem;
   border: 0; border-radius: 0; background: var(--paper, Canvas);
 }
-pre.dz-open > .dz-stage, pre.dz-open [data-theme] { height: 100%; }
+pre.dz-open > .dz-stage { height: 100%; }
 pre.dz-open svg { width: 100%; height: 100%; max-width: none !important; }
 html.dz-lock { overflow: hidden; }

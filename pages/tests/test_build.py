@@ -35,8 +35,8 @@ def ok(src):
     return build.lint(src) == []
 
 
-def never():
-    raise AssertionError("沒有圖就不該載入 Mermaid")
+def never(pkg):
+    raise AssertionError("沒有圖就不該載入 Mermaid 或 Panzoom")
 
 
 class Lint(unittest.TestCase):
@@ -78,23 +78,27 @@ class Lint(unittest.TestCase):
         self.assertTrue(ok(page(DIAGRAM + '<p>mermaid.initialize 是 build.py 放的</p>')))
 
 
-class WithMermaid(unittest.TestCase):
-    """找不到瀏覽器時的退路頁，也是交給無頭瀏覽器畫圖的草稿。"""
-
-    def test_inlines_mermaid_before_body_end(self):
-        out = build.with_mermaid(page(DIAGRAM), FAKE_LIB)
+class Build(unittest.TestCase):
+    def test_inlines_libs_then_diagram_js_before_body_end(self):
+        out = build.build(page(DIAGRAM), fake_load)
         tail = out[out.index("</pre>"):]
-        self.assertIn("window.mermaid", tail)
-        self.assertIn("mermaid.initialize(", tail)
-        self.assertLess(tail.index("window.mermaid"), tail.index("mermaid.initialize("))
+        order = [tail.index(x) for x in ("pre.dz-open", "window.mermaid", "window.Panzoom", "mermaid.run(")]
+        self.assertEqual(order, sorted(order))
         self.assertTrue(out.rstrip().endswith("</body></html>"))
+        self.assertEqual(out.count("<script>"), 3)
 
-    def test_theme(self):
-        self.assertIn('theme: "dark"', build.with_mermaid(page(DIAGRAM), FAKE_LIB, "dark"))
-        self.assertIn("prefers-color-scheme", build.with_mermaid(page(DIAGRAM), FAKE_LIB))
+    def test_class_spelling_does_not_matter(self):
+        out = build.build(page('<PRE id="d" class="diagram  mermaid">flowchart TB\nA</PRE>'), fake_load)
+        self.assertIn("window.mermaid", out)
+
+    def test_no_diagram_no_libs(self):
+        src = page("<p>沒有圖</p>")
+        self.assertEqual(build.build(src, never), src)
+        self.assertEqual(build.build(page('<pre class="code">flowchart</pre>'), never),
+                         page('<pre class="code">flowchart</pre>'))
 
     def test_script_end_inside_lib_does_not_close_element(self):
-        out = build.with_mermaid(page(DIAGRAM), FAKE_LIB)
+        out = build.build(page(DIAGRAM), fake_load)
 
         class Scripts(HTMLParser):
             def __init__(self):
@@ -114,11 +118,12 @@ class WithMermaid(unittest.TestCase):
         p = Scripts()
         p.feed(out)
         self.assertIn('var s="<\\/script>";', p.bodies[0])
-        self.assertIn("mermaid.initialize(", p.bodies[1])
+        self.assertIn("window.Panzoom", p.bodies[1])
+        self.assertIn("mermaid.run(", p.bodies[2])
 
     def test_lib_containing_script_start_is_refused(self):
         with self.assertRaises(ValueError):
-            build.with_mermaid(page(DIAGRAM), 'var s="<!--<script>";')
+            build.build(page(DIAGRAM), lambda pkg: 'var s="<!--<script>";')
 
     def test_tarball_integrity(self):
         good = base64.b64encode(hashlib.sha512(b"x").digest()).decode()
@@ -132,64 +137,17 @@ class WithMermaid(unittest.TestCase):
                          "https://registry.npmjs.org/mermaid/-/mermaid-11.17.2.tgz")
 
 
-def svg(sid, word):
-    return (f'<svg id="{sid}"><style>#{sid} .node{{fill:red}}</style>'
-            f'<path marker-end="url(#{sid}_pointEnd)"/><text>{word}</text></svg>')
-
-
-class Embed(unittest.TestCase):
-    def test_both_themes_replace_source(self):
-        out = build.embed(page(DIAGRAM + "<p>中間</p>" + DIAGRAM),
-                          [svg("m1", "淺1"), svg("m2", "淺2")], [svg("m3", "深1"), svg("m4", "深2")], FAKE_PANZOOM)
-        self.assertNotIn("flowchart", out)
-        self.assertEqual(out.count('<span class="dz-stage"><span data-theme="light"><svg'), 2)
-        self.assertEqual(out.count('<span data-theme="dark"><svg'), 2)
-        self.assertLess(out.index("淺1"), out.index("深1"))
-        self.assertLess(out.index("深1"), out.index("中間"))
-        self.assertLess(out.index("中間"), out.index("淺2"))
-        self.assertEqual(out.count("html.dz-lock"), 1)  # diagram.css 只放一次
-        # 縮放拖動：Panzoom 在前、diagram.js 在後，都在最後一張圖之後
-        self.assertLess(out.index("淺2"), out.index("window.Panzoom"))
-        self.assertLess(out.index("window.Panzoom"), out.index("Panzoom(stage"))
-        self.assertEqual(out.count("<script>"), 2)
-        self.assertTrue(out.endswith("</body></html>"))
-
-    def test_svg_ids_are_unique_and_internal_refs_follow(self):
-        # 兩次渲染撞到同一個 id：改名後各自的樣式和 marker 只指向自己
-        out = build.embed(page(DIAGRAM), [svg("mermaid-1", "淺")], [svg("mermaid-1", "深")], FAKE_PANZOOM)
-        self.assertNotIn("mermaid-1", out)
-        for t in ("light", "dark"):
-            sid = f"diagram-1-{t}"
-            self.assertIn(f'id="{sid}"', out)
-            self.assertIn(f"#{sid} .node", out)
-            self.assertIn(f"url(#{sid}_pointEnd)", out)
-
-    def test_keeps_start_tag_and_spelling(self):
-        out = build.embed(page('<PRE id="d" class="diagram  mermaid">flowchart TB\nA</PRE>'),
-                          [svg("a", "x")], [svg("b", "y")], FAKE_PANZOOM)
-        self.assertIn('<PRE id="d" class="diagram  mermaid"><span class="dz-stage"><span data-theme="light">', out)
-        self.assertIn("</span></span></PRE>", out)
-
-    def test_other_pre_untouched(self):
-        code = '<pre class="code">flowchart TB</pre>'
-        out = build.embed(page(code + DIAGRAM), [svg("a", "x")], [svg("b", "y")], FAKE_PANZOOM)
-        self.assertIn(code, out)
-
-    def test_count_mismatch_is_refused(self):
-        with self.assertRaises(ValueError):
-            build.embed(page(DIAGRAM + DIAGRAM), [svg("a", "x")], [svg("b", "y")], FAKE_PANZOOM)
-
-    def test_drawn_reads_svgs_in_order(self):
-        dom = page(DRAWN + '<pre class="code">x</pre>' + DRAWN.replace("開始", "結束"))
-        got = build.drawn(dom)
-        self.assertEqual(len(got), 2)
-        self.assertTrue(got[0].startswith("<svg") and "開始" in got[0] and "結束" in got[1])
-
-
-DRAWN = '<pre class="mermaid" data-processed="true"><svg id="m1"><g><text>開始</text></g></svg></pre>'
+BAR = '<span class="dz-bar"><button class="panzoom-exclude">+</button></span>'
+DRAWN = ('<pre class="mermaid" data-processed="true"><span class="dz-stage"><svg id="m1"><g><text>開始</text>'
+         '</g></svg></span>' + BAR + '</pre>')
 BROKEN = ('<pre class="mermaid" data-processed="true"><div id="dm2"><svg id="m2">'
           '<text class="error-text">Syntax error in text</text></svg></div></pre>')
 UNDRAWN = '<pre class="mermaid">\nflowchart TB\n  A --> B\n</pre>'
+NO_ZOOM = '<pre class="mermaid" data-processed="true"><svg id="m3"><text>開始</text></svg></pre>'
+
+
+def drawn(n=1):
+    return lambda out: page(DRAWN * n)
 
 
 class Render(unittest.TestCase):
@@ -199,7 +157,8 @@ class Render(unittest.TestCase):
     def test_unrelated_markup_is_fine(self):
         # 屬性順序、class 大小寫與多餘空白、svg 外多包一層、頁上文字提到語法錯誤
         dom = page('<p>Syntax error 是 Mermaid 的錯誤訊息</p>'
-                   '<PRE data-processed="true" class=" x  mermaid "><div><svg><text>甲</text></svg></div></PRE>'
+                   '<PRE data-processed="true" class=" x  mermaid "><div><svg><text>甲</text></svg></div>'
+                   '<span class=" dz-bar  x"></span></PRE>'
                    '<pre class="code">Syntax error</pre>')
         self.assertEqual(build.render_problems(dom, 1), [])
 
@@ -214,45 +173,40 @@ class Render(unittest.TestCase):
         self.assertIn("第 1 張", problems[0])
         self.assertIn("語法錯誤", problems[0])
 
+    def test_zoom_not_attached(self):
+        problems = build.render_problems(page(DRAWN + NO_ZOOM), 2)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("第 2 張", problems[0])
+        self.assertIn("縮放", problems[0])
+        # 按鈕列在 pre 外面不算
+        self.assertEqual(len(build.render_problems(page(NO_ZOOM + BAR), 1)), 1)
+
     def test_diagram_count_mismatch(self):
         self.assertEqual(len(build.render_problems(page(DRAWN), 2)), 1)
 
 
-def drawn_dom(n=1):
-    """假瀏覽器：照草稿裡的主題畫 n 張圖。"""
-    def render(draft):
-        theme = "dark" if 'theme: "dark"' in draft.read_text(encoding="utf-8") else "neutral"
-        return page(DRAWN.replace("開始", theme) * n)
-    return render
-
-
 class Cli(unittest.TestCase):
-    def run_main(self, name, html, *extra, render=drawn_dom()):
+    def run_main(self, name, html, *extra, render=drawn()):
         d = Path(tempfile.mkdtemp())
         src = d / name
         src.write_text(html, encoding="utf-8")
         code = build.main([str(src), *extra], load=fake_load, render=render)
         return code, d
 
-    def test_writes_static_page_without_src_suffix(self):
+    def test_writes_page_without_src_suffix(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM))
         self.assertEqual(code, 0)
-        out = (d / "m0.html").read_text(encoding="utf-8")
-        self.assertNotIn("window.mermaid", out)
-        self.assertIn("window.Panzoom", out)
-        self.assertIn('<span data-theme="light"><svg id="diagram-1-light"', out)
-        self.assertIn("neutral", out)
-        self.assertIn("dark", out)
+        self.assertIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
 
     def test_render_problem_fails_but_keeps_page(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: page(BROKEN))
         self.assertEqual(code, 1)
-        self.assertIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+        self.assertTrue((d / "m0.html").exists())
 
-    def test_no_browser_falls_back_to_inlined_mermaid(self):
+    def test_no_browser_fails(self):
         code, d = self.run_main("m0-src.html", page(DIAGRAM), render=lambda out: None)
         self.assertEqual(code, 1)
-        self.assertIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
+        self.assertTrue((d / "m0.html").exists())
 
     def test_no_diagram_skips_render(self):
         def boom(out):
@@ -260,14 +214,6 @@ class Cli(unittest.TestCase):
         code, d = self.run_main("m0-src.html", page("<p>沒有圖</p>"), render=boom)
         self.assertEqual(code, 0)
         self.assertEqual((d / "m0.html").read_text(encoding="utf-8"), page("<p>沒有圖</p>"))
-
-    def test_over_orca_remote_limit_fails_but_keeps_page(self):
-        big = page("<p>" + "字" * (build.ORCA_REMOTE_MAX // 3 + 1) + "</p>")
-        code, d = self.run_main("m0-src.html", big)
-        self.assertEqual(code, 1)
-        self.assertTrue((d / "m0.html").exists())
-        code, _ = self.run_main("m0-src.html", page("<p>" + "字" * (build.ORCA_REMOTE_MAX // 3 - 100) + "</p>"))
-        self.assertEqual(code, 0)
 
     def test_problems_write_nothing(self):
         code, d = self.run_main("m0-src.html", page('<script src="https://cdn.x/y.js"></script>'))
@@ -277,35 +223,21 @@ class Cli(unittest.TestCase):
     def test_refuses_to_overwrite_source(self):
         code, d = self.run_main("m0.html", page(DIAGRAM))
         self.assertEqual(code, 1)
-        self.assertIn("flowchart", (d / "m0.html").read_text(encoding="utf-8"))
+        self.assertNotIn("window.mermaid", (d / "m0.html").read_text(encoding="utf-8"))
 
 
 @unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")
 class RealBrowser(unittest.TestCase):
-    """用真的 Mermaid 和瀏覽器跑：錯誤圖示的樣子是 Mermaid 決定的，假 DOM 驗不到。"""
+    """用真的 Mermaid、Panzoom、diagram.js 和瀏覽器跑：錯誤圖示的樣子是 Mermaid 決定的，假 DOM 驗不到。"""
 
     def check(self, body, diagrams):
         d = Path(tempfile.mkdtemp())
         out = d / "p.html"
-        out.write_text(build.with_mermaid(page(body), build.load_npm(build.MERMAID)), encoding="utf-8")
+        out.write_text(build.build(page(body), build.load_npm), encoding="utf-8")
         return build.render_problems(build.render_dom(out), diagrams)
 
     def test_good_diagram_passes(self):
         self.assertEqual(self.check(DIAGRAM, 1), [])
-
-    def test_cli_writes_small_static_page(self):
-        d = Path(tempfile.mkdtemp())
-        src = d / "p-src.html"
-        src.write_text(page(DIAGRAM), encoding="utf-8")
-        self.assertEqual(build.main([str(src)]), 0)
-        out = (d / "p.html").read_text(encoding="utf-8")
-        self.assertNotIn("window.mermaid", out)
-        self.assertEqual(out.count("<svg"), 2)
-        self.assertLess(len(out.encode("utf-8")), build.ORCA_REMOTE_MAX)
-        # diagram.js 跑得起來：每張圖都掛上了按鈕列，四個按鈕
-        dom = build.render_dom(d / "p.html")
-        self.assertEqual(dom.count('class="dz-bar"'), 1)
-        self.assertEqual(dom.count('class="panzoom-exclude"'), 4)
 
     def test_broken_diagram_is_caught(self):
         broken = '<pre class="mermaid">\nflowchart TB\n  A["開始" --> \n</pre>'
