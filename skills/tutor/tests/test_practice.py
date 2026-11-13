@@ -20,7 +20,7 @@ spec.loader.exec_module(practice)
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 )
-GUIDE = '<html><body><h2 id="s1">§1 符號</h2><h3 id="s1-2">§1.2</h3><h2 id="s16">§16 Eg 1</h2><h2 id="s20">§20 A4</h2></body></html>'
+GUIDE = '<html><body><table class="types"><tr data-type="acf-read"><td>ACF</td></tr></table><h2 id="s1">§1 符號</h2><h3 id="s1-2">§1.2</h3><h2 id="s16">§16 Eg 1</h2><h2 id="s20">§20 A4</h2></body></html>'
 BODY = 'data-title="Topic 4 練習" data-key="isom3031-topic4" data-guide="guide.html" data-answers="ans.md"'
 
 
@@ -33,11 +33,13 @@ def drill(qid, text="這題用 t 還是 Z？"):
 
 
 DRILLS = drill("which-table") + drill("which-tail") + drill("critical-value")
-FULL = ('<section class="q" data-id="acf-seasonal" data-differs="有季節性沒有趨勢，Eg 1 有趨勢">'
-        '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p></section>')
+ONE = ('<section class="q" data-id="acf-seasonal" data-type="acf-read" data-differs="有季節性沒有趨勢，Eg 1 有趨勢">'
+       '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p></section>')
+TWO = ONE.replace("acf-seasonal", "acf-trend").replace("練習 1", "練習 2")
+FULL = ONE + TWO
 PANEL = ('<aside class="panel" data-label="查表"><figure data-tab="Z 表"><img src="z.png" data-zh="z.zh.png">'
          '<figcaption>Statistical Tables p.1</figcaption></figure></aside>')
-IDS = ["which-table", "which-tail", "critical-value", "acf-seasonal"]
+IDS = ["which-table", "which-tail", "critical-value", "acf-seasonal", "acf-trend"]
 
 
 def src(inner=None, body=BODY):
@@ -181,6 +183,39 @@ class DiffersRule(Case):
         self.assertRed(src(DRILLS + re.sub(r'data-differs="[^"]*"', 'data-differs="  "', FULL)), "data-differs")
 
 
+class TypeRule(Case):
+    """每題寫明練的是題型表的哪一列；每個題型至少兩題變式。"""
+    TYPES2 = GUIDE.replace("</table>", '<tr data-type="mad"><td>MAD</td></tr></table>')
+
+    def test_missing_type_fails(self):
+        self.assertRed(src(DRILLS + ONE.replace(' data-type="acf-read"', "") + TWO), "沒有 data-type")
+
+    def test_unknown_type_fails(self):
+        self.assertRed(src(DRILLS + ONE.replace("acf-read", "acf-raed") + TWO), "不在導讀頁的題型表裡")
+
+    def test_too_few_per_type_fails(self):
+        self.answers(IDS[:-1])
+        self.assertRed(src(DRILLS + ONE), "只有 1 題變式")
+
+    def test_originals_do_not_count(self):
+        self.assertRed(src(DRILLS + ONE + TWO.replace("有季節性沒有趨勢，Eg 1 有趨勢", "老師原題")), "只有 1 題變式")
+
+    def test_uncovered_type_fails(self):
+        (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
+        self.assertRed(src(), "'mad' 只有 0 題")
+
+    def test_one_question_can_cover_several_types(self):
+        (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
+        self.assertGreen(src(DRILLS + FULL.replace('data-type="acf-read"', "data-type='mad  acf-read'")))
+
+    def test_guide_without_types_fails(self):
+        (self.dir / "guide.html").write_text(GUIDE.replace(' data-type="acf-read"', ""), encoding="utf-8")
+        self.assertRed(src(), "題型表沒有 data-type")
+
+    def test_drills_need_no_type(self):
+        self.assertGreen(src())
+
+
 class NoAnswerRule(Case):
     def test_answer_blocks_fail(self):
         for leak in ('<details><summary>答案</summary>r4 顯著</details>', '<div class="calc">r = 0.4</div>',
@@ -241,7 +276,7 @@ class AnswersRule(Case):
 
     def test_question_missing_from_answers_fails(self):
         self.answers(IDS[:-1])
-        self.assertRed(src(), "acf-seasonal")
+        self.assertRed(src(), "acf-trend")
 
     def test_answer_format_free(self):
         (self.dir / "ans.md").write_text("# 答案\n" + "\n".join(f"### 練習（`{i}`）\n- a." for i in IDS), encoding="utf-8")
@@ -268,7 +303,7 @@ class Build(Case):
         out = self.page()
         pads = re.findall(r'<div class="pad" data-id="([^"]+)" data-h="(\d+)">', out)
         self.assertEqual([p[0] for p in pads], IDS)
-        self.assertEqual([p[1] for p in pads], ["280", "280", "280", "900"])
+        self.assertEqual([p[1] for p in pads], ["280", "280", "280", "900", "900"])
 
     def test_pad_sits_inside_its_section(self):
         out = self.page()

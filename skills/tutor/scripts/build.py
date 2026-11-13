@@ -52,6 +52,10 @@ REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 把讀者推去看別的 topic 的句子：前置知識要在原地從零教，把那一頁課件截過來
 PREREQ = re.compile(r"(Topic\s*\d+\s*(學過|教過|講過|的東西|的內容|已經)|見\s*Topic\s*\d|[上前]一?個\s*topic|"
                     r"之前(學|教|講)過|前面的\s*topic|上學期)", re.I)
+# 「不考」的說法：只有老師明示過才能寫，而且要寫在帶 data-evidence（出處）的元素裡
+NOT_EXAMINED = re.compile(r"(?<!考)不(?:會直接|會|用)?考(?![試慮量])|看懂就好")
+# 題型代號：題型表每一列一個，練習頁和模擬卷的題目用它對回題型
+SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 SENTENCE_END = re.compile(r"[。！？；!?]|\.(?=\s|$)")  # 英文句點後面要有空白，小數點不算
 # 句子在這些元素的邊界結束
 BLOCK = {"p", "li", "div", "h1", "h2", "h3", "h4", "summary", "dd", "dt", "caption", "td", "th", "section", "aside",
@@ -89,6 +93,8 @@ class Lint(HTMLParser):
         self.example = False  # 這個 h2/h3 塊裡，定義框之前有沒有用數字舉過例
         self.types = None  # 題目欄開頭的題型表提到的 §；None 表示沒有這張表
         self.problems_h2 = False  # 題目欄已經有 h2 了（題型表要在它前面）
+        self.type_row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
+        self.type_slugs = []  # 題型表每一列的 data-type
 
     def skipping(self) -> bool:
         return any(skip for _, skip, _ in self.stack)
@@ -192,6 +198,12 @@ class Lint(HTMLParser):
                     self.row["cells"] += 1
                 if tag == "a" and (a.get("href") or "").startswith("#"):
                     self.row["links"].append(a["href"][1:])
+        if tag == "tr" and self.types is not None and self.inside_class("types"):
+            self.type_row = {"slug": (a.get("data-type") or "").strip(), "cells": 0, "text": ""}
+        if tag == "td" and self.type_row is not None:
+            self.type_row["cells"] += 1
+        if (a.get("data-evidence") or "").strip():
+            cls = cls | {"@evidence"}  # 記在 stack 上：裡面的「不考」有出處
         if tag in VOID:
             self.closed(len(self.stack), cls, set())
         else:
@@ -232,6 +244,15 @@ class Lint(HTMLParser):
             self.in_heading = max(0, self.in_heading - 1)
         if tag == "tr":
             self.row = None
+            if self.type_row is not None and self.type_row["cells"]:
+                slug, what = self.type_row["slug"], " ".join(self.type_row["text"].split())[:20]
+                if not SLUG.match(slug):
+                    self.problems.append(f'題型表的「{what}」沒有 data-type：每一列寫一個英文小寫代號（例如 acf-read），'
+                                         "練習頁的題目用它對回這個題型")
+                elif slug in self.type_slugs:
+                    self.problems.append(f"題型表的 data-type={slug!r} 重複了：每個題型一個代號")
+                self.type_slugs.append(slug)
+            self.type_row = None
         if "def" in cls and self.defs:
             d = self.defs.pop()
             if d["dfn"] != 1:
@@ -278,6 +299,12 @@ class Lint(HTMLParser):
     def handle_data(self, data):
         if self.row is not None:
             self.row["text"] += data
+        if self.type_row is not None:
+            self.type_row["text"] += data
+        m = NOT_EXAMINED.search(data)
+        if m and not self.inside_class("@evidence"):
+            self.problems.append(f"「{m.group(0)}」沒有出處：沒有老師明示就當會考、照會考的規格教；"
+                                 '老師明示過的，寫在帶 data-evidence="檔名 p.頁碼或哪一次公告" 的元素裡')
         m = PREREQ.search(data)
         if m:
             self.problems.append(f"「{m.group(0)}」把讀者推去看別的 topic：前置知識要在原地從零教，"

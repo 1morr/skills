@@ -34,6 +34,9 @@ JS = ASSETS / "practice.js"
 BODY_ATTRS = ("data-title", "data-key", "data-guide", "data-answers")
 # 基本功小題至少幾題：每題只考一個判斷（用哪張表、哪一尾、df 多少），整題做錯時看不出錯在哪一步
 MIN_DRILLS = 3
+# 題型表的每個題型至少幾題變式（老師原題不算）：只做過一題，分不出是會了還是記得那一題
+MIN_PER_TYPE = 2
+ORIGINAL = "老師原題"
 # 畫布預設高度（畫布座標）；寫不下時讀者按「加長」
 PAD_H = {"drill": 280, "full": 900}
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
@@ -78,7 +81,7 @@ class Lint(HTMLParser):
             if self.inside("q"):
                 self.problems.append("題目裡又有題目（section.q 不能巢狀）")
             self.qs.append({"id": a.get("data-id") or "", "drill": "drill" in cls, "differs": (a.get("data-differs") or "").strip(),
-                            "title": "", "refs": [], "fills": 0})
+                            "title": "", "refs": [], "fills": 0, "types": (a.get("data-type") or "").split()})
             if a.get("data-h") is not None and not a["data-h"].strip().isdigit():
                 self.problems.append(f"data-h={a['data-h']!r} 要是整數：畫布的高度（畫布座標）")
         elif self.qs and self.inside("q"):
@@ -162,6 +165,12 @@ def guide_anchors(path: Path) -> set:
     return set(re.findall(r'\bid="(s\d+(?:-\d+)?)"', text))
 
 
+def guide_types(path: Path) -> list:
+    """導讀頁題型表每一列的 data-type，照表上的順序。"""
+    text = path.read_text(encoding="utf-8")
+    return [tag_attrs(m.group(0))["data-type"] for m in re.finditer(r"<tr\b[^>]*\bdata-type\s*=[^>]*>", text, re.I)]
+
+
 def anchor(ref: str) -> str:
     return "s" + ref.replace(".", "-")
 
@@ -210,11 +219,12 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
 
     guide = body.get("data-guide")
     refs = {r for q in p.qs for r in q["refs"]}
-    if guide and refs:
+    if guide:
         gpath = out_dir / guide
         if not gpath.is_file():
             problems.append(f"找不到導讀頁 {gpath}：data-guide 相對於產出的練習頁；先用 build.py 組好導讀頁")
         else:
+            problems += type_coverage(full, guide_types(gpath), guide)
             have = guide_anchors(gpath)
             bad = sorted((r for r in refs if anchor(r) not in have), key=lambda r: [int(x) for x in r.split(".")])
             if bad:
@@ -230,6 +240,25 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
             lost = [i for i in ids if i and i not in text]
             if lost:
                 problems.append(f"答案檔沒有這幾題：{'、'.join(lost)}。每題的答案標題寫上題目代號，批改時才對得上")
+    return problems
+
+
+def type_coverage(full: list, types: list, guide: str) -> list:
+    """每題寫明練的是題型表的哪幾列；每個題型的變式題數夠。"""
+    if not types:
+        return [f"導讀頁 {guide} 的題型表沒有 data-type：用現在的 build.py 重組導讀頁"]
+    problems = []
+    for q in full:
+        name = q["title"] or q["id"]
+        if not q["types"]:
+            problems.append(f"題目「{name}」沒有 data-type：寫它練的是題型表的哪一列（{'、'.join(types)}），可以寫好幾個，用空白分開")
+        for t in q["types"]:
+            if t not in types:
+                problems.append(f"題目「{name}」的 data-type={t!r} 不在導讀頁的題型表裡（{'、'.join(types)}）")
+    for t in types:
+        n = sum(t in q["types"] for q in full if not q["differs"].startswith(ORIGINAL))
+        if n < MIN_PER_TYPE:
+            problems.append(f"題型 {t!r} 只有 {n} 題變式，至少 {MIN_PER_TYPE} 題（{ORIGINAL}不算）：題型表上的每一種都要練到")
     return problems
 
 

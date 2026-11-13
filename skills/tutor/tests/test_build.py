@@ -28,7 +28,7 @@ CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 
 WHY_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 WHY = f'<div class="why"><p>F 是訊號除以雜訊，見 §1</p>{WHY_FIG}</div>'
 # 題目欄開頭的題型表：看到什麼 → 用什麼 → 示範題。題目欄第一段的 § 由 page() 算
-TYPES = '<table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table>'
+TYPES = '<table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr data-type="f-test"><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table>'
 # 定義框前面先用小數字舉例
 EG = '<p>先用 2, 4, 6 算一次：平均是 4。</p>'
 ORIGIN = '<table class="origin"><tr data-from="convention"><td>α = 0.05</td><td>慣例</td></tr></table>'
@@ -725,12 +725,55 @@ class TypesTableRule(unittest.TestCase):
     def test_formatting_variants_pass(self):
         variants = [
             '<p>先看這張表。</p>\n<TABLE CLASS="wide types" id="t"><caption>題型</caption><tr><th>看到</th></tr>'
-            '<tr><td>ANOVA</td><td>示範：§2、§2.1</td></tr></TABLE>',
+            '<tr DATA-TYPE = "f-test"><td>ANOVA</td><td>示範：§2、§2.1</td></tr></TABLE>',
             '<details open><summary>題型表</summary>' + TYPES.replace("{n}", "2") + "</details>",
         ]
         for types in variants:
             with self.subTest(types=types[:40]):
                 src = page(problems="<h2>例</h2><h3>甲</h3><p>題目</p>", types=types)
+                self.assertTrue(ok(src), build.lint(src))
+
+
+    ROW = '<tr data-type="{slug}"><td>ANOVA 表</td><td>F</td><td>§2</td></tr>'
+
+    def table(self, *slugs):
+        return '<table class="types">' + "".join(self.ROW.replace("{slug}", x) for x in slugs) + "</table>"
+
+    def test_row_without_type_fails(self):
+        self.assertFalse(ok(page(types=TYPES.replace("{n}", "2").replace(' data-type="f-test"', ""))))
+        self.assertFalse(ok(page(types=self.table("F 檢定"))))
+
+    def test_duplicate_type_fails(self):
+        self.assertFalse(ok(page(types=self.table("f-test", "f-test"))))
+
+    def test_several_types_pass(self):
+        src = page(types=self.table("f-test", "t-test", "r2"))
+        self.assertTrue(ok(src), build.lint(src))
+
+
+class NotExaminedRule(unittest.TestCase):
+    """「不考」要有老師明示的出處；沒有就當會考。"""
+
+    def test_claim_without_evidence_fails(self):
+        for text in ("這一塊不會直接考。", "推導不考。", "看懂就好。", "這頁不會考", "這段不用考"):
+            with self.subTest(text=text):
+                self.assertFalse(ok(page(course=f"<h2>課</h2><p>{text}</p>")))
+
+    def test_claim_with_evidence_passes(self):
+        variants = ['<p data-evidence="Course Outline p.2">老師說這頁不會考。</p>',
+                    "<table><tr DATA-EVIDENCE='10/31 公告'><td>p.7</td><td><b>不考</b></td></tr></table>"]
+        for v in variants:
+            with self.subTest(v=v[:30]):
+                src = page(course=f"<h2>課</h2>{v}")
+                self.assertTrue(ok(src), build.lint(src))
+
+    def test_blank_evidence_fails(self):
+        self.assertFalse(ok(page(course='<h2>課</h2><p data-evidence=" ">這頁不考。</p>')))
+
+    def test_unrelated_wording_passes(self):
+        for text in ("範圍：這個 topic 有什麼、考不考", "考試不用操作軟體。", "這頁會考：手算 r。", "不考慮季節時用這條。", "參考課本 p.3。"):
+            with self.subTest(text=text):
+                src = page(course=f"<h2>課</h2><p>{text}</p>")
                 self.assertTrue(ok(src), build.lint(src))
 
 
