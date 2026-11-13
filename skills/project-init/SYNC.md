@@ -21,7 +21,7 @@ repo 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md` 或 `.scr
 | --- | --- | --- |
 | 路線圖 | 沒有 `docs/roadmap.md` | plan 的里程碑章節與 progress 的里程碑表搬進 `<T>/roadmap.md` 的結構；plan 留架構，progress 留 session 紀錄；指令檔的開工指令改成 `docs/roadmap.md` |
 | 事實 | brief 有整節的外部事實 | 依主題搬進 `docs/research/`，每條給編號；brief 換成〈事實索引〉；原本的編號（例如 `F3`）沿用 |
-| 決策紀錄 | 沒有 `docs/decisions.md`，決定寫在 progress 的偏差段與 `docs/archive/` | 用腳本把 progress 與各封存檔的偏差逐條搬進 `<T>/decisions.md` 的〈紀錄〉，依日期排序，搬完逐行比對沒丟；超過 200 字元的照搬、不改寫。沒標決定者的：進行中里程碑的逐條補，看不出來的問使用者；已封存的標 `（Agent 定）` 並在開頭註明是搬移時補的。專案的檢查只擋搬移之後新增的行 |
+| 決策紀錄 | 沒有 `docs/decisions.md`，決定寫在 progress 的偏差段與 `docs/archive/` | 照 `<T>/decisions.md` 建檔。進行中里程碑的偏差搬進〈紀錄〉，逐條補決定者（看不出來的問使用者）、超過 200 字元的把細節留在票上並連過去。已封存的用腳本原樣搬進檔尾另一段 `## 搬移前的紀錄`，依日期排序、不改寫、不補決定者（檢查不管這一段，總覽頁照樣讀，決定者顯示「不明」），搬完逐行比對沒丟 |
 | 誰寫 progress | 指令檔要每張票改 `docs/progress.md` | 改成票留 `Session 紀錄：`、合併的人寫；`.gitattributes` 的 `docs/progress.md merge=union` 拿掉 |
 | 使用者試 | 驗收票沒有試用這一步 | 加 `docs/agents/milestone.md`，指令檔指向它；進行中里程碑的 spec 補〈使用者試〉 |
 | 使用者確認 | 指令檔沒有〈使用者確認〉 | 照範本加 |

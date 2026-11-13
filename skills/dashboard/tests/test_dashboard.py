@@ -141,6 +141,11 @@ class CollectTest(Repo):
                           ("2026-01-04", "M1", "使用者同意", "候選列一頁九個。"),
                           ("2026-01-02", "M0", "使用者定", "用 Rust 寫核心。細節在 ADR 0001。")])
 
+    def test_decisions_moved_from_an_older_format_are_read_too(self):
+        self.write("docs/decisions.md", DECISIONS + "\n## 搬移前的紀錄\n\n- 2025-12-30 框架：流程照另一個專案。\n")
+        last = self.collect()["decisions"][-1]
+        self.assertEqual((last["date"], last["milestone"], last["decider"], last["text"]), ("2025-12-30", "框架", "不明", "流程照另一個專案。"))
+
     def test_a_decision_without_a_decider_is_shown_as_unknown(self):
         self.sub("docs/decisions.md", "（使用者定）", "")
         self.assertEqual(self.collect()["decisions"][-1]["decider"], "不明")

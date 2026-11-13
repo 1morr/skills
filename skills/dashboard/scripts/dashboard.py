@@ -7,7 +7,7 @@
 讀的檔（project-init 的骨架；缺的列在頁面的「讀不到的檔」，其餘照樣顯示）：
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
-  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容
+  docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容；〈搬移前的紀錄〉（同步時從舊格式搬來的）也讀
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
@@ -129,7 +129,8 @@ def milestones(repo: Path) -> list:
 
 def decisions(repo: Path) -> list:
     out = []
-    for line in sections(read(repo / "docs/decisions.md")).get("紀錄", []):
+    secs = sections(read(repo / "docs/decisions.md"))
+    for line in secs.get("紀錄", []) + secs.get("搬移前的紀錄", []):
         m = DECISION.match(line)
         if not m:
             continue
