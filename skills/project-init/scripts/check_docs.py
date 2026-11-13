@@ -14,6 +14,8 @@
       後面可以接說明；以「進行中」開頭的最多一個
   docs/archive/*.md、docs/adr/
     - 封存檔有〈Session 紀錄〉段，並有〈決定〉或舊名〈偏差與決定〉；〈決定〉每條的格式同 decisions.md
+    - 用〈決定〉的封存檔還要有〈使用者試〉段，裡面至少一行字：使用者試了什麼、結果如何，或誰代測、哪幾項沒有人親手試過；
+      用舊名的封存檔不查
     - ADR 的檔名是 `NNNN-<小寫英數與連字號>.md`，第一行是 `# ` 標題；template.md、README.md 不查
   大小與寫法
     - 字元上限（Python `len`）：AGENTS.md 8,000、ARCHITECTURE.md 15,000、docs/progress.md 20,000、docs/design-brief.md 30,000；不存在的檔不查
@@ -190,6 +192,9 @@ def check_archive(root: Path) -> list:
             out.append(f"{rel}：缺〈{SESSIONS}〉段")
         if ARCHIVED in by_title:
             out += decision_lines(rel, ARCHIVED, by_title[ARCHIVED])
+            if not any(l.strip() for _, l in by_title.get(USER_TRIAL, [])):
+                out.append(f"{rel}：缺〈{USER_TRIAL}〉段，或段裡沒有字。寫使用者試了什麼、結果如何；代測的寫誰測、哪幾項沒有人親手試過；"
+                           f"沒有可試的寫「無」和理由")
         elif OLD_ARCHIVED not in by_title:
             out.append(f"{rel}：缺〈{ARCHIVED}〉段（這個里程碑沒有決定就留空段）")
     return out

@@ -75,7 +75,7 @@ argument-hint: "[專案一句話]"
 
 ## 5. 閘門
 
-1. 複製 `<S>/check_docs.py`、`<S>/check_commit_msg.py` 到專案的 `scripts/`；複製 `<X>/test_check_docs.py`、`<X>/test_check_commit_msg.py` 到 `scripts/tests/`。
+1. 複製 `<S>/check_docs.py`、`<S>/check_commit_msg.py`、`<S>/docs_moved_lines.py` 到專案的 `scripts/`；複製 `<X>/test_check_docs.py`、`<X>/test_check_commit_msg.py`、`<X>/test_docs_moved_lines.py` 到 `scripts/tests/`。
 2. `git config core.hooksPath .githooks`。
 3. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
 

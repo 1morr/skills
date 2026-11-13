@@ -123,7 +123,7 @@ class SkeletonContractTest(unittest.TestCase):
         self.write(".scratch/m0/issues/03-m0-acceptance.md", ticket("03", "M0 驗收", done=True))
         table = self.read("docs/progress.md").split(f"## {check_docs.SESSIONS}\n", 1)[1].strip()
         log = self.read("docs/decisions.md").split(f"## {check_docs.LOG}\n", 1)[1].strip()
-        self.write("docs/archive/M0.md", f"# M0 封存\n\n## {check_docs.SESSIONS}\n\n{table}\n\n## {check_docs.ARCHIVED}\n\n{log}\n")
+        self.write("docs/archive/M0.md", f"# M0 封存\n\n## {check_docs.SESSIONS}\n\n{table}\n\n## {check_docs.ARCHIVED}\n\n{log}\n\n## {check_docs.USER_TRIAL}\n\n- 啟動後打一個字：可以。\n")
         head = "\n".join(table.split("\n")[:2])
         self.write("docs/progress.md", self.read("docs/progress.md").replace(table, head + "\n| 2026-01-05 | M1 準備 | M0 已驗收並封存 | 新 session 下 `/1morr:checkpoint M0` |"))
         self.write("docs/decisions.md", self.read("docs/decisions.md").replace(log, "- 2026-01-05 M1（使用者定）：下一個先做核心。"))

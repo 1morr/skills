@@ -282,7 +282,7 @@ class MilestoneStateTest(Repo):
 
 
 class ArchiveTest(Repo):
-    ARCHIVE = "# M0\n\n## Session 紀錄\n\n| 日期 | 票 | 結果 | 下一步 |\n| --- | --- | --- | --- |\n| 2026-01-01 | M0 01 | 做完 | 舊列的下一步不查，長度也不查：%s |\n\n## 決定\n\n- 2026-01-01 M0（使用者定）：用 Rust。\n" % ("長" * 300)
+    ARCHIVE = "# M0\n\n## Session 紀錄\n\n| 日期 | 票 | 結果 | 下一步 |\n| --- | --- | --- | --- |\n| 2026-01-01 | M0 01 | 做完 | 舊列的下一步不查，長度也不查：%s |\n\n## 決定\n\n- 2026-01-01 M0（使用者定）：用 Rust。\n\n## 使用者試\n\n- 啟動後打一個字：可以。\n" % ("長" * 300)
 
     def setUp(self):
         super().setUp()
@@ -303,8 +303,19 @@ class ArchiveTest(Repo):
                 self.write("docs/archive/M0.md", self.ARCHIVE.replace(old, new))
                 self.red(needle)
 
+    def test_archive_without_the_user_trial(self):
+        for old, new in (("## 使用者試\n\n- 啟動後打一個字：可以。\n", ""), ("- 啟動後打一個字：可以。\n", ""), ("## 使用者試", "### 使用者試")):
+            with self.subTest(old=old, new=new):
+                self.write("docs/archive/M0.md", self.ARCHIVE.replace(old, new))
+                self.red("docs/archive/M0.md：缺〈使用者試〉段")
+
+    def test_how_the_user_trial_is_written_and_where_it_sits_do_not_matter(self):
+        body = self.ARCHIVE.split("## 使用者試")[0]
+        self.write("docs/archive/M0.md", "# M0\n\n## 使用者試\n\n代測：使用者不在，四個平台都由 agent 測，沒有人聽過聲音。\n\n" + body.split("# M0\n\n", 1)[1])
+        self.clean()
+
     def test_the_old_section_name_and_extra_sections_are_left_alone(self):
-        self.write("docs/archive/M0.md", self.ARCHIVE.replace("## 決定\n\n- 2026-01-01 M0（使用者定）：用 Rust。", "## 偏差與決定\n\n- 2026-01-01 沒有決定者也很長：%s\n  - 還有子項。\n\n## plan §11\n\n舊的範圍。" % ("長" * 300)))
+        self.write("docs/archive/M0.md", self.ARCHIVE.split("## 使用者試")[0].replace("## 決定\n\n- 2026-01-01 M0（使用者定）：用 Rust。", "## 偏差與決定\n\n- 2026-01-01 沒有決定者也很長：%s\n  - 還有子項。\n\n## plan §11\n\n舊的範圍。" % ("長" * 300)))
         self.clean()
 
     def test_other_files_in_archive_are_not_checked(self):
