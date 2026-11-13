@@ -49,11 +49,16 @@ def ans(inner, summary=True):
 
 
 def close_sections(body, recap):
-    """每個 h2 段落結尾補上總結（題目欄最後一段是 recap 就不補），讓其他規則的測試只管自己那條。"""
+    """讓其他規則的測試只管自己那條：課件欄每個 h2 底下補「這頁重點」、結尾補自測；
+    題目欄每個 h2 段落結尾補總結，最後接 recap。"""
     starts = [m.start() for m in re.finditer(r"<h2[\s>]", body, re.I)]
+    tail = SUMMARY if recap else CHECK
     for pos in reversed(starts[1:]):
-        body = body[:pos] + SUMMARY + body[pos:]
-    return body + (SUMMARY if starts else "") + (RECAP if recap else "")
+        body = body[:pos] + tail + body[pos:]
+    body += tail if starts else ""
+    if recap:
+        return body + RECAP
+    return re.sub(r"(<h2\b.*?</h2\s*>)", lambda m: m.group(1) + SUMMARY, body, flags=re.I | re.S)
 
 
 def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close=True, head="", tail="",
@@ -112,7 +117,7 @@ class PaneRule(unittest.TestCase):
 
     def test_formatting_variants_pass(self):
         src = ('<html><body data-pages="Cover p.1">\n  <!-- 左欄 -->\n'
-               f'<SECTION CLASS="pane course" id="c"><h1>Topic 4</h1>{COVER}<section><h2>課</h2><p>內容</p>{SUMMARY}</section></SECTION>\n'
+               f'<SECTION CLASS="pane course" id="c"><h1>Topic 4</h1>{COVER}<section><h2>課</h2>{SUMMARY}<p>內容</p>{CHECK}</section></SECTION>\n'
                f'<section data-x="1" class="problems wide">{TYPES.replace("{n}", "2")}<section>{PROBLEMS}{SUMMARY}</section>{RECAP}</section>'
                '<script>console.log(1)</script></body></html>')
         self.assertTrue(ok(src), build.lint(src))
@@ -435,50 +440,94 @@ class DefRule(unittest.TestCase):
                 self.assertTrue(ok(self.body(d)), build.lint(self.body(d)))
 
 
-class SummaryRule(unittest.TestCase):
-    """每個 h2 段落以 .summary 結尾（題目欄可以是 details.answer 的最後一塊）；最後一段是 h2.recap。"""
+GOOD = f"<h2>一</h2>{SUMMARY}<p>內容</p>{CHECK}"  # 課件欄合格的一段：開頭重點、結尾自測
 
-    def raw(self, course, problems):
+
+class SummaryRule(unittest.TestCase):
+    """題目欄每個 h2 段落以 .summary 結尾（可以是 details.answer 的最後一塊）；最後一段是 h2.recap。"""
+
+    def raw(self, problems, course=GOOD):
         return page(course, problems, close=False)  # 兩欄都照寫，不補總結
 
     def test_section_without_summary_fails(self):
-        self.assertFalse(ok(self.raw("<h2>一</h2><p>內容</p>", f"<h2>例</h2>{SUMMARY}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2><p>題目</p>{RECAP}")))
 
     def test_summary_not_last_fails(self):
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}<h3>後面</h3><p>還有</p>", f"<h2>例</h2>{SUMMARY}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2>{SUMMARY}<p>還有</p>{RECAP}")))
 
     def test_summary_only_in_next_section_fails(self):
-        self.assertFalse(ok(self.raw("<h2>一</h2><p>內容</p>", f"<h2>二</h2>{SUMMARY}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2><p>題目</p><h2>二</h2>{SUMMARY}{RECAP}")))
 
     def test_missing_recap_fails(self):
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{SUMMARY}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2>{SUMMARY}")))
 
     def test_recap_not_last_fails(self):
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"{RECAP}<h2>例</h2>{SUMMARY}")))
+        self.assertFalse(ok(self.raw(f"{RECAP}<h2>例</h2>{SUMMARY}")))
 
     def test_answer_without_summary_fails(self):
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{ans('<p>答</p>', summary=False)}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2>{ans('<p>答</p>', summary=False)}{RECAP}")))
 
     def test_summary_not_last_in_answer_fails(self):
         folded = f'<details class="answer"><summary>答案</summary>{SUMMARY}<p>還有</p></details>'
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{folded}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2>{folded}{RECAP}")))
 
     def test_summary_in_plain_details_fails(self):
         folded = f'<details><summary>延伸</summary>{SUMMARY}</details>'
-        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}", f"<h2>例</h2>{folded}{RECAP}")))
+        self.assertFalse(ok(self.raw(f"<h2>例</h2>{folded}{RECAP}")))
 
     def test_formatting_variants_pass(self):
         variants = [
-            (f"<h2>一</h2><p>內容</p>{SUMMARY}", f"<h2>例</h2>{SUMMARY}{RECAP}"),
-            (f'<h2>一</h2><p>內容</p><SECTION CLASS="x summary"><p>記住</p></SECTION>\n  <!-- 註解 -->\n',
-             f"<h2>例</h2>{ans('<p>答</p>')}\n<!-- 註解 -->\n{RECAP}"),
-            (f'<H2 id="a">一</H2>{SUMMARY}',
-             f'<h2>例</h2><DETAILS CLASS="answer"><summary>答</summary><div>x</div>'
-             f'<ASIDE class="summary y"><p>記住</p></ASIDE>\n</DETAILS><h2 class="x recap" id="r">總結</h2><p>判斷表</p>'),
+            f"<h2>例</h2>{SUMMARY}{RECAP}",
+            f"<h2>例</h2>{ans('<p>答</p>')}\n<!-- 註解 -->\n{RECAP}",
+            f'<h2>例</h2><DETAILS CLASS="answer"><summary>答</summary><div>x</div>'
+            f'<ASIDE class="summary y"><p>記住</p></ASIDE>\n</DETAILS><h2 class="x recap" id="r">總結</h2><p>判斷表</p>',
         ]
-        for course, problems in variants:
+        for problems in variants:
             with self.subTest(problems=problems[:40]):
-                src = self.raw(course, problems)
+                src = self.raw(problems)
+                self.assertTrue(ok(src), build.lint(src))
+
+
+class CourseSectionRule(unittest.TestCase):
+    """課件欄每個 h2：開頭（第一個 h3 之前）放「這頁重點」，最後一塊是摺起來的自測。"""
+    P = f"<h2>例</h2>{SUMMARY}{RECAP}"
+
+    def raw(self, course):
+        return page(course, self.P, close=False)
+
+    def test_good_section_passes(self):
+        src = self.raw(GOOD)
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_no_key_points_fails(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2><p>內容</p>{CHECK}")))
+
+    def test_key_points_after_first_h3_fails(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2><h3>甲</h3><p>內容</p>{SUMMARY}{CHECK}")))
+
+    def test_key_points_only_in_previous_section_fails(self):
+        self.assertFalse(ok(self.raw(f"{GOOD}<h2>二</h2><p>內容</p>{CHECK}")))
+
+    def test_no_check_fails(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}<p>內容</p>")))
+
+    def test_check_not_last_fails(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}{CHECK}<p>還有</p>")))
+
+    def test_plain_details_is_not_a_check(self):
+        self.assertFalse(ok(self.raw(f"<h2>一</h2>{SUMMARY}<details><summary>延伸</summary><p>x</p></details>")))
+
+    def test_formatting_variants_pass(self):
+        variants = [
+            f'<H2 id="a">一（講義 p.3）</H2>\n<details><summary>看整頁</summary><p>x</p></details>'
+            f'<SECTION CLASS="x summary"><p>重點</p></SECTION><h3>甲</h3><p>內容</p>{CHECK}{CHECK}\n<!-- 註解 -->\n',
+            f"<h2>一</h2>{SUMMARY}<h3>甲</h3>{CHECK}<h3>乙</h3><p>內容</p>"
+            '<DETAILS open CLASS="wide check"><summary>算 r</summary><div class="calc"><p class="formula">r = 1 / 2</p>'
+            '<p class="subst">= 0.5</p></div></DETAILS>',
+        ]
+        for course in variants:
+            with self.subTest(course=course[:40]):
+                src = self.raw(course)
                 self.assertTrue(ok(src), build.lint(src))
 
 
@@ -778,7 +827,7 @@ class NotExaminedRule(unittest.TestCase):
 
 
 class KindRule(unittest.TestCase):
-    """data-problems="text"：文科題目欄不用「數字從哪來」，可以放摺起來的自測；calc（預設）照舊。"""
+    """data-problems="text"：文科題目欄不用「數字從哪來」；calc（預設）照舊。"""
     SHEET = '<div class="sheet"><p>Answer: the Treaty of 1842.</p></div>'
 
     def test_unknown_kind_fails(self):
@@ -795,24 +844,22 @@ class KindRule(unittest.TestCase):
     def test_text_sheet_still_folded(self):
         self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}{self.SHEET}{SUMMARY}", kind="text")))
 
-    def test_text_allows_folded_check(self):
-        src = prob(f"<h2>一</h2>{CHECK}", kind="text")
-        self.assertTrue(ok(src), build.lint(src))
+    def test_both_kinds_allow_folded_check(self):
+        for kind in ("text", "calc", ""):
+            with self.subTest(kind=kind):
+                src = prob(f"<h2>一</h2>{CHECK}", kind=kind)
+                self.assertTrue(ok(src), build.lint(src))
 
     def test_text_still_forbids_inputs(self):
         self.assertFalse(ok(prob('<h2>一</h2><input type="text">', kind="text")))
 
     def test_calc_kind_explicit_behaves_as_default(self):
         self.assertFalse(ok(prob(f"<h2>一</h2>{WHY}" + ans(self.SHEET), kind="calc")))
-        self.assertFalse(ok(prob(f"<h2>一</h2>{CHECK}", kind="calc")))
         src = prob(f"<h2>一</h2>{WHY}" + ans(ORIGIN + CALC), kind="calc")
         self.assertTrue(ok(src), build.lint(src))
 
 
 class ExerciseRule(unittest.TestCase):
-    def test_check_fails(self):
-        self.assertFalse(ok(page("<h2>一</h2>" + CHECK)))
-
     def test_input_fails(self):
         self.assertFalse(ok(prob('<h2>一</h2><input type="text">')))
 

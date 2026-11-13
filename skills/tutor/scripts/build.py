@@ -24,7 +24,7 @@ PER_SECTION = 2000
 MAX_SENTENCE = 50
 # 題目欄每一題最多連到課件欄幾段：用到的定義和公式要在題目旁邊原地再寫一次，不叫讀者跳來跳去
 MAX_CROSS = 3
-# 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子，可以放摺起來的自測）
+# 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
 KINDS = ("calc", "text")
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
@@ -138,8 +138,8 @@ class Lint(HTMLParser):
                 self.problems.append(f"圖片 {a.get('src', '')!r} 不在 <figure> 裡：每張圖都要有寫出處的 figcaption")
             elif a.get("data-zh"):
                 self.figures[-1]["zh"] = True
-        if tag in ("input", "textarea", "select") or (tag == "details" and "check" in cls and self.kind != "text"):
-            self.problems.append(f"導讀頁不能有練習（<{tag}>）：練習放練習頁，用 practice.py 組")
+        if tag in ("input", "textarea", "select"):
+            self.problems.append(f'導讀頁不能有輸入框（<{tag}>）：自測用 <details class="check">，整題的練習放練習頁')
         if tag in BLOCK:
             self.end_sentence()
         if tag in ("h2", "h3"):
@@ -176,11 +176,14 @@ class Lint(HTMLParser):
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
                                   "figs": set(), "calcs": set(), "rows": [], "h3": 0, "why_refs": [], "calc_first": False,
                                   "pane": self.pane(), "depth": len(self.stack), "last": set(),
-                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "why_fig": False, "done": False})
+                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "why_fig": False, "done": False,
+                                  "keys": False})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
+            if "summary" in cls and not sec["h3"]:
+                sec["keys"] = True  # 課件欄：重點放在這一頁的開頭，第一個 h3 之前
             if "calc" in cls and not sec["origin"]:
                 sec["calc_first"] = True  # 題目欄要先列出要用的數字從哪來，再代公式
             sec["origin"] |= "origin" in cls
@@ -389,9 +392,16 @@ def lint(src: str) -> list:
                 problems.append(f"§「{title}」的「數字從哪來」表排在算式後面：先列出要用的數字從哪來，再代公式，"
                                 "讀者算到那一步時才知道每個數字的來源")
         ends = "summary" in sec["last"] or ("answer" in sec["last"] and "summary" in sec["last_inner"])
-        if not sec["recap"] and not ends:
-            problems.append(f'§「{title}」最後一塊不是 class="summary" 的「這段記住」：每段結尾都要有總結'
-                            "（題目欄可以放在 details.answer 的最後）")
+        if sec["pane"] == "course":
+            if not sec["keys"]:
+                problems.append(f'§「{title}」開頭沒有 class="summary" 的「這頁重點」：放在 h2 底下、第一個 h3 之前，'
+                                "讀者先看到要帶走什麼，再讀細節")
+            if "check" not in sec["last"]:
+                problems.append(f'§「{title}」最後一塊不是 <details class="check"> 的自測：每一頁講完讓讀者自己算一次或答一次，'
+                                "問題寫在 <summary>，答案摺在裡面")
+        elif not sec["recap"] and not ends:
+            problems.append(f'§「{title}」最後一塊不是 class="summary" 的「這題記住」：每題結尾都要有總結'
+                            "（可以放在 details.answer 的最後）")
         for row in sec["rows"]:
             if not row["cells"]:  # 表頭
                 continue

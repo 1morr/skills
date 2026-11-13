@@ -87,7 +87,8 @@ div.tr p { margin: .3rem 0; }
 .def dfn { font-style: normal; font-weight: 700; color: var(--accent); }
 .def .test::before { content: "怎樣才算："; font-weight: 700; }
 .summary { background: var(--sum-bg); border: 1px solid var(--sum-line); }
-.summary::before { content: "這段記住"; color: var(--sum-ink); }
+.summary::before { content: "這題記住"; color: var(--sum-ink); }
+section.course .summary::before { content: "這頁重點"; }
 .summary ul, .summary ol { margin: .2rem 0; }
 .why, .trap { margin: 1.2rem 0; }
 .why::before { content: "為什麼"; color: var(--muted); }
@@ -160,6 +161,8 @@ details.answer > :not(summary), details.check > :not(summary) { margin-left: 1re
 details.answer > :last-child, details.check > :last-child { margin-bottom: 1rem; }
 details.answer table, details.check table { max-width: calc(100% - 2rem); }
 details.check > summary { font-weight: 500; color: var(--fg); }
+details.check > summary::after { content: "（先自己做，再打開對）"; color: var(--muted); font-weight: 400; font-size: .9rem; }
+details.check[open] > summary::after { content: none; }
 details.toc { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: .35rem 0; margin: 1.5rem 0; }
 details.toc > summary { color: var(--muted); font-size: .92rem; }
 details.toc ol { list-style: none; padding-left: 1.2rem; margin: .4rem 0 .5rem; font-size: .92rem; line-height: 1.7; }
