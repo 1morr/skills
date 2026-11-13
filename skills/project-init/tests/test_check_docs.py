@@ -359,8 +359,12 @@ class ScratchTest(Repo):
         self.clean()
 
     def test_milestone_without_acceptance_ticket(self):
-        (self.root / ".scratch/m1/issues/02-m1-acceptance.md").rename(self.root / ".scratch/m1/issues/02-m1-close.md")
+        (self.root / ".scratch/m1/issues/02-m1-acceptance.md").rename(self.root / ".scratch/m1/issues/02-m1-wrap-up.md")
         self.red("沒有驗收票")
+
+    def test_a_close_ticket_counts_as_the_acceptance_ticket(self):
+        (self.root / ".scratch/m1/issues/02-m1-acceptance.md").rename(self.root / ".scratch/m1/issues/02-m1-close.md")
+        self.clean()
 
     def test_effort_that_is_not_a_milestone_needs_no_acceptance_ticket(self):
         self.write(".scratch/docs-cleanup/spec.md", SPEC)

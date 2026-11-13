@@ -19,7 +19,7 @@
       不是 git repo 就不查
   .scratch/
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
-    - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
+    - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票（早期專案叫收尾票的 -close.md 也算）
     - 每張票在第一個 `##` 之前有一行 `Status:`
     - roadmap.md 標「進行中」的里程碑（表的第一欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
       有一行以 `Session 紀錄：` 開頭，以 `決定：` 開頭的行都標一個決定者；spec 的〈驗收〉底下有 `### 使用者試`
@@ -59,6 +59,7 @@ STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
 DONE = re.compile(r"^\**Status:?\**:?\s*done\b", re.I)
 SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
 ACCEPTANCE, USER_TRIAL = "驗收", "使用者試"
+ACCEPTANCE_SUFFIXES = ("-acceptance.md", "-close.md")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 
@@ -258,7 +259,7 @@ def check_scratch(root: Path) -> list:
                 if not any(re.match(rf"###\s*{USER_TRIAL}", l) for _, l in body):
                     out.append(f"{rel}/spec.md：〈{ACCEPTANCE}〉底下要有 `### {USER_TRIAL}`：使用者親手試什麼、怎麼啟動；沒有就寫「無」和理由")
         tickets = sorted((d / "issues").glob("*.md"))
-        if MILESTONE_DIR.match(d.name) and not any(t.name.endswith("-acceptance.md") for t in tickets):
+        if MILESTONE_DIR.match(d.name) and not any(t.name.endswith(ACCEPTANCE_SUFFIXES) for t in tickets):
             out.append(f"{rel}/issues/：沒有驗收票（檔名以 -acceptance.md 結尾），它是里程碑的最後一張票")
         for t in tickets:
             text = t.read_text(encoding="utf-8")
