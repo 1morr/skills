@@ -32,6 +32,7 @@ M0 的第一張票要交付：
 
 - `docs/development.md`〈全部檢查〉補上這個技術棧的 lint、format、typecheck 與 test，跑在 pre-commit 與 CI（`.github/workflows/ci.yml`）。
 - §1.3 依賴規則的強制工具與它的測試。
+- 幾張票能在各自的 worktree 同時跑全部檢查：測試用的埠、暫存目錄、資料庫不寫死；進版控的生成物（型別檔、資料包）由全部檢查重新產生並比對。
 
 已經就位（project-init 建的）：`scripts/check_docs.py`（progress、spec、票的格式）、`scripts/check_commit_msg.py` 與 commit-msg hook。
 

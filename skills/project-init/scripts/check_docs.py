@@ -6,7 +6,7 @@
   progress.md
     - `##` 段依序各一次：寫法與封存、Session 紀錄、偏差與決定
     - 〈Session 紀錄〉整段是一張表（表外沒有別的字），每列不超過 200 字元
-    - 最後一列的「下一步」給得出指令（含 `/…` 的行內程式碼），或以「等使用者：」開頭，或是「由協調者決定」
+    - 最後一列的「下一步」給得出指令（含 `/…` 的行內程式碼），或以「等使用者：」開頭
     - 〈偏差與決定〉每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元、標一個決定者：（使用者定）（使用者同意）（Agent 定）
   roadmap.md
     - 有〈里程碑〉段，裡面的表有「狀態」欄，狀態以「進行中」開頭的最多一個
@@ -20,6 +20,8 @@
     - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
     - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票
     - 每張票在第一個 `##` 之前有一行 `Status:`
+    - roadmap.md 標「進行中」的里程碑（表的第一欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
+      有一行以 `Session 紀錄：` 開頭
 只用標準函式庫。
 """
 
@@ -43,7 +45,6 @@ PROGRESS_SECTIONS = ("寫法與封存", SESSIONS, DEVIATIONS)
 SPEC_SECTIONS = ("目標", "範圍", "共同規則", "驗收", "票序")
 MAX_CHARS = 200
 WAITING = "等使用者："
-COORDINATOR = "由協調者決定"
 ACTIVE = "進行中"
 
 COMMAND = re.compile(r"`/[^`\s][^`]*`")
@@ -52,6 +53,8 @@ DECIDERS = ("使用者定", "使用者同意", "Agent 定")
 DECIDER = re.compile("（(?:%s)）" % "|".join(DECIDERS))
 MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$")
 STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
+DONE = re.compile(r"^\**Status:?\**:?\s*done\b", re.I)
+SESSION_NOTE = "Session 紀錄："
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 
@@ -123,9 +126,9 @@ def check_progress(text: str) -> list:
         else:
             n, last = rows[-1]
             step = last[head.index("下一步")] if len(last) > head.index("下一步") else ""
-            if not (COMMAND.search(step) or step.startswith(WAITING) or step.startswith(COORDINATOR)):
+            if not (COMMAND.search(step) or step.startswith(WAITING)):
                 out.append(f"{PROGRESS}:{n}：最後一列的「下一步」要給下一個 session 的完整指令（寫成 `/指令 …`），"
-                           f"或以「{WAITING}」開頭，或寫「{COORDINATOR}」")
+                           f"或以「{WAITING}」開頭")
 
     if DEVIATIONS in by_title:
         for n, l in by_title[DEVIATIONS]:
@@ -140,20 +143,33 @@ def check_progress(text: str) -> list:
     return out
 
 
-def check_roadmap(text: str) -> list:
+def active_milestones(text: str):
+    """(進行中的列, 違規)：〈里程碑〉表裡狀態以「進行中」開頭的列。"""
     by_title = {}
     for title, lines in sections(text):
         by_title.setdefault(title, lines)
     if MILESTONES not in by_title:
-        return [f"{ROADMAP}：缺〈{MILESTONES}〉段"]
+        return [], [f"{ROADMAP}：缺〈{MILESTONES}〉段"]
     head, rows = table(by_title[MILESTONES])
     if STATE not in head:
-        return [f"{ROADMAP}：〈{MILESTONES}〉的表要有「{STATE}」欄"]
+        return [], [f"{ROADMAP}：〈{MILESTONES}〉的表要有「{STATE}」欄"]
     i = head.index(STATE)
-    active = [r for _, r in rows if len(r) > i and r[i].startswith(ACTIVE)]
+    return [r for _, r in rows if len(r) > i and r[i].startswith(ACTIVE)], []
+
+
+def check_roadmap(text: str) -> list:
+    active, out = active_milestones(text)
     if len(active) > 1:
-        return [f"{ROADMAP}：有 {len(active)} 個里程碑的狀態以「{ACTIVE}」開頭，最多一個"]
-    return []
+        out.append(f"{ROADMAP}：有 {len(active)} 個里程碑的狀態以「{ACTIVE}」開頭，最多一個")
+    return out
+
+
+def active_dirs(root: Path) -> set:
+    """進行中里程碑的目錄名：表的第一欄第一個詞的小寫（`M1.5 媒體庫` → `m1.5`）。"""
+    if not (root / ROADMAP).is_file():
+        return set()
+    active, _ = active_milestones((root / ROADMAP).read_text(encoding="utf-8"))
+    return {r[0].split()[0].lower() for r in active if r and r[0].split()}
 
 
 def check_budgets(root: Path) -> list:
@@ -212,6 +228,7 @@ def check_scratch(root: Path) -> list:
     base = root / SCRATCH
     if not base.is_dir():
         return out
+    active = active_dirs(root)
     for d in sorted(p for p in base.iterdir() if (p / "issues").is_dir()):
         rel = f"{SCRATCH}/{d.name}"
         spec = d / "spec.md"
@@ -226,9 +243,14 @@ def check_scratch(root: Path) -> list:
         if MILESTONE_DIR.match(d.name) and not any(t.name.endswith("-acceptance.md") for t in tickets):
             out.append(f"{rel}/issues/：沒有驗收票（檔名以 -acceptance.md 結尾），它是里程碑的最後一張票")
         for t in tickets:
-            head = t.read_text(encoding="utf-8").split("\n## ")[0]
-            if not any(STATUS.match(line) for line in head.split("\n")):
+            text = t.read_text(encoding="utf-8")
+            head = text.split("\n## ")[0].split("\n")
+            if not any(STATUS.match(line) for line in head):
                 out.append(f"{rel}/issues/{t.name}：第一個 ## 之前要有一行 `Status:`")
+            elif d.name in active and any(DONE.match(line) for line in head):
+                comments = text.split("\n## Comments", 1)
+                if len(comments) < 2 or not any(l.startswith(SESSION_NOTE) for l in comments[1].split("\n")):
+                    out.append(f"{rel}/issues/{t.name}：做完的票要在 `## Comments` 之後留一行「{SESSION_NOTE}<做了什麼>」，合併的人照它寫 progress.md")
     return out
 
 

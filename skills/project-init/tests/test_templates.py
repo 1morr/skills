@@ -3,7 +3,7 @@
     python -m unittest discover -s skills/project-init/tests
 
 - 填好的骨架通得過 check_docs.py。
-- 範本的票改成 done、勾完驗收，通得過協調者的 orca/scripts/merge-ticket.sh；沒做完的被擋。
+- 範本的票改成 done、勾完驗收、留了 Session 紀錄，通得過協調者的 orca/scripts/merge-ticket.sh 與 check_docs.py；沒做完的被擋。
 - check_commit_msg.py 和 merge-ticket.sh 收同一組 commit type。
 - 範本裡沒有留給模型刪、卻不在清單上的佔位。
 - docs/agents/ 的三個範本和這台機器裝的 mattpocock-skills 種子範本沒有走樣（沒裝就跳過）。
@@ -89,7 +89,7 @@ class SkeletonTest(unittest.TestCase):
     def test_instruction_sections_the_other_skills_read(self):
         text = fill("instructions.md")
         for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/1morr:checkpoint", "/1morr:ticket-coordinator",
-                       "完成標準", "NN-<里程碑>-acceptance", "由協調者決定"):
+                       "完成標準", "NN-<里程碑>-acceptance", check_docs.SESSION_NOTE):
             self.assertIn(needle, text)
 
 
@@ -158,7 +158,7 @@ class MergeTicketTest(unittest.TestCase):
         self.git(self.repo, "init", "-q", "-b", "main")
         (self.repo / "docs").mkdir()
         (self.repo / "docs/progress.md").write_text(fill("progress.md"), encoding="utf-8")
-        (self.repo / "docs/roadmap.md").write_text(fill("roadmap.md"), encoding="utf-8")
+        (self.repo / "docs/roadmap.md").write_text(fill("roadmap.md").replace("| 未開工。", "| 進行中。"), encoding="utf-8")
         ticket = self.repo / self.TICKET
         ticket.parent.mkdir(parents=True)
         ticket.write_text(fill("ticket.md"), encoding="utf-8")
@@ -176,18 +176,16 @@ class MergeTicketTest(unittest.TestCase):
         self.git(cwd, "commit", "-q", "-m", message)
 
     def merge(self):
-        env = dict(os.environ, REQUIRE="docs/progress.md", BASE="main", GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
+        env = dict(os.environ, REQUIRE="", BASE="main", GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
         return subprocess.run(["bash", str(MERGE), str(self.repo), str(self.work), self.TICKET, "merge: ticket 01 gates"],
                               env=env, capture_output=True, text=True)
 
-    def finish(self, status="done", check=True, progress=True, message="feat: add the check gate"):
+    def finish(self, status="done", check=True, note=True, message="feat: add the check gate"):
         t = self.work / self.TICKET
         text = t.read_text(encoding="utf-8").replace("Status: ready-for-agent", f"Status: {status}")
-        t.write_text(text.replace("- [ ]", "- [x]") if check else text, encoding="utf-8")
-        if progress:
-            p = self.work / "docs/progress.md"
-            p.write_text(p.read_text(encoding="utf-8").replace("\n## 偏差與決定", "| 2026-01-03 | M0 01 | 閘門就位 | 由協調者決定 |\n\n## 偏差與決定"), encoding="utf-8")
+        text = text.replace("- [ ]", "- [x]") if check else text
+        t.write_text(text + ("\nSession 紀錄：閘門就位。\n" if note else ""), encoding="utf-8")
         self.commit(self.work, message)
 
     def test_finished_ticket_merges(self):
@@ -197,9 +195,13 @@ class MergeTicketTest(unittest.TestCase):
         self.assertIn("merge: ticket 01 gates", self.git(self.repo, "log", "-1", "--format=%s").stdout)
         self.assertEqual(check_docs.run(self.repo), [])
 
+    def test_ticket_without_a_session_note_fails_the_docs_check(self):
+        self.finish(note=False)
+        self.assertTrue(any("做完的票" in p for p in check_docs.run(self.work)), check_docs.run(self.work))
+
     def test_unfinished_tickets_are_held_back(self):
         for name, kw in (("status", {"status": "ready-for-agent"}), ("checkbox", {"check": False}),
-                         ("progress", {"progress": False}), ("subject", {"message": "Add the check gate"})):
+                         ("subject", {"message": "Add the check gate"})):
             with self.subTest(name):
                 self.setUp()
                 self.finish(**kw)

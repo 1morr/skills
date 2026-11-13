@@ -156,8 +156,8 @@ class SessionsTest(Repo):
         self.sub("docs/progress.md", "新 session 下 `/implement .scratch/m1/issues/03-x.md`", "看 `docs/plan.md`")
         self.red("下一步")
 
-    def test_waiting_for_the_user_or_the_coordinator_is_fine(self):
-        for step in ("等使用者：決定要不要支援 Windows", "由協調者決定"):
+    def test_waiting_for_the_user_is_fine(self):
+        for step in ("等使用者：決定要不要支援 Windows", "等使用者：試用 M1"):
             with self.subTest(step):
                 original = (self.root / "docs/progress.md").read_text(encoding="utf-8")
                 self.sub("docs/progress.md", "新 session 下 `/implement .scratch/m1/issues/03-x.md`", step)
@@ -350,7 +350,29 @@ class ScratchTest(Repo):
         self.red("Status:")
 
     def test_status_value_and_bold_do_not_matter(self):
-        self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", "**Status:** done")
+        self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", "**Status:** needs-info")
+        self.clean()
+
+    def test_done_ticket_in_the_active_milestone_needs_a_session_note(self):
+        for status in ("Status: done", "**Status:** done"):
+            with self.subTest(status):
+                self.setUp()
+                self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", status)
+                self.red("01-first.md：做完的票")
+                self.sub(".scratch/m1/issues/01-first.md", "## Comments\n", "## Comments\n\n- code-review 沒處理的發現。\n\nSession 紀錄：閘門就位。\n偏差：改用另一個套件（使用者同意）。\n")
+                self.clean()
+
+    def test_session_note_before_comments_does_not_count(self):
+        self.sub(".scratch/m1/issues/01-first.md", "Status: ready-for-agent", "Status: done")
+        self.sub(".scratch/m1/issues/01-first.md", "## What to build\n", "## What to build\n\nSession 紀錄：寫錯地方。\n")
+        self.red("01-first.md：做完的票")
+
+    def test_done_tickets_outside_the_active_milestone_are_not_checked(self):
+        self.write(".scratch/m0/spec.md", SPEC)
+        self.write(".scratch/m0/issues/01-old.md", TICKET.replace("ready-for-agent", "done"))
+        self.write(".scratch/m0/issues/02-m0-acceptance.md", TICKET.replace("ready-for-agent", "done"))
+        self.write(".scratch/docs-cleanup/spec.md", SPEC)
+        self.write(".scratch/docs-cleanup/issues/01-trim.md", TICKET.replace("ready-for-agent", "done"))
         self.clean()
 
 

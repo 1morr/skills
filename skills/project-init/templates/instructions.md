@@ -42,12 +42,13 @@
 2. `/implement <票路徑>`：tdd、定期 typecheck、結尾 `/code-review <開工時的 commit>`、commit。
 3. 驗證：`docs/development.md`〈全部檢查〉加 test；貼指令輸出。
 4. 只在票內的取捨記到票的 `## Comments`；影響架構的另寫 ADR；要推翻已定的決定照〈使用者確認〉。
-5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；progress.md 加一列 session 紀錄（做了什麼、下一步，細節留在票裡）；驗收票多一步：照 progress.md〈寫法與封存〉封存這個里程碑；commit。
-6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。
+5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<做了什麼，一句>`，使用者同意過的偏差各加一行 `偏差：<內容與決定者>`；commit。票的分支不改 progress.md：平行的票都改它會互撞。
+6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進 progress.md（一列 session 紀錄含下一步、每條偏差一行）並 commit。
+7. 驗收票被其他所有票擋、不會平行，它自己在分支上改 progress.md：照〈寫法與封存〉封存這個里程碑。
 
-完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、progress.md 已更新、已 commit。缺一就還沒完成。
+完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、Comments 有 `Session 紀錄：` 一行、已 commit。缺一就還沒完成。
 
-**所有 session 的結尾**（做票、訪談、寫 plan、里程碑開工都算）：告訴使用者下一步要在新 session 下的完整指令，並把同一句寫進 progress.md 那一列的「下一步」。下一張票是 `/implement <票路徑>`，里程碑做完是 `/1morr:checkpoint <剛做完的里程碑>`（回顧上一段、和使用者對齊下一段；它結束時寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`）；要使用者先決定才能繼續時，寫 `等使用者：<要決定什麼>`。協調者開的 session 不知道下一張是哪張，「下一步」寫 `由協調者決定`；協調者跑完整批後把最後一列改成真正的下一步。
+**所有 session 的結尾**（做票、訪談、寫 plan、里程碑開工都算）：告訴使用者下一步要在新 session 下的完整指令，寫 progress.md 的人把同一句寫進那一列的「下一步」。下一張票是 `/implement <票路徑>`，里程碑做完是 `/1morr:checkpoint <剛做完的里程碑>`（回顧上一段、和使用者對齊下一段；它結束時寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`）；要使用者先決定才能繼續時，寫 `等使用者：<要決定什麼>`。協調者開的 session 不知道下一張是哪張，只回報做完了。
 
 ## 事實與查證
 
