@@ -5,7 +5,8 @@
 
 ## 文件
 
-- `docs/design-brief.md`：需求、決定、查證過的事實（〈查證過的事實〉，附來源）。決定衝突時以它為準。
+- `docs/design-brief.md`：需求與決定。決定衝突時以它為準。
+- `docs/research/`：查證過的外部事實，一個主題一個檔，每條有編號與來源；索引在 brief〈事實索引〉。
 - `docs/plan.md`：架構、依賴規則、測試策略。
 - `docs/roadmap.md`：里程碑的順序、狀態與閱讀指引；還沒開工的里程碑在這裡各有一小節，開工後縮成一行連到它的 spec；〈不排里程碑〉收沒人接的遺留。
 - `docs/progress.md`：進行中里程碑的 session 紀錄、偏差與決定。每個 session 的起點與終點。
@@ -50,7 +51,7 @@
 
 ## 事實與查證
 
-- 外部服務、平台框架、程式庫的行為只信兩處：brief〈查證過的事實〉，以及現查（context7、官方文件）。brief 沒寫的先查再用，查到的補進 brief 並附來源。
+- 外部服務、平台框架、程式庫的行為只信兩處：`docs/research/` 各檔的〈事實〉段，以及現查（context7、官方文件）。沒寫的先查再用，查到的補進對應主題的檔，給編號、附來源；新開的檔加進 brief〈事實索引〉。
 - 現況以指令為準：`git log`、`git status`、測試輸出。progress.md 與 repo 不符時以 repo 為準並修 progress.md。
 
 ## 上下文紀律
@@ -87,8 +88,8 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 做票：一張票一個 session，`/implement`；整批跑票：`/1morr:ticket-coordinator`。
 - 里程碑之間：`/1morr:checkpoint`；想看懂某樣東西現在怎麼運作：`/1morr:explain`。
 - 新功能與修 bug：`mattpocock-skills:tdd`。設計模組邊界：`mattpocock-skills:codebase-design`。
-- 用實驗回答設計問題：`mattpocock-skills:prototype`，結論寫回 brief。實驗腳本留在 `scripts/experiments/`，換版本時要重量。
-- 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論摘進 brief〈查證過的事實〉並連結。
+- 用實驗回答設計問題：`mattpocock-skills:prototype`，決定寫回 brief，量到的數字寫進 `docs/research/`。實驗腳本留在 `scripts/experiments/`，換版本時要重量。
+- 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論寫成那個檔的〈事實〉段。
 - 每張票與里程碑收尾：`mattpocock-skills:code-review`（Spec 軸讀票，Standards 軸讀本檔）；難 bug 或效能退化：`mattpocock-skills:diagnosing-bugs`。
 - 改本檔或 progress.md 的流程段：`mattpocock-skills:writing-for-agents`。
 
