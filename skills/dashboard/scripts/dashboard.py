@@ -8,7 +8,8 @@
   docs/roadmap.md      〈里程碑〉的表：里程碑、目標、狀態
   .scratch/<目錄>/     spec.md 的〈目標〉〈範圍〉；issues/*.md 的標題、Status:、勾選框
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
-  docs/archive/*.md    〈決定〉：已驗收里程碑的決定；舊骨架的段名〈偏差與決定〉也讀
+  docs/archive/*.md    〈決定〉：已驗收里程碑的決定，里程碑取檔名；舊骨架的段名〈偏差與決定〉也讀
+                       這兩處以 `- ` 開頭卻不是 `- YYYY-MM-DD …` 的行，列在頁面的「讀不到的行」
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
@@ -26,10 +27,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 DECIDERS = ("使用者定", "使用者同意", "Agent 定")
+UNMARKED = "未標"
 # 早期的寫法，顯示時歸到現在的三種
-OLD_DECIDERS = {"使用者決定": "使用者定", "擁有者決定": "使用者定", "協調者決定": "Agent 定"}
+OLD_DECIDERS = {"使用者決定": "使用者定", "使用者改決定": "使用者定", "擁有者決定": "使用者定", "使用者拍板": "使用者定",
+                "使用者確認": "使用者同意", "協調者決定": "Agent 定"}
+DECIDER_WORDS = "|".join(DECIDERS + tuple(OLD_DECIDERS))
 DECISION = re.compile(r"^- (\d{4}-\d{2}-\d{2}) (.*)$")
-DECIDER = re.compile("（(%s)[^）]{0,12}）" % "|".join(DECIDERS + tuple(OLD_DECIDERS)))
+# 括號一開頭就是決定者的短括號：顯示時整個拿掉
+DECIDER = re.compile("（(%s)[^）]{0,12}）" % DECIDER_WORDS)
+# 決定者寫在括號中間（「（檢視，使用者決定）」）
+DECIDER_IN_PARENS = re.compile("[（(][^（()）]*?(%s)[^（()）]*[）)]" % DECIDER_WORDS)
+# 早期沒加括號的寫法；現在的三個詞不加括號時不認，內文裡太常見
+DECIDER_BARE = re.compile("|".join(OLD_DECIDERS))
+MILESTONE_FILE = re.compile(r"^[mM]\d+(\.\d+)?$")
+DROPPED = re.compile(r"^(wontfix|cancelled|canceled)", re.I)
 STATUS = re.compile(r"^\**Status:?\**:?\s*(\S.*?)\s*$", re.I)
 CHECKBOX = re.compile(r"^\s*[-*] \[([ xX])\]")
 ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
@@ -44,10 +55,10 @@ def read(path: Path) -> str:
         return ""
 
 
-def sections(text: str) -> dict:
-    """{`##` 標題: [行, …]}；程式碼區塊裡的不算標題，同名的取第一個。"""
+def numbered_sections(text: str) -> dict:
+    """{`##` 標題: [(行號, 行), …]}；程式碼區塊裡的不算標題，同名的取第一個。"""
     out, current, fenced = {}, None, False
-    for line in text.split("\n"):
+    for number, line in enumerate(text.split("\n"), 1):
         if line.lstrip().startswith("```"):
             fenced = not fenced
         if not fenced and line.startswith("## "):
@@ -55,8 +66,13 @@ def sections(text: str) -> dict:
             current = out.setdefault(title, [])
             continue
         if current is not None:
-            current.append(line)
+            current.append((number, line))
     return out
+
+
+def sections(text: str) -> dict:
+    """{`##` 標題: [行, …]}"""
+    return {title: [line for _, line in lines] for title, lines in numbered_sections(text).items()}
 
 
 def table(lines) -> list:
@@ -98,7 +114,7 @@ def ticket(path: Path) -> dict:
             break
     boxes = [m.group(1) != " " for m in map(CHECKBOX.match, lines) if m]
     return {"file": path.name, "title": plain(title), "status": status, "done": status.lower().startswith("done"),
-            "checked": sum(boxes), "boxes": len(boxes)}
+            "dropped": bool(DROPPED.match(status)), "checked": sum(boxes), "boxes": len(boxes)}
 
 
 def tickets(directory: Path) -> list:
@@ -130,23 +146,37 @@ def milestones(repo: Path) -> list:
     return out
 
 
-def decisions(repo: Path) -> list:
-    out = []
-    secs = sections(read(repo / "docs/decisions.md"))
-    lines = secs.get("紀錄", []) + secs.get("搬移前的紀錄", [])
+def decider_of(rest: str) -> str:
+    m = DECIDER_IN_PARENS.search(rest) or DECIDER_BARE.search(rest)
+    if not m:
+        return UNMARKED
+    word = m.group(1) if m.re is DECIDER_IN_PARENS else m.group(0)
+    return OLD_DECIDERS.get(word, word)
+
+
+def decisions(repo: Path) -> tuple:
+    """(決定, 讀不到的行)。封存檔裡的決定，里程碑是檔名（`m1.5.md` → `M1.5`）：早期的條目開頭常是「票 05」「拆票」。"""
+    sources = []
+    secs = numbered_sections(read(repo / "docs/decisions.md"))
+    sources.append(("docs/decisions.md", "", secs.get("紀錄", []) + secs.get("搬移前的紀錄", [])))
     for archived in sorted((repo / "docs/archive").glob("*.md")) if (repo / "docs/archive").is_dir() else []:
-        old = sections(read(archived))
-        lines += old.get("決定", []) + old.get("偏差與決定", [])
-    for line in lines:
-        m = DECISION.match(line)
-        if not m:
-            continue
-        rest = m.group(2)
-        who = DECIDER.search(rest)
-        head, _, body = rest.partition("：")
-        out.append({"date": m.group(1), "milestone": plain(DECIDER.sub("", head)).split(" ")[0] if head else "",
-                    "decider": OLD_DECIDERS.get(who.group(1), who.group(1)) if who else "不明", "text": plain(DECIDER.sub("", body or rest))})
-    return sorted(out, key=lambda d: d["date"], reverse=True)
+        old = numbered_sections(read(archived))
+        name = archived.stem.upper() if MILESTONE_FILE.match(archived.stem) else archived.stem
+        sources.append((f"docs/archive/{archived.name}", name, old.get("決定", []) + old.get("偏差與決定", [])))
+    out, unreadable = [], []
+    for rel, archive, lines in sources:
+        for number, line in lines:
+            m = DECISION.match(line)
+            if not m:
+                if line.startswith("- "):
+                    unreadable.append({"file": rel, "line": number, "text": plain(line[2:])[:80]})
+                continue
+            rest = m.group(2)
+            head, colon, body = rest.partition("：")
+            label = plain(DECIDER.sub("", head)) if colon else ""
+            out.append({"date": m.group(1), "milestone": archive or re.split(r"[\s（(]", label)[0], "label": label,
+                        "decider": decider_of(rest), "archived": bool(archive), "text": plain(DECIDER.sub("", body or rest))})
+    return sorted(out, key=lambda d: d["date"], reverse=True), unreadable
 
 
 def adrs(repo: Path) -> list:
@@ -216,9 +246,11 @@ def collect(repo: Path) -> dict:
     ms = milestones(repo)
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
     log = sessions(repo)
-    return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decisions(repo),
+    decided, unreadable = decisions(repo)
+    return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
             "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": log[-1]["next"] if log else "",
-            "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()]}
+            "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
+            "unreadable": unreadable}
 
 
 PAGE = r"""<!doctype html>
@@ -289,7 +321,7 @@ td.nowrap { white-space: nowrap; width: 1%; }
 <script>
 "use strict";
 let DATA = JSON.parse(document.getElementById("data").textContent);
-const view = { project: 0, decider: "", milestone: "", query: "", open: {} };
+const view = { project: 0, decider: "", milestone: "", query: "", archived: false, open: {} };
 const el = (tag, attrs, ...kids) => {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -305,19 +337,19 @@ function command(text) {
   return parts.map((p, i) => (i % 2 ? el("code", {}, p) : p));
 }
 function milestoneCard(m, key) {
-  const done = m.tickets.filter(t => t.done).length, total = m.tickets.length;
+  const live = m.tickets.filter(t => !t.dropped), done = live.filter(t => t.done).length, total = live.length;
   const id = key + "/" + m.name;
   const card = el("details", { class: "card", "data-state": m.state, open: view.open[id] ?? m.state === "active" },
     el("summary", {},
       el("div", { class: "row" }, el("span", { class: "name" }, m.name), el("span", { class: "badge " + m.state }, STATE[m.state])),
       el("div", { class: "small" }, m.goal),
-      total ? [el("div", { class: "bar", role: "img", "aria-label": `${done} / ${total} 張票完成` }, el("i", { style: `width:${total ? (100 * done / total) : 0}%` })),
+      m.tickets.length ? [el("div", { class: "bar", role: "img", "aria-label": `${done} / ${total} 張票完成` }, el("i", { style: `width:${total ? (100 * done / total) : 0}%` })),
                el("div", { class: "small num" }, `${done} / ${total} 張票完成`)] : el("div", { class: "small" }, m.status)),
     el("div", { class: "body" },
-      total ? el("div", { class: "small" }, m.status) : null,
-      total ? el("ul", { class: "plain" }, m.tickets.map(t => el("li", {},
+      m.tickets.length ? el("div", { class: "small" }, m.status) : null,
+      m.tickets.length ? el("ul", { class: "plain" }, m.tickets.map(t => el("li", {},
         el("span", {}, t.title),
-        el("span", { class: "badge " + (t.done ? "done" : "") + " num" }, t.done ? "完成" : (/^(wontfix|cancelled)/i.test(t.status) ? "不做" : (t.checked ? `${t.checked}/${t.boxes}` : "未開始")))))) : null,
+        el("span", { class: "badge " + (t.done ? "done" : "") + " num" }, t.done ? "完成" : (t.dropped ? "不做" : (t.checked ? `${t.checked}/${t.boxes}` : "未開始")))))) : null,
       (m.detail || m.scope.length) ? el("details", { class: "more" }, el("summary", { class: "small" }, "目標與範圍"),
         m.detail ? el("p", {}, m.detail) : null,
         m.scope.length ? el("ul", { class: "scope" }, m.scope.map(s => el("li", { class: "small" }, s))) : null) : null));
@@ -325,16 +357,22 @@ function milestoneCard(m, key) {
   return card;
 }
 function decisionsView(p) {
-  const list = p.decisions.filter(d => (!view.decider || d.decider === view.decider) && (!view.milestone || d.milestone === view.milestone)
-    && (!view.query || (d.text + d.milestone + d.date).toLowerCase().includes(view.query.toLowerCase())));
-  const count = who => p.decisions.filter(d => d.decider === who).length;
+  // 已封存里程碑的決定預設收起；選了某個里程碑或在搜尋時照樣找得到
+  const pool = p.decisions.filter(d => view.archived || view.milestone || view.query || !d.archived);
+  const list = pool.filter(d => (!view.decider || d.decider === view.decider) && (!view.milestone || d.milestone === view.milestone)
+    && (!view.query || (d.text + d.label + d.milestone + d.date).toLowerCase().includes(view.query.toLowerCase())));
+  const count = who => pool.filter(d => d.decider === who).length;
   const names = [...new Set(p.decisions.map(d => d.milestone).filter(Boolean))];
+  const archived = p.decisions.filter(d => d.archived).length;
   const chip = (label, value) => el("button", { class: "chip", "aria-pressed": String(view.decider === value),
     onclick: () => { view.decider = value; render(); } }, label);
   return [
     el("div", { class: "filters" },
-      chip(`全部 ${p.decisions.length}`, ""), chip(`Agent 定 ${count("Agent 定")}`, "Agent 定"),
+      chip(`全部 ${pool.length}`, ""), chip(`Agent 定 ${count("Agent 定")}`, "Agent 定"),
       chip(`使用者同意 ${count("使用者同意")}`, "使用者同意"), chip(`使用者定 ${count("使用者定")}`, "使用者定"),
+      count("未標") ? chip(`未標 ${count("未標")}`, "未標") : null,
+      archived ? el("button", { class: "chip", "aria-pressed": String(view.archived),
+        onclick: () => { view.archived = !view.archived; render(); } }, `含已封存的 ${archived}`) : null,
       el("select", { "aria-label": "里程碑", onchange: e => { view.milestone = e.target.value; render(); } },
         el("option", { value: "" }, "所有里程碑"), names.map(n => el("option", { value: n, selected: view.milestone === n }, n))),
       el("input", { type: "search", placeholder: "搜尋決策", "aria-label": "搜尋決策", value: view.query, id: "q",
@@ -344,7 +382,7 @@ function decisionsView(p) {
       el("tbody", {}, list.slice(0, 300).map(d => el("tr", {},
         el("td", { class: "nowrap num" }, d.date), el("td", { class: "nowrap" }, d.milestone),
         el("td", { class: "nowrap" }, el("span", { class: "badge " + (d.decider === "Agent 定" ? "agent" : "") }, d.decider)),
-        el("td", {}, d.text))))))
+        el("td", {}, d.label && d.label !== d.milestone ? el("span", { class: "small" }, d.label + "　") : null, d.text))))))
       : el("div", { class: "empty" }, p.decisions.length ? "沒有符合的決策。" : "還沒有決策紀錄。"),
     list.length > 300 ? el("div", { class: "small" }, `只顯示最新的 300 條，共 ${list.length} 條；用篩選縮小範圍。`) : null];
 }
@@ -359,6 +397,8 @@ function render() {
   const q = document.activeElement && document.activeElement.id === "q", pos = q ? document.activeElement.selectionStart : 0;
   document.getElementById("app").replaceChildren(...[
     p.missing.length ? el("div", { class: "now" }, "讀不到的檔：" + p.missing.join("、") + "。這個 repo 還沒照 project-init 的骨架，對應的區塊會是空的。") : null,
+    p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 條決定不是「- YYYY-MM-DD …」的寫法，沒有列進決策`),
+      el("ul", { class: "plain" }, p.unreadable.map(u => el("li", {}, el("span", {}, u.text), el("span", { class: "small num" }, `${u.file}:${u.line}`))))) : null,
     el("div", { class: "now" },
       el("div", { class: "small" }, "下一步"), el("div", {}, p.next ? command(p.next) : "progress.md 沒有 session 紀錄。"),
       p.working.length ? [el("div", { class: "small", style: "margin-top:.7rem" }, `正在做（${p.working.length} 個 worktree）`),

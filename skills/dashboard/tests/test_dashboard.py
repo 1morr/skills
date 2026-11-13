@@ -144,18 +144,49 @@ class CollectTest(Repo):
     def test_decisions_moved_from_an_older_format_are_read_too(self):
         self.write("docs/decisions.md", DECISIONS + "\n## 搬移前的紀錄\n\n- 2025-12-30 框架：流程照另一個專案。\n")
         last = self.collect()["decisions"][-1]
-        self.assertEqual((last["date"], last["milestone"], last["decider"], last["text"]), ("2025-12-30", "框架", "不明", "流程照另一個專案。"))
+        self.assertEqual((last["date"], last["milestone"], last["decider"], last["text"]), ("2025-12-30", "框架", "未標", "流程照另一個專案。"))
 
     def test_decisions_left_in_milestone_archives_are_read_too(self):
         self.write("docs/archive/M0.md", "# M0\n\n## Session 紀錄\n\n- 2025-12-01 這一行不是決定。\n\n## 偏差與決定\n\n- 2025-12-31 M0 票 02（使用者決定，試用後）：改用另一個套件。\n")
-        self.write("docs/archive/M-1.md", "# 更早\n\n## 決定\n\n- 2025-12-30 框架（Agent 定）：先不定技術棧。\n")
+        self.write("docs/archive/m0.5.md", "# 更早\n\n## 決定\n\n- 2025-12-30 框架（Agent 定）：先不定技術棧。\n")
         older, old = self.collect()["decisions"][-1], self.collect()["decisions"][-2]
         self.assertEqual((old["date"], old["milestone"], old["decider"], old["text"]), ("2025-12-31", "M0", "使用者定", "改用另一個套件。"))
-        self.assertEqual((older["date"], older["milestone"], older["decider"]), ("2025-12-30", "框架", "Agent 定"))
+        self.assertEqual((older["date"], older["milestone"], older["label"], older["decider"]), ("2025-12-30", "M0.5", "框架", "Agent 定"))
+        self.assertEqual([d["archived"] for d in self.collect()["decisions"]], [False, False, False, True, True])
 
-    def test_a_decision_without_a_decider_is_shown_as_unknown(self):
+    def test_an_archived_decision_takes_its_milestone_from_the_file_name(self):
+        self.write("docs/archive/m1.5.md", "## 偏差與決定\n\n- 2025-11-01 票 05：改用另一個套件。\n- 2025-11-02 拆票：切成三張。\n")
+        self.write("docs/archive/docs-diet.md", "## 決定\n\n- 2025-11-03 docs-diet 拆票（使用者定）：章節號不改。\n")
+        got = {(d["milestone"], d["label"]) for d in self.collect()["decisions"] if d["archived"]}
+        self.assertEqual(got, {("M1.5", "票 05"), ("M1.5", "拆票"), ("docs-diet", "docs-diet 拆票")})
+
+    def test_a_note_in_brackets_after_the_milestone_is_not_part_of_its_name(self):
+        self.sub("docs/decisions.md", "- 2026-01-04 M1（使用者同意）：", "- 2026-01-04 M1（補 M0 02）：")
+        self.assertEqual([d["milestone"] for d in self.collect()["decisions"]], ["M1", "M1", "M0"])
+
+    def test_earlier_ways_of_naming_the_decider_are_read(self):
+        for written, decider in (("M1（檢視，使用者決定）：改門檻。", "使用者定"), ("M1 票 08（使用者確認）：照提案。", "使用者同意"),
+                                 ("M1 票 16（協調者決定）：從嚴。", "Agent 定"), ("M1 規劃：重排（使用者拍板，brief）。", "使用者定"),
+                                 ("M1 審查：使用者拍板四條。", "使用者定"), ("M1：等使用者定下來再說。", "未標")):
+            with self.subTest(written=written):
+                self.write("docs/decisions.md", f"## 紀錄\n\n- 2026-01-09 {written}\n")
+                self.assertEqual(self.collect()["decisions"][0]["decider"], decider)
+
+    def test_a_decision_without_a_decider_is_shown_as_unmarked(self):
         self.sub("docs/decisions.md", "（使用者定）", "")
-        self.assertEqual(self.collect()["decisions"][-1]["decider"], "不明")
+        self.assertEqual(self.collect()["decisions"][-1]["decider"], "未標")
+
+    def test_a_decision_line_it_cannot_read_is_reported(self):
+        self.assertEqual(self.collect()["unreadable"], [])
+        self.sub("docs/decisions.md", "- 2026-01-04 M1（使用者同意）", "- 2026-01-04（使用者同意）M1")
+        self.write("docs/archive/M0.md", "## 決定\n\n- 協調者 2025-12-31 M0：改用另一個套件。\n  - 2025-12-31 縮排的細節不算一條。\n\n說明文字也不算。\n")
+        d = self.collect()
+        self.assertEqual([(u["file"], u["line"]) for u in d["unreadable"]], [("docs/decisions.md", 11), ("docs/archive/M0.md", 3)])
+        self.assertEqual(len(d["decisions"]), 2)
+
+    def test_a_dropped_ticket_is_marked(self):
+        self.sub(".scratch/m1/issues/02-bar.md", "Status: ready-for-agent", "Status: wontfix")
+        self.assertEqual([t["dropped"] for t in self.collect()["milestones"][1]["tickets"]], [False, True, False])
 
     def test_adrs_sessions_and_next_step(self):
         d = self.collect()
@@ -179,7 +210,7 @@ class CollectTest(Repo):
         bare.mkdir()
         d = m.collect(bare)
         self.assertEqual(d["missing"], ["docs/roadmap.md", "docs/decisions.md", "docs/progress.md"])
-        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"]), ([], [], [], ""))
+        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"], d["unreadable"]), ([], [], [], "", []))
 
 
 @unittest.skipUnless(shutil.which("git"), "要 git")
