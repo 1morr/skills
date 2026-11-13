@@ -32,7 +32,7 @@ plugin 不釘版本，`/plugin update 1morr@1morr-skills` 會更新到最新 com
 bake-off、review-loop、ticket-coordinator 會用 [Orca](https://www.onorca.dev) 開子 Claude Code session，需要裝好 Orca 和它的 `orca` 指令。
 
 - **子 session 以免確認模式啟動**（`claude --dangerously-skip-permissions`），這樣才能無人值守；它在自己的 worktree 和分支上工作，合併與 push 由協調者照你開工時給的授權做。要換啟動指令，在啟動協調者的環境設 `CHILD_CLAUDE`，例如 `CHILD_CLAUDE="claude --permission-mode acceptEdits"`。
-- **腳本預設主分支是 `main`、CI workflow 是 `ci.yml`**；不一樣時 ticket-coordinator 會在開工時查出來並帶給腳本。
+- **腳本預設主分支是 `main`、CI workflow 是 `ci.yml`**；協調者會在開工時查出來並帶給腳本。
 
 ### 額度門檻
 

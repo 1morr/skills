@@ -24,7 +24,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
    - 改：混在一起的檔。任務原文留著，描述舊產出的段落刪掉；這些段落裡屬於任務的限制（規定、格式、已知的工具地雷）搬進 prompt。
    - 留：任務來源，以及與舊產出無關的東西。
 4. 審 prompt，提出修改建議並附理由：產出的形式和位置、什麼算完成、從清除清單搬來的限制、跟「從零做」衝突的字眼（例如「改進現有的」）。沒有建議就直說。prompt 和任務來源裡有兩種**讀法**的地方（例如數據範圍）另外列出附原文；預設讓各版各自讀，各版怎麼讀本身就是比較的結果，使用者要定死就寫進 prompt。
-5. 用 AskUserQuestion 一次問完：版數、清除清單、prompt 修改（原樣 / 採用建議）、COORDINATOR.md 的授權。
+5. 用 AskUserQuestion 一次問完：版數、清除清單、prompt 修改（原樣 / 採用建議）、COORDINATOR.md〈授權〉。
 6. 批次目錄 `<scratchpad>/bake-off-<任務名>/`（任務名用英文 kebab-case，會出現在分支名裡），ledger 放在裡面。
 
 ## 起點
@@ -85,4 +85,4 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 ## Ledger
 
-「目前」段：repo、主分支、orca repo 選擇器、任務名、版數、base commit、清除清單、prompt.md 路徑。「評分項」、「共同答案」（題目 → 答案 → 依據原文）、「讀法」（原文 → 每一版的讀法和理由 → 使用者的決定）。每一版一段：worktree、分支、handle、session id、狀態（planning / working / done / blocked）、計畫摘要與給它的修正、代答、Heads up 的處置、最後的 commit。
+「目前」段（COORDINATOR.md 的共同欄位之外）：任務名、版數、base commit、清除清單、prompt.md 路徑。「評分項」、「共同答案」（題目 → 答案 → 依據原文）、「讀法」（原文 → 每一版的讀法和理由 → 使用者的決定）。每一版一段：worktree、分支、handle、session id、狀態（planning / working / done / blocked）、計畫摘要與給它的修正、代答、Heads up 的處置、最後的 commit。

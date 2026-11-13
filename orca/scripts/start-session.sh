@@ -1,7 +1,7 @@
 # 用法：bash start-session.sh <worktree 路徑> <終端標題> <prompt 檔的絕對路徑>
 # 在 worktree 開一個子 Claude Code session，啟動參數直接帶「讀 prompt 檔照做」，印 handle= 與 jsonl=。
 # 環境變數 CHILD_CLAUDE：子 session 的啟動指令，預設 claude --dangerously-skip-permissions（免確認，才能無人值守）
-# 用啟動參數而不是開好再打字：剛開的 TUI 會吞掉輸入（TUI.md「開 session」）。
+# 用啟動參數而不是開好再打字：剛開的 TUI 會吞掉輸入（實測紀錄在 launch.sh 的註解）。
 # 認 transcript 的方法是「開之前不存在、內容含 prompt 路徑」：協調者自己可能就在同一個 worktree，
 # 它的 transcript 也提過 prompt 路徑，只比內容會認錯。
 set -u

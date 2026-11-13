@@ -2,7 +2,7 @@
 # 來源依序：
 #   1. QUOTA_FILE（預設 ~/.claude/rate-limits.json）：狀態列指令把 Claude Code 給它的 `rate_limits` 存下來的檔，
 #      格式 {"at": <寫入時間>, "rate_limits": {"five_hour": {"used_percentage", "resets_at"}, "seven_day": {…}}}；
-#      QUOTA_MAX_AGE（預設 600）秒內寫過才算數。設定方式見 TUI.md「額度」。
+#      QUOTA_MAX_AGE（預設 600）秒內寫過才算數。設定方式見 plugin 根目錄 README.md〈額度門檻〉。
 #   2. 協調者自己終端的狀態列畫面（handle 預設 $ORCA_TERMINAL_HANDLE），要有 `5h 60% ↻ 18m · 7d 90% ↻ 4d16h` 的格式。
 # 印一行：gate=open|closed|unknown src=file|screen|none 5h=<%> 5h_reset=<剩餘> 7d=<%> 7d_reset=<剩餘> sleep=<秒>
 #   closed：某個門檻到了，sleep 是到那個額度刷新再多 3 分鐘

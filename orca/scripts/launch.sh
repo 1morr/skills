@@ -33,4 +33,4 @@ for attempt in 1 2 3; do
   echo "command swallowed (ticket path not on screen), resending"
   sleep 10
 done
-echo "expanded: NO —— 讀畫面查原因；送 --interrupt、關掉 $H 後重開；同一張票連兩次沒展開算卡住"; exit 2
+echo "expanded: NO —— 讀畫面：停在空輸入框就在 $H 補送一次；其他情況關掉 $H 重開；同一張票連兩次沒展開算卡住"; exit 2

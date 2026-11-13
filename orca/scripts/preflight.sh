@@ -1,4 +1,4 @@
-# 用法：bash preflight.sh <主 repo 路徑> [主分支，預設 main]  —— 每次被叫醒、每次 merge 之前跑
+# 用法：bash preflight.sh <主 repo 路徑> [主分支，預設 main]  —— merge 之前、自己在主目錄 commit 之前跑
 # 同一個 repo 可能還有別的 session（另一個協調者、使用者自己開的）在動主目錄。印出不是你造成的痕跡，
 # 有 WARN 就先對照 ledger 弄清楚是誰的，不明來源的 commit 不要跟著你的 push 一起推上去。
 R=$1; B=${2:-main}; cd "$R" || exit 1
