@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / roadmap / progress 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
+替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / plan / roadmap / progress / decisions 的空殼、票的慣例、文件與 commit message 的檢查。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填：
 
 `/grill-with-docs` 填 brief → 同一個指令寫 plan 與 roadmap → `/to-tickets docs/roadmap.md 拆 <里程碑> 的票` 開工 → `/implement` 或 `/1morr:ticket-coordinator` 做票 → 驗收票封存 → `/1morr:checkpoint` → 下一個里程碑。
 
@@ -44,6 +44,7 @@ argument-hint: "[專案一句話]"
 | `plan.md` | `docs/plan.md` |
 | `roadmap.md` | `docs/roadmap.md` |
 | `progress.md` | `docs/progress.md` |
+| `decisions.md` | `docs/decisions.md` |
 | `development.md` | `docs/development.md` |
 | `ticket.md` | `docs/agents/ticket-template.md` |
 | `gitattributes` | `.gitattributes` |

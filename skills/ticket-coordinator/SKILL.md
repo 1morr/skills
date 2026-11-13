@@ -45,7 +45,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
    - **跟上主分支**：這張票開出後主分支多了程式碼，叫子 session 在它的分支 `git merge <本機主分支>`：用 git 預設的合併訊息（自訂標題會被 `merge-ticket.sh` 擋）、不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，下一條的補跑不必再做。
    - **綠燈**：lint / type / test 全套，而且是最後一次改動之後跑的。主分支在這張票開出後只多了文件類 commit 時不重跑。子 session 只重跑了部分時你補跑，放在隔離的 worktree（`git worktree add --detach <scratchpad>/verify-<票> <commit>` → 裝依賴、跑全套 → `git worktree remove --force`）。檢查指令包在 `bash <O>/scripts/run-check.sh <指令>` 裡：機器原生崩潰會記到 `~/.claude/crash-log.tsv` 並自動重跑一次，崩潰不算偶發；重跑仍紅才是真的紅。
    - **合併**：`bash <O>/scripts/preflight.sh <repo>`，再 `REQUIRE="<檔>" bash <O>/scripts/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。它檢查 Status 是 done、驗收條件全勾、有新 commit、worktree 乾淨、commit 標題是 ≤72 字元的 Conventional Commits、`REQUIRE` 的檔都動到、主目錄乾淨，全部成立才 `merge --no-ff`。印 `NOT READY` 就把那幾行原樣轉給子 session（標題太長叫它自己改寫並建備份分支）。`CONFLICT`：紀錄檔類的你解；程式碼衝突 `git merge --abort`，回到「跟上主分支」。
-   - **紀錄**（專案規定紀錄檔由合併的人寫時）：照專案指令檔的格式，把票上留給紀錄檔的行抄進去（project-init 的骨架是票 `## Comments` 裡的 `Session 紀錄：` 一行抄成一列、`偏差：` 每行抄成一條），「下一步」寫隊列裡下一張票的指令；跑專案的文件檢查，照〈協調者自己的 commit〉commit。票上沒有那一行就叫子 session 補，補完重走合併。
+   - **紀錄**（專案規定紀錄檔由合併的人寫時）：照專案指令檔的格式，把票上留給紀錄檔的行抄進去（project-init 的骨架是票 `## Comments` 裡的 `Session 紀錄：` 一行抄成 `docs/progress.md` 的一列、`決定：` 每行抄成 `docs/decisions.md` 的一條，補上日期與里程碑），「下一步」寫隊列裡下一張票的指令；跑專案的文件檢查，照〈協調者自己的 commit〉commit。票上沒有那一行就叫子 session 補，補完重走合併。
    - **push**：照 COORDINATOR.md「規則」用 `push-ci.sh`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
 
    **偶發紅燈**：子 session 附註「既有紅燈，在前一個 commit 上也紅」可以接受一次，記進「偶發紀錄」。同一條紅燈第二次出現（不論哪張票、本機或 CI）或變成穩定紅：插一張修復票 `<NN>b-<slug>.md` 排在下一張之前並 commit。原因不明時票上寫明：先分清是產品還是測試的問題、要有會紅的 repro、只拉長逾時而說不出原因的不收。修復票的驗收包含回頭補勾被它卡住的票。使用者在場就先問再插。

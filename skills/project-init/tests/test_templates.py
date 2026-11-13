@@ -68,10 +68,12 @@ class SkeletonTest(unittest.TestCase):
     def test_fresh_skeleton_passes_check_docs(self):
         self.write("docs/progress.md", fill("progress.md"))
         self.write("docs/roadmap.md", fill("roadmap.md"))
+        self.write("docs/decisions.md", fill("decisions.md"))
         self.assertEqual(check_docs.run(self.root), [])
 
     def test_skeleton_with_a_first_milestone_passes(self):
         self.write("docs/progress.md", fill("progress.md"))
+        self.write("docs/decisions.md", fill("decisions.md"))
         roadmap = fill("roadmap.md")
         self.assertIn("| 未開工。", roadmap)
         self.write("docs/roadmap.md", roadmap.replace("| 未開工。", "| 進行中。"))
@@ -82,14 +84,16 @@ class SkeletonTest(unittest.TestCase):
 
     def test_filled_templates_pass_the_size_and_wording_checks(self):
         for name, rel in (("instructions.md", "AGENTS.md"), ("design-brief.md", check_docs.BRIEF), ("plan.md", check_docs.PLAN),
-                          ("progress.md", check_docs.PROGRESS), ("roadmap.md", check_docs.ROADMAP)):
+                          ("progress.md", check_docs.PROGRESS), ("roadmap.md", check_docs.ROADMAP),
+                          ("decisions.md", check_docs.DECISIONS)):
             self.write(rel, fill(name))
         self.assertEqual(check_docs.run(self.root), [])
 
     def test_instruction_sections_the_other_skills_read(self):
         text = fill("instructions.md")
         for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/1morr:checkpoint", "/1morr:ticket-coordinator",
-                       "完成標準", "NN-<里程碑>-acceptance", check_docs.SESSION_NOTE):
+                       "完成標準", "NN-<里程碑>-acceptance", check_docs.SESSION_NOTE, check_docs.DECISION_NOTE,
+                       check_docs.DECISIONS):
             self.assertIn(needle, text)
 
 
@@ -169,6 +173,7 @@ class MergeTicketTest(unittest.TestCase):
         self.git(self.repo, "init", "-q", "-b", "main")
         (self.repo / "docs").mkdir()
         (self.repo / "docs/progress.md").write_text(fill("progress.md"), encoding="utf-8")
+        (self.repo / "docs/decisions.md").write_text(fill("decisions.md"), encoding="utf-8")
         (self.repo / "docs/roadmap.md").write_text(fill("roadmap.md").replace("| 未開工。", "| 進行中。"), encoding="utf-8")
         ticket = self.repo / self.TICKET
         ticket.parent.mkdir(parents=True)

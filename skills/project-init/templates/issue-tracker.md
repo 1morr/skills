@@ -12,7 +12,7 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings); a finished ticket is `Status: done`
 - Blocking is a `Blocked by:` line under `Status:`, listing ticket numbers or `None`
 - A new ticket starts from `docs/agents/ticket-template.md`
-- Comments and conversation history append to the bottom of the file under a `## Comments` heading; a finished ticket ends it with a `Session 紀錄：` line (and one `偏差：` line per deviation), which whoever merges the ticket copies into `docs/progress.md`
+- Comments and conversation history append to the bottom of the file under a `## Comments` heading; a finished ticket ends it with a `Session 紀錄：` line and one `決定：` line per choice it made, which whoever merges the ticket copies into `docs/progress.md` and `docs/decisions.md`
 
 ## When a skill says "publish to the issue tracker"
 

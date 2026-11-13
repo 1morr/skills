@@ -9,7 +9,8 @@
 - `docs/research/`：查證過的外部事實，一個主題一個檔，每條有編號與來源；索引在 brief〈事實索引〉。
 - `docs/plan.md`：架構、依賴規則、測試策略。
 - `docs/roadmap.md`：里程碑的順序、狀態與閱讀指引；還沒開工的里程碑在這裡各有一小節，開工後縮成一行連到它的 spec；〈不排里程碑〉收沒人接的遺留。
-- `docs/progress.md`：進行中里程碑的 session 紀錄、偏差與決定。每個 session 的起點與終點。
+- `docs/progress.md`：進行中里程碑的 session 紀錄。每個 session 的起點與終點。
+- `docs/decisions.md`：決策紀錄，一條一行、只追加，標決定者。用 `grep` 找這個里程碑的，不必整份讀。
 - `.scratch/<里程碑>/spec.md`：該里程碑的目標、範圍、共同規則、驗收（Agent 驗、使用者試）與票序；`issues/` 是票，執行單位，狀態在票的 `Status:` 行。
 - `GLOSSARY.md`、`docs/adr/`：名詞表與架構決定，由 `/grill-with-docs` 按需建立；命名一律用名詞表的詞。
 - `docs/development.md`：開發指令的單一來源，〈全部檢查〉是閘門。
@@ -29,22 +30,22 @@
 ## 使用者確認
 
 - brief、plan、ADR、`GLOSSARY.md` 裡的決定：草稿先給使用者看，確認後才寫入；訪談中也一樣。
-- 做票時要推翻已定的決定（brief、plan、ADR、spec、先前的偏差）：停下來問使用者。同意後，同一個 commit 改文件，並在 progress.md〈偏差與決定〉記一行。
+- 做票時要推翻已定的決定（brief、plan、ADR、spec、`docs/decisions.md` 裡的）：停下來問使用者。同意後，同一個 commit 改文件，並記一條決定。
 - 問使用者決定（對話裡，或 progress.md 的 `等使用者：`）：每題寫成沒讀過票也看得懂的話，依序是背景一句、選項、你的建議、不決定會卡住什麼；票號、函式名、章節號後面跟一句它是什麼。
 - 使用者回「照建議」，只算同意這一則訊息裡列出來的那幾題。
-- 偏差每條標**決定者**：`（使用者定）` 使用者自己定的、`（使用者同意）` agent 提議而使用者同意的、`（Agent 定）` 使用者沒看過的。票內的取捨可以是 `（Agent 定）`；`/1morr:checkpoint` 會把它們拿給使用者看。
+- 每個決定在 `docs/decisions.md` 佔一行並標**決定者**：`（使用者定）` 使用者自己定的、`（使用者同意）` agent 提議而使用者同意的、`（Agent 定）` 使用者沒看過的。做票時在兩種做法之間選了一種，就是一個 `（Agent 定）` 的決定；`/1morr:checkpoint` 會把它們拿給使用者看。
 
 ## 每個 session 的流程
 
 工作單位是**票**：`.scratch/<里程碑>/issues/NN-slug.md`，由里程碑開工的 session 產生（見〈Skills〉）。一個 session 只做一張票，在自己的分支上做。
 
-1. 讀 `docs/progress.md` 的 session 紀錄與偏差、該里程碑的 spec，再讀票；只讀票列出的 plan / brief 章節，其他按需讀。
+1. 讀 `docs/progress.md`、`docs/decisions.md` 裡這個里程碑的決定、該里程碑的 spec，再讀票；只讀票列出的 plan / brief 章節，其他按需讀。
 2. `/implement <票路徑>`：tdd、定期 typecheck、結尾 `/code-review <開工時的 commit>`、commit。
 3. 驗證：`docs/development.md`〈全部檢查〉加 test；貼指令輸出。
-4. 只在票內的取捨記到票的 `## Comments`；影響架構的另寫 ADR；要推翻已定的決定照〈使用者確認〉。
-5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<做了什麼，一句>`，使用者同意過的偏差各加一行 `偏差：<內容與決定者>`；commit。票的分支不改 progress.md：平行的票都改它會互撞。
-6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進 progress.md（一列 session 紀錄含下一步、每條偏差一行）並 commit。
-7. 驗收票被其他所有票擋、不會平行，它自己在分支上改 progress.md。
+4. 影響架構的決定另寫 ADR；要推翻已定的決定照〈使用者確認〉。
+5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<做了什麼，一句>`，做票時定的每個選擇各加一行 `決定：<一句>（<決定者>）`；commit。票的分支不改 progress.md 與 decisions.md：平行的票都改它們會互撞。
+6. 合併由**開這個 session 的人**做：使用者自己開的 session，做完在主分支 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）開的 session 只在自己的分支 commit，合併與 push 留給協調者。合併的人接著在主分支把票上那兩種行抄進去（progress.md 一列 session 紀錄含下一步、decisions.md 每個決定一條）並 commit。
+7. 驗收票被其他所有票擋、不會平行，它自己在分支上改這兩個檔。
 
 完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、Comments 有 `Session 紀錄：` 一行、已 commit。缺一就還沒完成。
 
