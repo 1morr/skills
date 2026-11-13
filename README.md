@@ -6,7 +6,7 @@
 |---|---|---|
 | [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查，建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方單獨交給你決定 |
 | [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [里程碑或 commit 範圍] [想問的事]`（只能手動叫用） | 一個里程碑做完、拆下一個之前：回顧做了什麼、為什麼、對不對、遺留什麼，說明下一個的打算，出一頁臨時回顧頁，對話對齊後把定案寫回 repo 原有的文件 |
-| [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：腳本從 repo 的固定文件讀出里程碑與每張票的進度、進行中的 worktree、決策（可按決定者與里程碑篩選）、ADR、最近的 session 與下一步；可以同時看好幾個 repo。頁面不寫進 repo |
+| [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：腳本從 repo 的固定文件讀出里程碑與每張票的進度、進行中的 worktree、等你決定的事與 agent 自己定而你還沒看過的決定、決策（可按決定者與里程碑篩選）、ADR、最近與已封存的 session 紀錄、下一步；文件裡它讀不懂的行會列出來；可以同時看好幾個 repo。頁面不寫進 repo |
 | [diff](skills/diff/SKILL.md) | 說「給我 diff 的 html」「前後對照」「展示這個改動」，或由其他 skill 呼叫 | 做一頁給讀者看的前後對照：文件（docx、PDF、HTML、海報、Markdown、文字）逐字比對，或程式改動實跑前後並附證據。比對由腳本算，頁面由模型照內容設計 |
 | [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西> [想知道的事]`（只能手動叫用） | 解說 repo 裡某個功能、流程、頁面、機制或里程碑現在怎麼運作：一頁附 Mermaid 圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭骨架，已有骨架的 repo 則逐項對齊最新範本：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions 的空殼、票的慣例（含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的設定，不必另外跑；流程本身要用他的 `/to-tickets`、`/implement` 等 skill）、文件格式與 commit message 的檢查和 CI；之後照 brief → plan → 票 → 驗收的流程開發，和 checkpoint、ticket-coordinator 用同一套格式 |

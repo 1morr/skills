@@ -221,6 +221,25 @@ class CollectTest(Repo):
                          [("2026-01-05", "M1 01", "查碼表做完 a|b"), ("2026-01-04", "M1 開工", "拆了 3 張票")])
         self.assertEqual(d["next"], "新 session 下 `/implement .scratch/m1/issues/02-bar.md`")
 
+    def test_waiting_for_the_user_and_decisions_the_user_has_not_seen(self):
+        d = self.collect()
+        self.assertEqual((d["waiting"], [x["text"] for x in d["unseen"]]), ("", ["碼表用 fst 存。"]))
+        self.sub("docs/progress.md", "新 session 下 `/implement .scratch/m1/issues/02-bar.md`", "等使用者：試用 M1")
+        self.write("docs/archive/M0.md", "## 決定\n\n- 2025-12-30 M0（Agent 定）：封存了的不再列。\n")
+        d = self.collect()
+        self.assertEqual((d["waiting"], d["next"], len(d["unseen"])), ("試用 M1", "等使用者：試用 M1", 1))
+
+    def test_archived_sessions_are_read_newest_first(self):
+        self.assertEqual(self.collect()["archived_sessions"], [])
+        table = "| 日期 | 票 | 結果 | 下一步 |\n| --- | --- | --- | --- |\n"
+        self.write("docs/archive/m0.md", "## Session 紀錄\n\n" + table + "| 2025-12-01 | M0 01 | 做完 a\\|b | x |\n| 2025-12-02 | M0 02 | 把 `a | b` 換成 c | `/implement y` |\n")
+        self.write("docs/archive/m0.5.md", "## 決定\n\n## Session 紀錄\n\n" + table + "| 2025-12-09 | M0.5 01 | 做完 | x |\n| 2025-12-08 | M0.5 開工 | 早期的列沒有下一步 |\n| 2025-12-10 | 沒有結果 |\n\n表後面的字不算。\n")
+        d = self.collect()
+        self.assertEqual([(a["milestone"], [(r["date"], r["ticket"], r["result"]) for r in a["rows"]]) for a in d["archived_sessions"]],
+                         [("M0.5", [("2025-12-08", "M0.5 開工", "早期的列沒有下一步"), ("2025-12-09", "M0.5 01", "做完")]),
+                          ("M0", [("2025-12-02", "M0 02", "把 a | b 換成 c"), ("2025-12-01", "M0 01", "做完 a|b")])])
+        self.assertEqual([(u["file"], u["line"]) for u in d["unreadable"]], [("docs/archive/m0.5.md", 9)])
+
     def test_unrelated_formatting_does_not_change_the_data(self):
         before = self.collect()
         self.sub("docs/roadmap.md", "| --- | --- | --- | --- |", "|:---|:---:|---|---:|")
@@ -236,7 +255,8 @@ class CollectTest(Repo):
         bare.mkdir()
         d = m.collect(bare)
         self.assertEqual(d["missing"], ["docs/roadmap.md", "docs/decisions.md", "docs/progress.md"])
-        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"], d["unreadable"], d["unlisted"]), ([], [], [], "", [], []))
+        self.assertEqual((d["milestones"], d["decisions"], d["sessions"], d["next"], d["unreadable"], d["unlisted"], d["waiting"], d["unseen"], d["archived_sessions"]),
+                         ([], [], [], "", [], [], "", [], []))
 
 
 @unittest.skipUnless(shutil.which("git"), "要 git")

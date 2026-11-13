@@ -134,6 +134,12 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([(d["milestone"], d["label"], d["decider"], d["archived"]) for d in data["decisions"]],
                          [("M1", "M1", "使用者定", False), ("M0", "M0 票 01", "Agent 定", True), ("M0", "框架", "Agent 定", True)])
         self.assertEqual((len(data["sessions"]), data["next"]), (1, "新 session 下 `/1morr:checkpoint M0`"))
+        self.assertEqual([(a["milestone"], [r["ticket"] for r in a["rows"]]) for a in data["archived_sessions"]], [("M0", ["M0 01", "M0 開工", "框架"])])
+        self.assertEqual((data["waiting"], data["unseen"]), ("", []))
+
+        # 驗收票停在等使用者試
+        self.append("docs/progress.md", "| 2026-01-06 | M1 02 | Agent 驗做完 | 等使用者：試用 M1 |")
+        self.assertEqual(self.check()["waiting"], "試用 M1")
 
         # 不是里程碑的工作也在表裡佔一列
         self.write(".scratch/docs-diet/spec.md", spec())

@@ -10,9 +10,11 @@
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（進行中的里程碑）
   docs/archive/*.md    〈決定〉：已驗收里程碑的決定，里程碑取檔名；舊骨架的段名〈偏差與決定〉也讀
+                       〈Session 紀錄〉的表：封存的 session 紀錄。儲存格裡有沒跳脫的 `|` 而多出欄位的列，
+                       多的併進「結果」；少了「結果」後面幾欄的照讀；連「結果」都沒有的列在「讀不到的行」
                        這兩處以 `- ` 開頭卻不是 `- YYYY-MM-DD …` 的行，列在頁面的「讀不到的行」
   docs/adr/*.md        編號與標題
-  docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」
+  docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
 
 資料每次請求時現讀，不存快取。頁面不載入任何外部資源。只用標準函式庫。
@@ -46,6 +48,8 @@ STATUS = re.compile(r"^\**Status:?\**:?\s*(\S.*?)\s*$", re.I)
 CHECKBOX = re.compile(r"^\s*[-*] \[([ xX])\]")
 ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
+WAITING = "等使用者："
+RESULT = "結果"
 STATES = {"未開工": "todo", "進行中": "active", "已驗收": "done", "不做": "dropped"}
 
 
@@ -219,6 +223,37 @@ def sessions(repo: Path) -> list:
              "next": r.get("下一步", "").strip()} for r in rows]
 
 
+def archived_sessions(repo: Path) -> tuple:
+    """([{里程碑, 檔名, rows}], 讀不到的行)：各封存檔〈Session 紀錄〉的表，新的在前。"""
+    out, unreadable = [], []
+    for archived in sorted((repo / "docs/archive").glob("*.md")) if (repo / "docs/archive").is_dir() else []:
+        rows = []
+        for number, line in numbered_sections(read(archived)).get("Session 紀錄", []):
+            if line.strip().startswith("|"):
+                rows.append((number, [c.strip().replace("\\|", "|") for c in CELL_SPLIT.split(line.strip().strip("|"))]))
+            elif rows:
+                break
+        if len(rows) < 2:
+            continue
+        head, found = rows[0][1], []
+        for number, cells in rows[2:]:
+            extra = len(cells) - len(head)
+            if extra > 0 and RESULT in head:  # 儲存格裡沒跳脫的 | 幾乎都在最長的「結果」欄
+                i = head.index(RESULT)
+                cells = cells[:i] + [" | ".join(cells[i:i + extra + 1])] + cells[i + extra + 1:]
+            elif extra < 0 and RESULT in head and len(cells) > head.index(RESULT):  # 早期的列沒有「下一步」
+                cells = cells + [""] * -extra
+            if len(cells) != len(head):
+                unreadable.append({"file": f"docs/archive/{archived.name}", "line": number, "text": plain(" | ".join(cells))[:80],
+                                   "why": f"這一列有 {len(cells)} 欄，表頭是 {len(head)} 欄，沒有列進 session 紀錄"})
+                continue
+            r = dict(zip(head, cells))
+            found.append({"date": r.get("日期", ""), "ticket": plain(r.get("票", "")), "result": plain(r.get(RESULT, ""))})
+        name = archived.stem.upper() if MILESTONE_FILE.match(archived.stem) else archived.stem
+        out.append({"milestone": name, "file": archived.name, "rows": found[::-1]})
+    return sorted(out, key=lambda a: a["rows"][0]["date"] if a["rows"] else "", reverse=True), unreadable
+
+
 def git(cwd: Path, *args) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, timeout=10)
 
@@ -271,10 +306,14 @@ def collect(repo: Path) -> dict:
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
     log = sessions(repo)
     decided, unreadable = decisions(repo)
+    old_sessions, odd_rows = archived_sessions(repo)
+    step = log[-1]["next"] if log else ""
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
-            "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": log[-1]["next"] if log else "",
+            "adrs": adrs(repo), "sessions": log[-30:][::-1], "next": step,
+            "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
+            "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
-            "unreadable": odd_states + unreadable, "unlisted": unlisted(repo, ms)}
+            "unreadable": odd_states + unreadable + odd_rows, "unlisted": unlisted(repo, ms)}
 
 
 PAGE = r"""<!doctype html>
@@ -424,7 +463,9 @@ function render() {
     p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 行不是約定的寫法`),
       el("ul", { class: "plain" }, p.unreadable.map(u => el("li", {}, el("span", {}, u.text, el("div", { class: "small" }, u.why)), el("span", { class: "small num" }, `${u.file}:${u.line}`))))) : null,
     el("div", { class: "now" },
-      el("div", { class: "small" }, "下一步"), el("div", {}, p.next ? command(p.next) : "progress.md 沒有 session 紀錄。"),
+      el("div", { class: "small" }, p.waiting ? "等你決定" : "下一步"), el("div", {}, p.waiting ? command(p.waiting) : (p.next ? command(p.next) : "progress.md 沒有 session 紀錄。")),
+      p.unseen.length ? el("details", { style: "margin-top:.7rem" }, el("summary", { class: "small" }, `Agent 自己定、你還沒看過的決定（${p.unseen.length} 條）`),
+        el("ul", { class: "plain" }, p.unseen.map(d => el("li", {}, el("span", {}, d.label ? el("span", { class: "small" }, d.label + "　") : null, d.text), el("span", { class: "small num" }, d.date))))) : null,
       p.working.length ? [el("div", { class: "small", style: "margin-top:.7rem" }, `正在做（${p.working.length} 個 worktree）`),
         el("ul", { class: "plain" }, p.working.map(w => el("li", {}, el("span", {}, `${w.milestone}　${w.title}`),
           el("span", { class: "badge active num" }, (w.done ? "做完，等合併" : (w.boxes ? `${w.checked}/${w.boxes}` : "進行中")) + "　" + w.worktree))))] : null),
@@ -439,7 +480,11 @@ function render() {
     p.sessions.length ? el("div", { class: "table-wrap" }, el("table", {},
       el("thead", {}, el("tr", {}, ["日期", "票", "結果"].map(h => el("th", {}, h)))),
       el("tbody", {}, p.sessions.map(s => el("tr", {}, el("td", { class: "nowrap num" }, s.date), el("td", { class: "nowrap" }, s.ticket), el("td", {}, s.result))))))
-      : el("div", { class: "empty" }, "沒有 session 紀錄。")].flat(Infinity).filter(Boolean));
+      : el("div", { class: "empty" }, "沒有 session 紀錄。"),
+    p.archived_sessions.map(a => { const id = p.name + "/sessions/" + a.file;
+      const box = el("details", { class: "more", open: view.open[id] ?? false }, el("summary", { class: "small" }, `${a.milestone} 封存的 session 紀錄（${a.rows.length} 列）`),
+        el("div", { class: "table-wrap" }, el("table", {}, el("tbody", {}, a.rows.map(s => el("tr", {}, el("td", { class: "nowrap num" }, s.date), el("td", { class: "nowrap" }, s.ticket), el("td", {}, s.result)))))));
+      box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; })].flat(Infinity).filter(Boolean));
   if (q) { const input = document.getElementById("q"); input.focus(); input.setSelectionRange(pos, pos); }
 }
 render();
