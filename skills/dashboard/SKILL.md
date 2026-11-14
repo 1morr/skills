@@ -9,7 +9,7 @@ argument-hint: "[repo 路徑…] [static]"
 
 參數：$ARGUMENTS
 
-`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`（plugin 根目錄的 `pages/`）。
+`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`。
 
 ## 1. 要看哪些 repo
 

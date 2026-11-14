@@ -22,7 +22,7 @@
 ## 文字
 
 - `SKILL.md` 和附屬 md 用繁體中文；識別符、指令、log、commit message 用英文。
-- skill 不替使用者開瀏覽器或分頁（`open`、`xdg-open`、`orca tab create`）：交付照 `pages/HANDOFF.md`。執行者自己用瀏覽器自動化工具檢查頁面不算。
+- skill 不替使用者開瀏覽器或分頁（`open`、`xdg-open`、`orca tab create`）：臨時頁的交付照 `pages/HANDOFF.md`，寫進使用者 repo 的頁（tutor）給完整路徑。執行者自己用瀏覽器自動化工具檢查頁面不算。
 - 執行時讀的檔只寫執行者要做的事。給維護者的規則寫在本檔，例如「改了這支腳本要跑哪個測試」。
 
 ## 腳本

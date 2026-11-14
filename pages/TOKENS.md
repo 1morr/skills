@@ -18,6 +18,6 @@ diff、explain、checkpoint、dashboard 的頁面共用這組 token 和字體，
 三個字族變數 `--font-ui`、`--font-doc`、`--font-code` 也在 `tokens.css`。
 
 - 文件內文用 `--font-doc`，工具列、標籤、說明和計數用 `--font-ui`。原文件是無襯線的（簡報、海報），內文也改用 `--font-ui`。
-- 字級固定用 rem：內文 1.0625rem、行高 1.7；說明與標籤 0.875rem，不再更小；段落標題 1.375rem、頁面標題 2rem（手機 1.625rem）；摘要或結論段 1.125–1.25rem。
+- 字級固定用 rem，數值照 [scripts/page.css](scripts/page.css)：自己補 class 時從那幾級裡取，說明與標籤那一級（0.875rem）是最小的。
 - 計數、行號和數字欄加 `font-variant-numeric: tabular-nums`；`html` 加 `text-autospace: normal`。
 - 次要文字用 `--ink-2` 加上較小的字級來區分，正體字。

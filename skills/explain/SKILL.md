@@ -5,11 +5,11 @@ disable-model-invocation: true
 argument-hint: "<要解說的東西> [想知道的事]"
 ---
 
-使用者是 repo 的主人，但常常不是這個領域的專家，很多做法是照 agent 的建議走的。這個 session 讓他看懂一樣東西**現在**怎麼運作、為什麼這樣，好在下一個決定前心裡有底。
+使用者是 repo 的主人，很多做法是照 agent 的建議走的。這個 session 讓他看懂一樣東西**現在**怎麼運作、為什麼這樣，好在下一個決定前心裡有底。
 
 參數：$ARGUMENTS
 
-`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`（plugin 根目錄的 `pages/`）。
+`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`。
 
 產出是一頁臨時的解說頁（寫法見 `<P>/PAGE.md`）加對話。repo 裡什麼都不寫；解說中發現文件錯了，問使用者要不要改，要改就照 repo 的規定另外改。
 

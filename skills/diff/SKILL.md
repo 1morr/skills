@@ -5,7 +5,7 @@ description: 做一頁前後對照的 HTML：文件兩版逐字比對，或程�
 
 做一頁 HTML，讓沒參與修改的**讀者**只看這一頁，就知道改了什麼、能判斷改得對不對。
 
-`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`（plugin 根目錄的 `pages/`）。
+`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`。
 
 ## 選分支
 
