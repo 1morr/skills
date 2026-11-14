@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、書眉寫現在第幾題、查表面板、點圖切換中英文。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、右下角查表面板、點圖切換中英文。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -577,35 +577,6 @@
     const img = e.target.closest("figure img[data-zh]");
     if (img) toggleLang(img);
   });
-
-  // 書眉：寫現在第幾題，題號格上那一格畫紅底線；按書眉回到題號格
-  const here = document.querySelector(".here");
-  if (here) {
-    const strip = here.parentElement;
-    const sections = Array.from(document.querySelectorAll("section.q"));
-    const links = Array.from(document.querySelectorAll("nav.jump a"));
-    let queued = false;
-    let last = null;  // 回到題號格時還看得出剛才做到哪一題
-    const sync = function () {
-      queued = false;
-      const line = strip.getBoundingClientRect().bottom + 28;
-      let current = null;
-      sections.forEach(function (s) { if (s.offsetParent && s.getBoundingClientRect().top <= line) current = s; });
-      here.textContent = current ? current.querySelector("h2").textContent.trim() : "共 " + sections.length + " 題";
-      if (current) last = current;
-      links.forEach(function (a) {
-        if (last && a.getAttribute("href") === "#" + last.id) a.setAttribute("aria-current", "true");
-        else a.removeAttribute("aria-current");
-      });
-    };
-    here.addEventListener("click", function () {
-      const nav = document.querySelector("nav.jump");
-      if (nav && nav.offsetParent) nav.scrollIntoView({ block: "center" }); else window.scrollTo({ top: 0 });
-    });
-    window.addEventListener("scroll", function () { if (!queued) { queued = true; requestAnimationFrame(sync); } }, { passive: true });
-    window.addEventListener("resize", sync);
-    sync();
-  }
 
   const panel = document.getElementById("panel");
   if (!panel) return;

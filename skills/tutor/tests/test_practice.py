@@ -445,35 +445,12 @@ class Build(Case):
         nav = re.search(r'<nav class="jump".*?</nav>', out, re.S).group(0)
         self.assertEqual(re.findall(r'href="#q-([^"]+)"', nav), IDS)
 
-    def test_nav_cell_splits_number_from_name(self):
-        # 題號格每格一樣寬：題號和題名分開包，手機寬才能只留題號；完整題名留在 title
-        src = '<section class="q" data-id="a"><h2>練習 1\u3000防曬乳 &amp; <i>S</i></h2></section><section class="q drill" data-id="b"><h2>基本功 2</h2></section>'
-        nav = practice.nav(src)
-        self.assertIn('title="練習 1\u3000防曬乳 &amp; S"><b>練習 1</b><span>防曬乳 &amp; S</span></a>', nav)
-        self.assertIn('class="drill" title="基本功 2"><b>基本功 2</b></a>', nav)
-
     def test_images_inlined_zh_first(self):
         out = self.page()
         img = re.search(r"<img [^>]*>", out).group(0)
         self.assertIn('src="data:image/png;base64,', img)
         self.assertIn('data-en="data:image/png;base64,', img)
         self.assertNotIn("z.png", out)
-
-    def test_running_head_holds_position_and_panel_button(self):
-        # 書眉固定在頂端：現在第幾題（.here，由 practice.js 填）和「查表」都在裡面，不再有浮在右下角的按鈕
-        body = self.page().split("</style>")[1].split("<script>")[0]
-        bar = re.search(r'<div class="bar">(.*?)</div>', body, re.S).group(1)
-        self.assertIn('class="here"', bar)
-        self.assertIn('id="panel-btn"', bar)
-        self.assertEqual(body.count('id="panel-btn"'), 1)
-        self.assertLess(body.index('<div class="bar">'), body.index("<h1>"))
-
-    def test_mock_puts_position_and_panel_button_in_the_clock(self):
-        body = practice.build(src(MQ, MOCK_BODY), self.dir).split("</style>")[1].split("<script>")[0]
-        clock = re.search(r'<div class="clock"[^>]*>(.*?)</div>', body, re.S).group(1)
-        self.assertIn('class="here"', clock)
-        self.assertNotIn('<div class="bar">', body)
-        self.assertEqual(body.count('class="here"'), 1)
 
     def test_panel_becomes_tabs(self):
         out = self.page()

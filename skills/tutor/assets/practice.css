@@ -1,177 +1,155 @@
-/* tutor 練習頁和模擬卷的樣式；practice.py 會把它內嵌進頁面。和導讀頁同一本書：白紙、黑墨、一種紅、一種螢光黃。
-   紅色只給答錯和「再按一次」這種要注意的狀態；做對是實心黑。對錯都用字寫出來，顏色只是輔助。
-   畫布在深色模式也是白紙：筆的顏色和複製出去的圖都是白底（見 practice.js 的 COLORS）。 */
+/* tutor 練習頁樣式；practice.py 會把它內嵌進頁面。和導讀頁同一套色票與字體。
+   畫布在暗色模式也是白紙：筆的顏色和複製出去的圖都是白底（見 practice.js 的 COLORS）。 */
 :root {
   color-scheme: light dark;
-  --paper: #ffffff; --ink: #111111; --mute: #555555; --hair: #c9c9c9;
-  --red: #c8201a; --red-wash: #fbe3e1; --hl: #ffe45c; --hl-ink: #111111;
-  --board: #ffffff; --board-ink: #111111; --grid: #e4e4e4; --img-filter: none;
+  --paper: #fbfaf6; --card: #ffffff; --ink: #23211d; --muted: #67625a; --line: #e2ddd2; --rule: #c9c2b4;
+  --accent: #1f5f8b; --accent-soft: #e9f0f5; --tint: #f0ede5; --danger: #b3261e; --ok: #2e6b3a;
+  --board: #ffffff; --board-ink: #1d2433; --grid: #e9edf3; --img-filter: none;
   --font: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
   --serif: "STIX Two Text", Cambria, "Times New Roman", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", serif;
   --mono: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #141414; --ink: #ededed; --mute: #a8a8a8; --hair: #474747;
-    --red: #ff7566; --red-wash: #3b1b18; --hl: #e6c84a; --hl-ink: #111111; --img-filter: brightness(.9);
+    --paper: #1b1a18; --card: #22211e; --ink: #e8e4db; --muted: #a49e93; --line: #36332e; --rule: #4a463f;
+    --accent: #86b8dc; --accent-soft: #1e2a33; --tint: #2a2824; --danger: #e5675c; --ok: #8cc79a; --img-filter: brightness(.88);
   }
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; text-autospace: normal; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-body { margin: 0; background: var(--paper); color: var(--ink); font: 16.5px/1.75 var(--font); overflow-wrap: break-word; caret-color: var(--red); }
-::selection { background: var(--hl); color: var(--hl-ink); }
-:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-a { color: var(--ink); text-underline-offset: .22em; text-decoration-thickness: 1px; }
-a:hover { background: var(--ink); color: var(--paper); }
-button { border-radius: 0; }
-main { max-width: 50rem; margin: 0 auto; padding: 0 1.25rem 7rem; }
-/* 卷頭：像考卷的封面，一條粗黑線壓在科目名稱下面 */
-h1 { font-size: 1.7rem; line-height: 1.3; font-weight: 800; margin: 0 0 .6rem; padding: 1.6rem 0 .7rem; border-bottom: 1.5px solid var(--ink); }
-.lead { margin: 0 0 1rem; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.75 var(--font); overflow-wrap: break-word; }
+::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+a { color: var(--accent); text-underline-offset: .22em; text-decoration-thickness: 1px; }
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 7rem; }
+h1 { font-size: 1.75rem; line-height: 1.3; letter-spacing: -.01em; margin: 0 0 .5rem; }
+.lead { color: var(--muted); margin: 0 0 1.25rem; }
 i, var { font-family: var(--serif); font-size: 1.06em; }
 sub, sup { line-height: 0; }
-.howto { border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); padding: .45rem 0; font-size: .94rem; }
+.howto { background: var(--tint); border-radius: 3px; padding: .6rem 1.2rem; font-size: .94rem; }
 .howto > summary, .howto > b { cursor: pointer; font-weight: 700; }
-.howto > summary { display: flow-root; list-style: none; }
-.howto > summary::-webkit-details-marker { display: none; }
-.howto > summary::after { content: "打開"; float: right; font-weight: 400; color: var(--mute); }
-.howto[open] > summary::after { content: "收起"; }
 .howto ul { margin: .3rem 0; padding-left: 1.2em; }
 .howto li { margin: .2rem 0; }
-/* 題號格：考卷封面那排格子。做對的實心黑，答錯的紅色虛線框，對過範本答案的後面寫「已評」 */
-/* 每格一樣寬：題號粗體在前，題名接在後面、放不下就換行；手機寬只留題號 */
-nav.jump { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); margin: 1.25rem 0 .5rem; padding: 1px 0 0 1px; font-size: .88rem; line-height: 1.45; }
-nav.jump a { text-decoration: none; border: 1px solid var(--ink); margin: -1px 0 0 -1px; padding: .3rem .7rem; }
-nav.jump a b { margin-right: .7em; }
-@media (max-width: 560px) {
-  nav.jump { grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr)); }
-  nav.jump a { text-align: center; padding: .3rem .2rem; }
-  nav.jump a b { margin: 0; }
-  nav.jump a span { display: none; }
+nav.jump { display: flex; flex-wrap: wrap; gap: .45rem; margin: 1.25rem 0 .5rem; }
+nav.jump a {
+  text-decoration: none; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding: .15rem .75rem; border-radius: 4px; font-size: .9rem;
 }
-nav.jump a.ok { background: var(--ink); color: var(--paper); }
-nav.jump a.no { color: var(--red); border: 1.5px dashed var(--red); position: relative; z-index: 1; font-weight: 700; }
-nav.jump a.graded::after { content: "　已評"; font-weight: 400; }
-h2.part { font-size: 1.16rem; margin: 3.5rem 0 0; padding: .5rem .85rem; background: var(--ink); color: var(--paper); }
-p.part-lead { color: var(--mute); margin: .5rem 0 0; }
+nav.jump a:hover { background: var(--accent-soft); }
+nav.jump a.drill { color: var(--ink); border-color: var(--rule); }
+nav.jump a.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); border-color: var(--ok); color: var(--ok); }
+nav.jump a.no { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); color: var(--danger); }
+nav.jump a.graded::after { content: " ✓"; }
+h2.part { font-size: 1.4rem; margin: 3.5rem 0 0; padding-top: 1rem; border-top: 3px double var(--rule); }
+p.part-lead { color: var(--muted); margin: .3rem 0 0; }
 
-/* 每題：一條黑線分隔，不做卡片；題目在上、畫布在下 */
-section.q { padding: 1.5rem 0 .5rem; margin: 1.5rem 0 0; border-top: 1.5px solid var(--ink); scroll-margin-top: calc(46px + 1rem); }
-h2.part + p.part-lead + section.q, h2.part + section.q { border-top: 0; margin-top: 0; }
+/* 每題：細線分隔，不做卡片；題目在上、畫布在下 */
+section.q { padding: 1.75rem 0 .5rem; margin: 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }
+h2.part + p.part-lead + section.q, h2.part + section.q { border-top: 0; }
 /* 基本功：一題一格、沒有畫布，排緊一點 */
-section.q.drill { padding: .8rem 0 .4rem; margin: 0; border-top: 1px solid var(--hair); }
+section.q.drill { padding: .9rem 0 .5rem; }
 section.q.drill p { margin: .35rem 0; }
-section.q h2 { font-size: 1.25rem; line-height: 1.45; margin: 0; }
-section.q.drill h2 { font-size: 1rem; }
-.ref { font-size: .86rem; color: var(--mute); margin: .2rem 0 0; }
+section.q h2 { font-size: 1.3rem; line-height: 1.45; margin: 0; }
+section.q.drill h2 { font-size: 1.08rem; }
+.ref { font-size: .86rem; color: var(--muted); margin: .2rem 0 0; }
 .en { margin: .9rem 0 .4rem; font-family: var(--serif); font-size: 1.06rem; line-height: 1.65; }
 .en ol { margin: .4rem 0 0; padding-left: 1.6em; list-style: lower-alpha; }
-.zh { color: var(--mute); font-size: .94rem; margin: .5rem 0 1rem; }
+.zh { color: var(--muted); font-size: .94rem; margin: .5rem 0 1rem; }
 .zh ol { margin: .25rem 0 0; padding-left: 1.6em; list-style: lower-alpha; }
 .data { font-family: var(--mono); font-size: .92em; }
 section.q table {
   border-collapse: collapse; margin: .8rem 0; font-size: .93rem; font-variant-numeric: tabular-nums;
   border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); display: block; overflow-x: auto; width: fit-content; max-width: 100%;
 }
-section.q th, section.q td { padding: .3rem .9rem; text-align: center; border-bottom: 1px solid var(--hair); }
+section.q th, section.q td { padding: .3rem .9rem; text-align: center; border-bottom: 1px solid var(--line); }
 section.q tr:last-child > td { border-bottom: 0; }
-section.q th { font-weight: 700; border-bottom: 1.5px solid var(--ink); white-space: nowrap; }
-.note { color: var(--mute); font-size: .94rem; }
-/* 軟體輸出：等寬字、細線框，不上底色 */
-pre.mtb { font-family: var(--mono); font-size: .84rem; line-height: 1.45; border: 1px solid var(--ink); padding: .7rem .9rem; overflow-x: auto; white-space: pre; }
+section.q th { font-weight: 600; border-bottom-color: var(--rule); white-space: nowrap; }
+.note { color: var(--muted); font-size: .94rem; }
+pre.mtb {
+  font-family: var(--mono); font-size: .84rem; line-height: 1.45; background: var(--tint); color: var(--ink);
+  border-radius: 3px; padding: .7rem .9rem; overflow-x: auto; white-space: pre;
+}
 section.q figure { margin: .9rem 0; }
-section.q figure img { max-width: 100%; max-height: 85vh; display: block; cursor: pointer; background: #fff; border: 1px solid var(--ink); filter: var(--img-filter); }
-figcaption { color: var(--mute); font-size: .84rem; margin-top: .35rem; }
+section.q figure img {
+  max-width: 100%; max-height: 85vh; display: block; cursor: pointer; background: #fff;
+  border: 1px solid var(--line); border-radius: 2px; filter: var(--img-filter);
+}
+figcaption { color: var(--muted); font-size: .84rem; margin-top: .35rem; }
 
-/* 填答格：考卷上的一條底線 */
+/* 填答格：頁面上對答案；對錯用字說，顏色只是輔助 */
 .fill { margin: .7rem 0; }
 .fill input {
-  font: 1rem var(--mono); width: 9em; padding: .05rem .4rem; color: var(--ink); background: transparent;
-  border: 0; border-bottom: 2px solid var(--ink); border-radius: 0;
+  font: inherit; width: 9em; padding: .1rem .5rem; color: var(--ink); background: var(--card);
+  border: 1px solid var(--rule); border-radius: 4px;
 }
 .fill button, .report button {
-  font: inherit; font-size: .88rem; color: var(--ink); background: var(--paper); cursor: pointer;
-  border: 1.5px solid var(--ink); padding: .08rem .75rem; margin-left: .3rem;
+  font: inherit; font-size: .9rem; color: var(--accent); background: transparent; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; padding: .1rem .75rem;
 }
-.fill button:hover:not(:disabled), .report button:hover { background: var(--ink); color: var(--paper); }
-.fill button:disabled { opacity: .45; cursor: default; }
-.fill .result { display: block; font-size: .94rem; margin-top: .3rem; }
-.fill.ok .result { font-weight: 700; }
-.fill.ok input { border-bottom-style: double; border-bottom-width: 4px; }
-.fill.no .result { color: var(--red); }
-.fill.no input { border-bottom: 2px dashed var(--red); }
-.report { margin: .8rem 0 0; font-size: .9rem; }
-.report button { margin-left: 0; }
-.report .status { color: var(--mute); margin-left: .6rem; }
-.report textarea { display: block; width: 100%; margin-top: .5rem; font: .86rem/1.5 var(--mono); color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; }
+.fill button:hover:not(:disabled), .report button:hover { background: var(--accent-soft); }
+.fill button:disabled { opacity: .5; cursor: default; }
+.fill .result { display: block; font-size: .94rem; margin-top: .25rem; }
+.fill.ok .result { color: var(--ok); }
+.fill.no .result { color: var(--danger); }
+.report { margin: .6rem 0 0; font-size: .9rem; }
+.report .status { color: var(--muted); margin-left: .6rem; }
+.report textarea { display: block; width: 100%; margin-top: .5rem; font: .86rem/1.5 var(--mono); }
 
-/* 範本答案：寫完才打開；答案紙是白紙，給分點一列一列勾，分數靠右 */
-details.model { border: 1.5px solid var(--ink); margin: 1rem 0 1.25rem; }
-details.model > summary { cursor: pointer; font-weight: 700; padding: .5rem .9rem; list-style: none; display: flow-root; }
-details.model > summary::-webkit-details-marker { display: none; }
-details.model > summary::after { content: "打開"; float: right; margin-left: 1rem; font-weight: 400; font-size: .86rem; color: var(--mute); }
-details.model[open] > summary::after { content: "收起"; }
-details.model > summary:hover { background: var(--ink); color: var(--paper); }
-details.model > summary:hover::after { color: var(--paper); }
-details.model[open] > summary { border-bottom: 1px solid var(--ink); }
-details.model > :not(summary) { margin-left: .9rem; margin-right: .9rem; }
-details.model .sheet { background: #fff; color: #111; border: 1px solid var(--ink); padding: .8rem 1.1rem; margin-top: .9rem; font: 16px/1.65 var(--serif); overflow-x: auto; }
+/* 範本答案：寫完才打開；答案紙是白紙，給分點一點一點勾 */
+details.model { border: 1px solid var(--rule); border-radius: 4px; margin: 1rem 0 1.25rem; }
+details.model > summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: .55rem 1rem; }
+details.model > summary:hover { background: var(--accent-soft); }
+details.model[open] > summary { border-bottom: 1px solid var(--line); }
+details.model > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
+details.model .sheet {
+  background: #fff; color: #161616; border: 1px solid #d5d0c5; border-radius: 2px; padding: .8rem 1.1rem;
+  margin-top: 1rem; font: 16px/1.65 var(--serif); overflow-x: auto;
+}
 details.model .sheet p { margin: .35rem 0; }
-.rubric { list-style: none; padding: 0; margin: 1rem 0 0; border-top: 1.5px solid var(--ink); }
-.rubric li { margin: 0; border-bottom: 1px solid var(--hair); }
-.rubric label { cursor: pointer; display: block; padding: .35rem .2rem; }
-.rubric label:hover { background: var(--ink); color: var(--paper); }
-.rubric input { accent-color: var(--ink); width: 1.05em; height: 1.05em; margin: 0 .6em 0 0; vertical-align: -.12em; }
-.rubric label:has(:checked) { font-weight: 700; }
-.rubric .marks { color: var(--mute); font-size: .86rem; font-weight: 400; white-space: nowrap; }
-.rubric label:hover .marks { color: var(--paper); }
-details.model .score { font-weight: 800; margin: .7rem 0 1rem; text-align: right; }
+.rubric { list-style: none; padding: 0; }
+.rubric li { margin: .35rem 0; }
+.rubric label { cursor: pointer; display: block; padding: .15rem .3rem; border-radius: 3px; }
+.rubric label:hover { background: var(--tint); }
+.rubric label:has(:checked) { color: var(--ok); }
+.rubric .marks { color: var(--muted); font-size: .86rem; white-space: nowrap; }
+details.model .score { font-weight: 700; margin-bottom: 1rem; }
 
-/* 書眉：固定在頂端，寫著現在第幾題，按一下回到題號格；「查表」在右邊。模擬卷的書眉是計時列 */
-.bar {
-  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .6rem; min-height: 46px;
-  background: var(--paper); border-bottom: 3px solid var(--ink);
-}
-.here {
-  flex: 1 1 3rem; min-width: 0; padding: 0; text-align: left; font: inherit; font-size: .92rem; font-weight: 700;
-  color: var(--ink); background: none; border: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.clock .here { font-weight: 400; color: var(--mute); background: none; border: 0; padding: 0; }
-nav.jump a[aria-current="true"] { box-shadow: inset 0 -4px 0 var(--red); }
 /* 模擬卷：頂端的計時列；開始前看不到題目，交卷前不對答案、看不到範本答案 */
 .clock {
   position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
-  background: var(--paper); border-bottom: 3px solid var(--ink); padding: .5rem 0; margin: 1rem 0;
+  background: var(--paper); border-bottom: 1px solid var(--rule); padding: .6rem 0; margin: 1rem 0;
 }
-.clock .left { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.3rem; }
-.clock.over .left { color: var(--red); }
-.clock button { font: inherit; font-weight: 700; color: var(--paper); background: var(--ink); border: 1.5px solid var(--ink); padding: .2rem 1rem; cursor: pointer; }
-.clock button.armed { background: var(--red); border-color: var(--red); }
+.clock .left { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.1rem; }
+.clock.over .left { color: var(--danger); }
+.clock button {
+  font: inherit; font-weight: 600; color: var(--paper); background: var(--accent); border: 0; border-radius: 4px;
+  padding: .25rem 1rem; cursor: pointer;
+}
+.clock button.armed { background: var(--danger); }
 .clock button[hidden] { display: none; }
-.clock .status { color: var(--mute); font-size: .9rem; }
+.clock .status { color: var(--muted); font-size: .9rem; }
 body[data-mode="mock"]:not(.started) section.q, body[data-mode="mock"]:not(.started) nav.jump,
 body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not(.submitted) .report { display: none; }
 
 /* 畫布：工具列在上、白紙方格在下 */
-.pad { border: 1.5px solid var(--ink); overflow: clip; margin: 1rem 0 1.25rem; background: var(--board); }
+.pad { border: 1px solid var(--rule); border-radius: 4px; overflow: clip; margin: 1rem 0 1.25rem; background: var(--board); }
 .tools {
   display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
-  padding: .4rem .5rem; background: var(--paper); border-bottom: 1.5px solid var(--ink);
+  padding: .45rem .55rem; background: var(--card); border-bottom: 1px solid var(--rule);
   position: sticky; top: 0; z-index: 2;
 }
 .tools button {
-  font: inherit; font-size: .86rem; line-height: 1.5; border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
-  padding: .12rem .6rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+  font: inherit; font-size: .86rem; line-height: 1.5; border: 1px solid var(--line); background: transparent; color: var(--ink);
+  border-radius: 4px; padding: .15rem .65rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
 }
-.tools button:hover { background: var(--ink); color: var(--paper); }
-.tools button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.tools .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 2.5px var(--ink); }
-.tools .sep { width: 1px; height: 1.3rem; background: var(--ink); margin: 0 .25rem; }
-.tools .danger.armed { background: var(--red); color: var(--paper); border-color: var(--red); }
-.tools .send { background: var(--ink); color: var(--paper); font-weight: 700; }
-.tools .send:hover { background: var(--ink); color: var(--paper); }
-.tools .status { margin-left: auto; color: var(--mute); font-size: .8rem; }
+.tools button:hover { border-color: var(--rule); background: var(--tint); }
+.tools button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.tools .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 20%, transparent); }
+.tools .sep { width: 1px; height: 1.3rem; background: var(--line); margin: 0 .25rem; }
+.tools .danger.armed { background: var(--danger); color: #fff; border-color: var(--danger); }
+.tools .send { border-color: var(--accent); background: var(--accent); color: var(--paper); font-weight: 600; }
+.tools .send:hover { background: var(--accent); filter: brightness(1.08); }
+.tools .status { margin-left: auto; color: var(--muted); font-size: .8rem; }
 .board {
   position: relative; touch-action: none; background-color: var(--board);
   background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -181,20 +159,22 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
 .board canvas.erasing { cursor: cell; }
 .board canvas.typing { cursor: text; }
 .board textarea {
-  position: absolute; margin: 0; padding: 0; border: 0; outline: 1px dashed #111; outline-offset: 2px;
-  background: rgba(255, 255, 255, .85); color: var(--board-ink); caret-color: #c8201a; font-family: var(--font);
+  position: absolute; margin: 0; padding: 0; border: 0; outline: 1px dashed #1f5f8b; outline-offset: 2px;
+  background: rgba(255, 255, 255, .85); color: var(--board-ink); caret-color: #1f5f8b; font-family: var(--font);
   resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; color-scheme: light;
 }
 
 /* 查表面板 */
 #panel-btn {
-  flex: none; margin-left: auto; font: inherit; font-size: .88rem; font-weight: 400;
-  background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); padding: .12rem .75rem; cursor: pointer;
+  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 10;
+  font: inherit; font-weight: 600; background: var(--accent); color: var(--paper); border: 0;
+  border-radius: 999px; padding: .55rem 1.3rem; cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .12), 0 8px 20px -6px rgba(0, 0, 0, .3);
 }
-#panel-btn:hover { background: var(--ink); color: var(--paper); }
+#panel-btn:hover { filter: brightness(1.08); }
 #panel {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); z-index: 20;
-  background: var(--paper); border-left: 1px solid var(--ink); box-shadow: -10px 0 28px -14px rgba(0, 0, 0, .35);
+  background: var(--card); border-left: 1px solid var(--rule); box-shadow: -8px 0 28px -12px rgba(0, 0, 0, .25);
   display: none; flex-direction: column;
 }
 #panel.open { display: flex; }
@@ -202,17 +182,20 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body.panel-open main { margin-right: min(580px, 46vw); margin-left: 20px; }
   #panel { width: min(560px, 44vw); }
 }
-#panel header { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .55rem .9rem; border-bottom: 1.5px solid var(--ink); }
-#panel header button { font: inherit; font-size: .88rem; color: var(--ink); border: 1.5px solid var(--ink); background: var(--paper); padding: .12rem .75rem; cursor: pointer; }
-#panel header button:hover { background: var(--ink); color: var(--paper); }
-#panel header button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+#panel header { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .6rem .9rem; border-bottom: 1px solid var(--line); }
+#panel header button {
+  font: inherit; font-size: .9rem; color: var(--ink); border: 1px solid var(--line); background: transparent;
+  border-radius: 4px; padding: .15rem .8rem; cursor: pointer;
+}
+#panel header button:hover { background: var(--tint); }
+#panel header button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 #panel header .close { margin-left: auto; }
 #panel .body { overflow: auto; padding: .7rem .9rem 2rem; }
 #panel figure { margin: 0; }
 #panel img { width: 100%; cursor: pointer; background: #fff; filter: var(--img-filter); }
 @media (max-width: 560px) {
   body { font-size: 16px; }
-  main { padding: 0 1rem 6rem; }
-  h1 { font-size: 1.45rem; }
-  section.q h2 { font-size: 1.12rem; }
+  main { padding: 1.25rem 1rem 6rem; }
+  h1 { font-size: 1.5rem; }
+  section.q h2 { font-size: 1.18rem; }
 }
