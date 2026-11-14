@@ -257,9 +257,31 @@ def check_section_refs(root: Path) -> list:
     return out
 
 
+def first_sentence(description: str) -> str:
+    return description.strip().strip('"').split("。")[0]
+
+
+def check_manifest_descriptions(root: Path) -> list:
+    """兩份 manifest 的 description 裡，每個 skill 那一段（`<名稱>：…`，用 `；` 分開）等於它 SKILL.md 的 description 第一句（到第一個「。」為止），所以 description 裡不能有 `；`。"""
+    out = []
+    want = {n: first_sentence(frontmatter(read(root / "skills" / n / "SKILL.md")).get("description", "")) for n in skills(root)}
+    out += [f"skills/{n}/SKILL.md 的 description 第一句有「；」：manifest 用它分段" for n, d in want.items() if "；" in d]
+    manifests = {
+        ".claude-plugin/plugin.json": json.loads(read(root / ".claude-plugin/plugin.json"))["description"],
+        ".claude-plugin/marketplace.json": json.loads(read(root / ".claude-plugin/marketplace.json"))["plugins"][0]["description"],
+    }
+    for where, text in manifests.items():
+        for part in text.rstrip("。").split("；"):
+            name, sep, got = part.strip().partition("：")
+            if sep and name in want and got != want[name]:
+                out.append(f"{where} 的 {name}：寫「{got}」，SKILL.md 的 description 是「{want[name]}」")
+    return out
+
+
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
           check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs)
+          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs,
+          check_manifest_descriptions)
 
 
 class RepoTest(unittest.TestCase):
@@ -640,3 +662,25 @@ class SectionRefsTest(Fixture):
         sub(self.root, "skills/notes/SKILL.md", "先讀", "回「照你的判斷」，見〈下面那一節〉和專案的 development.md〈全部檢查〉。先讀")
         write(self.root, "skills/notes/templates/instructions.md", "照 README.md〈使用者專案才有的節〉。\n")
         self.clean(check_section_refs)
+
+
+class ManifestDescriptionsTest(Fixture):
+    def test_description_changed_without_the_manifests(self):
+        sub(self.root, "skills/notes/SKILL.md", "description: 記筆記", "description: 寫會議紀錄")
+        self.red(check_manifest_descriptions)
+
+    def test_one_manifest_reworded(self):
+        sub(self.root, ".claude-plugin/marketplace.json", "notes：記筆記", "notes：記筆記和待辦")
+        self.red(check_manifest_descriptions)
+
+    def test_separator_inside_a_description(self):
+        for rel in ("skills/notes/SKILL.md", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
+            sub(self.root, rel, "記筆記", "記筆記；也記待辦")
+        self.red(check_manifest_descriptions)
+
+    def test_readme_trigger_sentence_and_order_do_not_matter(self):
+        sub(self.root, "README.md", "| 筆記 |", "| 長一點的說明，給人看的 |")
+        sub(self.root, "skills/diff/SKILL.md", "使用者要 diff 頁時用。", "要前後對照時用。")
+        for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
+            sub(self.root, rel, "diff：對照頁；notes：記筆記。", "notes：記筆記；diff：對照頁。")
+        self.clean(check_manifest_descriptions)
