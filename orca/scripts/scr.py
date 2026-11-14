@@ -1,4 +1,5 @@
-# 用法：python3 scr.py <handle> [行數]  —— 讀子 session 畫面：修 mojibake、壓縮分隔線、只印非空行
+# 用法：python3 scr.py <handle> [行數，預設 20]  —— 讀子 session 畫面：修 mojibake、壓縮分隔線
+# 先印一行 status: <終端狀態>，再印畫面最後幾行非空的；orca 讀不到時印它回的 JSON、exit 1
 import json, re, subprocess, sys
 h = sys.argv[1]; n = int(sys.argv[2]) if len(sys.argv) > 2 else 20
 out = subprocess.run(['orca', 'terminal', 'read', '--terminal', h, '--json'], capture_output=True).stdout

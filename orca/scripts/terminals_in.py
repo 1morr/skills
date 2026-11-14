@@ -1,4 +1,4 @@
-# 用法：orca terminal list --json | W=<worktree 路徑> python3 terminals_in.py  —— 印 worktree 路徑完全等於 $W 的終端 handle
+# 用法：orca terminal list --json | W=<worktree 路徑> python3 terminals_in.py  —— 印 worktree 路徑完全等於 $W 的終端 handle，一行一個；沒有就什麼都不印
 import json, os, sys
 
 

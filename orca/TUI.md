@@ -1,6 +1,6 @@
 # 按鍵、畫面、等待、額度：已知行為
 
-ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個資料夾，腳本在 `<O>/scripts/`，每支開頭寫了用法、輸出和 exit code；這份只寫腳本開頭沒有的。
+ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個資料夾，腳本在 `<O>/scripts/`，每支開頭寫了用法和輸出；這份只寫腳本開頭沒有的。
 
 ## 開 session
 

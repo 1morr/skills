@@ -218,9 +218,31 @@ def check_no_opening_for_user(root: Path) -> list:
             for md in docs(root) if OPENS_FOR_USER.search(read(md))]
 
 
+# `handle=`、`state=heads-up`，以及腳本用的 `started: NO` / `expanded: yes`；orca 指令自己印的 `status: running`、`accepted: true` 不歸這條管
+ORCA_KEY = re.compile(r"`([a-z][a-z-]*)(?:(=)([A-Za-z-]*)|(: )(NO|yes))`")
+
+
+def check_orca_keys(root: Path) -> list:
+    """引用 orca 腳本的 md（orca/ 裡的，和內文有 <O> 的）用反引號寫的輸出（`handle=`、`state=heads-up`、`started: NO`）：鍵要是 orca/scripts/ 某支腳本印的，寫了值的，值也要在那支腳本裡。selftest.sh 不算。"""
+    scripts = [read(p) for p in sorted((root / "orca/scripts").glob("*")) if p.is_file() and p.name != "selftest.sh"]
+    out = []
+    for p in docs(root):
+        text = read(p)
+        if (root / "orca") not in p.parents and "<O>" not in text:
+            continue
+        for key, sep, value in sorted({(m[0], m[1] or m[3], m[2] or m[4]) for m in ORCA_KEY.findall(text)}):
+            printing = [s for s in scripts if re.search(r"(?<![\w-])" + re.escape(key + sep), s)]
+            word = re.compile(r"(?<![\w-])" + re.escape(value) + r"(?![\w-])")
+            if not printing:
+                out.append(f"{p.relative_to(root)}：`{key}{sep}` 沒有任何一支 orca 腳本印")
+            elif value and not any(word.search(s) for s in printing):
+                out.append(f"{p.relative_to(root)}：`{key}{sep}{value}` 的值不在印 {key}{sep} 的腳本裡")
+    return out
+
+
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
           check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header, check_no_opening_for_user)
+          check_usage_header, check_no_opening_for_user, check_orca_keys)
 
 
 class RepoTest(unittest.TestCase):
@@ -540,3 +562,39 @@ class NoOpeningForUserTest(Fixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OrcaKeysTest(Fixture):
+    def setUp(self):
+        super().setUp()
+        write(self.root, "orca/scripts/wait.sh", "# 用法：bash wait.sh <handle>\n# state= 的值：done、heads-up\necho \"state=$st\"\necho \"started: yes\"\n")
+        write(self.root, "orca/COORDINATOR.md", "# 流程\n\n第一行是 `state=`；`state=heads-up` 時先記下來。印 `started: yes` 才算開好。\n")
+
+    def test_value_the_script_never_prints(self):
+        sub(self.root, "orca/COORDINATOR.md", "`state=heads-up`", "`state=finished`")
+        self.red(check_orca_keys)
+
+    def test_key_no_script_prints(self):
+        sub(self.root, "orca/COORDINATOR.md", "`state=`", "`status=`")
+        self.red(check_orca_keys)
+
+    def test_colon_form_and_skill_files_are_checked_too(self):
+        sub(self.root, "orca/COORDINATOR.md", "`started: yes`", "`started: NO`")
+        self.red(check_orca_keys)
+        sub(self.root, "orca/COORDINATOR.md", "`started: NO`", "`started: yes`")
+        sub(self.root, "skills/notes/SKILL.md", "寫到", "印 `gate=open` 才寫到")
+        self.red(check_orca_keys)
+
+    def test_script_renames_a_value(self):
+        sub(self.root, "orca/scripts/wait.sh", "heads-up", "notice")
+        self.red(check_orca_keys)
+
+    def test_selftest_does_not_count_as_printing(self):
+        write(self.root, "orca/scripts/selftest.sh", "# 用法：bash selftest.sh\necho \"gate=open\"\n")
+        sub(self.root, "orca/COORDINATOR.md", "`state=`", "`gate=`")
+        self.red(check_orca_keys)
+
+    def test_wording_env_vars_and_other_skills_do_not_matter(self):
+        sub(self.root, "orca/COORDINATOR.md", "時先記下來", "的那一輪，把全文抄進 ledger，再帶 `BASE=main` 跑；orca 回 `accepted: true`")
+        write(self.root, "skills/diff/LOOK.md", "# 外觀\n\n照 `<P>/TOKENS.md`。屬性寫 `data-tol=x`、`state=whatever`。\n")
+        self.clean(check_orca_keys)

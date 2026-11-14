@@ -4,7 +4,9 @@
 #   sent：剛送出新指示時帶上。transcript 在這支腳本開始之後有新的寫入，才承認 done / asking——
 #         否則讀到的是上一輪的 done，會提早返回。WAITBG_SENT_TIMEOUT（預設 300 秒）內都沒寫入就印
 #         state=no-response（多半是送出的字被吞了：讀畫面，必要時補送）。
-# state= 的值：done、asking、stalled、unknown，以及
+# state= 的值：done、asking（state.py 的同名狀態），以及
+#   unknown      state.py 認不出狀態（額度用完、API 錯誤、被中斷），而且 transcript 已經 120 秒沒動
+#   stalled      在等自己的背景工作超過 30 分鐘，或工具跑了超過 1 小時，transcript 都沒動、畫面也沒有計時中的東西
 #   done-bg      回合結束、畫面還掛著 shell / 子代理計數，而 transcript 已經 WAITBG_BG_STALE（預設 3600）秒沒動：
 #                多半是殘留的背景程序（票 22：子代理留下的 `find /` 跑了 7 小時），叫子 session 收掉
 #   no-response  見 sent
