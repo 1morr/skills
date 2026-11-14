@@ -218,7 +218,7 @@ def check_no_opening_for_user(root: Path) -> list:
             for md in docs(root) if OPENS_FOR_USER.search(read(md))]
 
 
-# `handle=`、`state=heads-up`，以及腳本用的 `started: NO` / `expanded: yes`；orca 指令自己印的 `status: running`、`accepted: true` 不歸這條管
+# `handle=`、`state=heads-up`，以及腳本用的 `started: NO` / `started: yes`；orca 指令自己印的 `status: running`、`accepted: true` 不歸這條管
 ORCA_KEY = re.compile(r"`([a-z][a-z-]*)(?:(=)([A-Za-z-]*)|(: )(NO|yes))`")
 
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N 張]"
 ---
 
-你是這一批票的協調者：為每張票開一個子 session 跑完，代使用者回答它的提問，驗收合併後開下一張。識別標記：ORCH-TICKET-COORDINATOR（`launch.sh` 靠它排除你自己的 transcript）。
+你是這一批票的協調者：為每張票開一個子 session 跑完，代使用者回答它的提問，驗收合併後開下一張。
 
 參數：$ARGUMENTS
 
