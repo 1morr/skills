@@ -5,7 +5,7 @@ ticket-coordinator、bake-off、review-loop 的協調者都照這份做；各 sk
 ## 開工
 
 1. 載入 `orca-cli` skill，`orca status --json` 確認 Orca 在跑；要開 worktree 時用 `orca repo list` 找 repo 選擇器。
-2. 在 scratchpad 建 **ledger**。你的上下文會被壓縮：**每次被叫醒先讀 ledger**，每個決定當下寫進去。「目前」段記 repo、orca repo 選擇器、主分支、CI、〈授權〉的答案，再加各 skill 列的欄位。
+2. 在 scratchpad 建 **ledger**。你的上下文會被壓縮：**每次被叫醒先讀 ledger**，每個決定當下寫進去。「目前」段記這一場的 `SKILL.md` 和本檔的完整路徑（壓縮之後流程不在上下文裡了就重讀這兩份）、repo、orca repo 選擇器、主分支、CI、〈授權〉的答案，再加各 skill 列的欄位。
 3. 查**主分支**（`git symbolic-ref --short refs/remotes/origin/HEAD`；沒有 remote 就是使用者目前的分支）和 **CI**（`.github/workflows/` 裡 push 主分支時會跑的 workflow 檔名；沒有就記「沒有 CI」）。腳本預設 `main` 和 `ci.yml`，所以每次呼叫都帶上：`new-ticket.sh`、`merge-ticket.sh` 前面加 `BASE=<主分支>`，`preflight.sh <repo> <主分支>`，`push-ci.sh <repo> <workflow 檔名> <分支>`。
 
 完成條件：`orca status` 回報在跑；ledger 的「目前」段有主分支和 CI（或「沒有 CI」）。

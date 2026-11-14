@@ -22,7 +22,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
    - 隊列與順序（參數已給就只確認衝突）
    - 之後在不在場：不在場就一路做下去，只有〈真的卡住〉才停
 5. `bash <O>/scripts/preflight.sh <repo> <主分支>`。有 WARN 先查清楚是誰的（可能是別的 session 在主目錄工作），確定是殘留才處理；來歷不明的 commit 留給使用者，不跟著你的 push 上去。
-6. ledger 的「目前」段再記下 `REQUIRE`（完成標準要求每張票的分支都動到的檔，沒有就留空）、額度門檻與同時上限。
+6. 把〈Ledger〉「目前」段的每一欄記進 ledger。
 
 完成條件：隊列每張票的 `Blocked by` 和驗收條件都核對過；`preflight.sh` 的每條 WARN 都查清了來歷；ledger「目前」段每一欄都有值。
 
@@ -66,7 +66,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 
 ## Ledger
 
-- 「目前」段（COORDINATOR.md 的共同欄位之外）：`REQUIRE`、隊列、開工時的 HEAD、目前的票、handle 與 worktree、額度門檻與同時上限（沒給寫「不限」）。
+- 「目前」段（COORDINATOR.md 的共同欄位之外）：`REQUIRE`（完成標準要求每張票的分支都動到的檔，沒有就留空）、隊列、開工時的 HEAD、目前的票、handle 與 worktree、額度門檻與同時上限（沒給寫「不限」）。
 - 「判斷紀錄」：偏離隊列或規則的決定與理由（插票、自訂答案、跳過的步驟）。
 - 「偶發紀錄」表：測試名、哪張票、時間、本機或 CI。
 - 每張票一段：handle、session id、起訖時間與中途事件；代答；commit 與綠燈摘要；待使用者看的（推翻的舊決定、跟票面不同的地方、code-review 沒處理的、Heads up 的內容與處置）；狀態 running / done / blocked。
