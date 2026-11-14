@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、右下角查表面板、點圖切換中英文。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -569,6 +569,18 @@
       lastPad.undo();
     }
   });
+
+  // 深淺色：和導讀頁共用 tutor-theme
+  const themeBtn = document.getElementById("theme");
+  function setTheme(dark) {
+    if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
+    try { localStorage.setItem("tutor-theme", dark ? "dark" : "light"); } catch (e) { /* 存不了就只管這一次 */ }
+    if (themeBtn) { themeBtn.setAttribute("aria-pressed", String(dark)); themeBtn.textContent = dark ? "淺色" : "深色"; }
+  }
+  if (themeBtn) {
+    setTheme(document.documentElement.dataset.theme === "dark");
+    themeBtn.addEventListener("click", function () { setTheme(document.documentElement.dataset.theme !== "dark"); });
+  }
 
   function toggleLang(img) {
     img.src = img.getAttribute("src") === img.dataset.zh ? img.dataset.en : img.dataset.zh;

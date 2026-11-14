@@ -269,7 +269,7 @@ class MockRule(Case):
         self.assertIn('data-mode="mock"', out)
         self.assertIn('class="clock" data-minutes="45"', out)
         self.assertNotIn('href="guide.html', out)
-        self.assertNotIn('class="clock"', practice.build(src(), self.dir).split("<script>")[0].split("</style>")[1])
+        self.assertNotIn('class="clock"', practice.build(src(), self.dir).split("</style>")[1].split("<script>")[0])
 
 
 class NoAnswerRule(Case):
@@ -445,12 +445,24 @@ class Build(Case):
         nav = re.search(r'<nav class="jump".*?</nav>', out, re.S).group(0)
         self.assertEqual(re.findall(r'href="#q-([^"]+)"', nav), IDS)
 
-    def test_images_inlined_zh_first(self):
+    def test_images_inlined_original_first(self):
+        """翻譯過的圖預設顯示原圖：src 和 data-en 是同一張，data-zh 是另一張。"""
+        for name in ("z.zh.png", "q.zh.png"):  # 翻譯圖和原圖內容不同，才分得出哪一張排在前面
+            (self.dir / name).write_bytes(PNG + b"zh")
         out = self.page()
-        img = re.search(r"<img [^>]*>", out).group(0)
-        self.assertIn('src="data:image/png;base64,', img)
-        self.assertIn('data-en="data:image/png;base64,', img)
+        img = re.search(r"<img [^>]*data-zh[^>]*>", out).group(0)
+        shown = re.search(r'\bsrc="([^"]+)"', img).group(1)
+        self.assertTrue(shown.startswith("data:image/png;base64,"))
+        self.assertEqual(shown, re.search(r'data-en="([^"]+)"', img).group(1))
+        self.assertNotEqual(shown, re.search(r'data-zh="([^"]+)"', img).group(1))
         self.assertNotIn("z.png", out)
+
+    def test_theme_is_manual(self):
+        """深淺色不跟系統：樣式裡沒有 prefers-color-scheme，頁首有切換鈕，樣式之前先讀 tutor-theme。"""
+        out = self.page()
+        self.assertNotIn("prefers-color-scheme", out)
+        self.assertIn('id="theme"', out)
+        self.assertLess(out.index("tutor-theme"), out.index("<style>"))
 
     def test_panel_becomes_tabs(self):
         out = self.page()

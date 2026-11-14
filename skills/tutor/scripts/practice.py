@@ -441,7 +441,7 @@ def panel(inner: str):
 
 
 def inline_images(page: str, base: Path) -> str:
-    """圖片內嵌成單一檔案；有翻譯圖的預設顯示中文，原圖記在 data-en，點圖切換。"""
+    """圖片內嵌成單一檔案；有翻譯圖的預設顯示原圖（考試用原文），翻譯圖記在 data-zh，點圖切換。"""
     def data_uri(path):
         f = (base / path).resolve()
         if not f.is_file():
@@ -456,8 +456,8 @@ def inline_images(page: str, base: Path) -> str:
         keep = "".join(f' {k}="{html.escape(v)}"' for k, v in a.items() if k not in ("src", "data-zh", "data-en"))
         if "data-zh" not in a:
             return f'<img src="{data_uri(a["src"])}"{keep}>'
-        zh = data_uri(a["data-zh"])
-        return f'<img src="{zh}" data-zh="{zh}" data-en="{data_uri(a["src"])}"{keep}>'
+        en = data_uri(a["src"])
+        return f'<img src="{en}" data-zh="{data_uri(a["data-zh"])}" data-en="{en}"{keep}>'
 
     return re.sub(r"<img\b[^>]*>", img, page, flags=re.I)
 
@@ -491,6 +491,11 @@ MOCK_BAR = ('<div class="clock" data-minutes="{minutes}"><span class="left" aria
             '<button type="button" data-act="start">開始計時</button>'
             '<button type="button" data-act="submit" hidden>交卷</button><span class="status" aria-live="polite"></span></div>\n')
 
+# 深淺色由讀者切換、記在瀏覽器（和導讀頁同一個鍵）；在樣式之前套上，打開時才不會先閃一下白底
+THEME = ('<script>try { if (localStorage.getItem("tutor-theme") === "dark") '
+         'document.documentElement.dataset.theme = "dark"; } catch (e) {}</script>\n')
+PREFS = '<p class="prefs"><button id="theme" type="button" aria-pressed="false">深色</button></p>\n'
+
 REPORT = ('<p class="report"><button id="report" type="button">複製填答結果</button>'
           '<span class="status" aria-live="polite"></span></p>\n')
 
@@ -509,8 +514,8 @@ def build(src: str, base: Path) -> str:
     howto = HOWTO_MOCK + MOCK_BAR.format(minutes=html.escape(a["data-minutes"].strip())) if mock else HOWTO
     page = (f'<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
-            f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
-            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}"{mode}>\n<main>\n<h1>{title}</h1>\n{lead}{howto}'
+            f"{THEME}<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
+            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}"{mode}>\n<main>\n<h1>{title}</h1>\n{PREFS}{lead}{howto}'
             f"{nav(inner)}{REPORT}{inner}\n</main>\n{panel_html}"
             f"<script>\n{JS.read_text(encoding='utf-8')}</script>\n</body>\n</html>\n")
     return inline_images(page, base)
