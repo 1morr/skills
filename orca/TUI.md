@@ -48,6 +48,10 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
   - 從第 1 題照順序答：每題 Enter 後自動跳下一題，答完最後一題停在 `Review your answers`。核對它列出的每個答案，再送一次 Enter（游標在 `Submit answers`）。
   - 開答之前畫面上不是第 1 題（有人翻過頁）：送 ←（`$'\033[D'`）退回第 1 題，一次退一頁，→ 是 `$'\033[C'`。在後面的題先答會一路跳到 `Review your answers`，要退好幾頁才回得去。
   - 要改已答的某一題：← 退到那一題重選，讀畫面看它停在哪一頁再繼續。
+- 複選題（選項前有 `[ ]`，`ask.py` 標「複選」）：Enter 和數字鍵都只切換勾選，不跳頁。
+  - 勾選送選項的數字鍵，游標不必移；再送一次同一個數字是取消。勾完讀畫面，`[✔]` 的那幾項要和你決定的一致。
+  - 勾完送 →（`$'\033[C'`）進下一題，勾選會保留；`Review your answers` 那一頁把勾的項目列成 `→ Cheese, Olive`。
+  - 選項底下那一列 `Next` 用 ↓ 移過去再 Enter 也是進下一題，要多按幾次（中間隔著 `Type something`）。
 - 自訂答案：先用 ↓ 移到 `Type something.`，送出整段文字（不加 `--enter`），讀畫面確認整句都在，再送 Enter。
 
 ## Heads up
