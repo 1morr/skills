@@ -6,11 +6,14 @@
 """
 
 import importlib.util
+import os
 import re
+import subprocess
 import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build.py"
 spec = importlib.util.spec_from_file_location("build", SCRIPT)
@@ -249,6 +252,32 @@ class Cli(unittest.TestCase):
         code, d = self.run_main("m0.html", page(DIAGRAM))
         self.assertEqual(code, 1)
         self.assertNotIn(build.MERMAID.url, (d / "m0.html").read_text(encoding="utf-8"))
+
+
+class RenderCopy(unittest.TestCase):
+    """量溢出用的副本：Windows 上自己還開著的 fd 會擋住最後的刪除，Linux 不會。CI 跑 Linux，所以直接驗 fd 關了沒有，
+    不靠刪除失敗來發現。"""
+
+    def test_copy_fd_is_closed_and_copy_removed(self):
+        d = Path(tempfile.mkdtemp())
+        out = d / "p.html"
+        out.write_text(page("<p>短</p>"), encoding="utf-8")
+        fds, real = [], tempfile.mkstemp
+
+        def spy(*a, **k):
+            fd, path = real(*a, **k)
+            fds.append(fd)
+            return fd, path
+
+        ov = build.overflow
+        with mock.patch.object(ov.tempfile, "mkstemp", spy), \
+                mock.patch.object(ov, "find_browser", return_value="browser"), \
+                mock.patch.object(ov.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"", b"")):
+            ov.render(out)
+        self.assertEqual(len(fds), 1)
+        with self.assertRaises(OSError):
+            os.fstat(fds[0])
+        self.assertEqual([f.name for f in d.iterdir()], ["p.html"])
 
 
 @unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")

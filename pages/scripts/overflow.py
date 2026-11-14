@@ -122,7 +122,9 @@ def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
     work = Path(tempfile.mkdtemp(prefix="page-render-"))
     try:
         # 副本放在原檔旁邊，頁面用相對路徑引用的圖才找得到
-        copy = Path(tempfile.mkstemp(prefix=".overflow-", suffix=".html", dir=page.resolve().parent)[1])
+        fd, name = tempfile.mkstemp(prefix=".overflow-", suffix=".html", dir=page.resolve().parent)
+        os.close(fd)  # 開著的 fd 在 Windows 上會擋住最後的 unlink
+        copy = Path(name)
         try:
             copy.write_text(with_probe(page.read_text(encoding="utf-8"), prepare), encoding="utf-8")
             target = copy
