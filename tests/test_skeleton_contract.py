@@ -5,7 +5,7 @@
 用 project-init 的範本搭一個 repo，照範本寫的規則走一輪里程碑（開工、做票、驗收、封存、下一個開工），
 每一站都要：通得過 check_docs.py，而且 dashboard 把每個里程碑、每張票、每條決定、每列 session 紀錄讀出來
 （做票的紀錄留在票上，封存時由 ticket_notes.py 組進封存檔），
-「讀不到」的清單是空的。兩邊任一邊改了格式而另一邊沒跟上，這裡會紅。
+「讀不到」的清單是空的；dashboard 說的下一張票、等使用者的題，和骨架裡 next_step.py 算的一樣。兩邊任一邊改了格式而另一邊沒跟上，這裡會紅。
 """
 
 import importlib.util
@@ -30,6 +30,7 @@ def load(name, rel):
 check_docs = load("check_docs", "skills/project-init/scripts/check_docs.py")
 dashboard = load("dashboard", "skills/dashboard/scripts/dashboard.py")
 ticket_notes = load("ticket_notes", "skills/project-init/scripts/ticket_notes.py")
+next_step = load("next_step", "skills/project-init/scripts/next_step.py")
 
 
 def fill(name: str) -> str:
@@ -49,6 +50,10 @@ def ticket(number: str, title: str, done: bool = False, decision: str = "") -> s
         return text
     notes = f"\n{check_docs.SESSION_NOTE}2026-01-04 做完{title}\n" + (f"{check_docs.DECISION_NOTE}{decision}\n" if decision else "")
     return text.replace("Status: ready-for-agent", "Status: done").replace("- [ ]", "- [x]") + notes
+
+
+def ticket_notes_lines(repo) -> list:
+    return [f"{check_docs.WAITING}{q}" for t in ticket_notes.notes(repo, "m0") for q in t["waiting"]]
 
 
 class SkeletonContractTest(unittest.TestCase):
@@ -90,7 +95,19 @@ class SkeletonContractTest(unittest.TestCase):
         data = dashboard.collect(self.repo)
         self.assertEqual((data["missing"], data["unreadable"], data["unlisted"]), ([], [], []))
         self.assertNotIn(dashboard.UNMARKED, [d["decider"] for d in data["decisions"]])
+        step = next_step.report(self.repo)
+        self.assertEqual(len(step["waiting"]), len(data["waiting_all"]))
+        for line, asked in zip(step["waiting"], data["waiting_all"]):
+            self.assertIn(asked["text"], line)
+        if data["next_ticket"]:
+            self.assertEqual(step["command"], data["next_ticket"]["command"])
+        elif not data["waiting"]:
+            self.assertIn(step["command"] or "沒有指令", data["next"] or "沒有指令")
         return data
+
+    def fill_gates(self):
+        """M0 的第一張票交付的：閘門表每一列都有著落。"""
+        self.write("docs/development.md", self.read("docs/development.md").replace("| 待定 |", "| `make check` |"))
 
     def test_every_station_of_a_milestone_is_read(self):
         # 剛搭好
@@ -111,7 +128,17 @@ class SkeletonContractTest(unittest.TestCase):
         self.assertEqual([(t["title"], t["done"], t["dropped"], t["boxes"]) for t in m0["tickets"]],
                          [("01: 閘門", False, False, 2), ("02: 不做的", False, True, 2), ("03: M0 驗收", False, False, 2)])
 
-        # 做完一張票：紀錄留在票上，progress.md 與 decisions.md 沒有人動
+        # 做票的 session 停下來等使用者：題目留在票上，兩邊都列出來，下一張輪到沒在等的
+        self.append(".scratch/m0/issues/01-gates.md", f"{check_docs.WAITING}埠要寫死還是讓系統挑？")
+        data = self.check()
+        self.assertEqual(([a["text"] for a in data["waiting_all"]], data["next_ticket"]["file"]), (["埠要寫死還是讓系統挑？"], "03-m0-acceptance.md"))
+        self.assertIn("等使用者：埠要寫死還是讓系統挑？", "\n".join(ticket_notes_lines(self.repo)))
+        self.append(".scratch/m0/issues/01-gates.md", f"{check_docs.DECISION_NOTE}讓系統挑（使用者定）")
+        data = self.check()
+        self.assertEqual((data["waiting_all"], data["next_ticket"]["file"]), ([], "01-gates.md"))
+
+        # 做完一張票：紀錄留在票上，progress.md 與 decisions.md 沒有人動；閘門表在這張票填好
+        self.fill_gates()
         self.write(".scratch/m0/issues/01-gates.md", ticket("01", "閘門", done=True, decision="用 X 不用 Y（Agent 定）"))
         data = self.check()
         self.assertEqual([(t["done"], t["checked"]) for t in data["milestones"][0]["tickets"]], [(True, 2), (False, 0), (False, 0)])
@@ -147,10 +174,11 @@ class SkeletonContractTest(unittest.TestCase):
         self.write(".scratch/docs-diet/issues/01-trim.md", ticket("01", "瘦身"))
         self.assertTrue(any("docs-diet" in v for v in check_docs.run(self.repo)))
         self.assertEqual([u["name"] for u in dashboard.collect(self.repo)["unlisted"]], ["docs-diet"])
-        self.sub("docs/roadmap.md", self.roadmap_row("M1 核心"), self.roadmap_row("M1 核心") + "\n| docs-diet 文件瘦身 | 文件變短 | — | 未開工 |")
+        self.sub("docs/roadmap.md", self.roadmap_row("M1 核心"), self.roadmap_row("M1 核心") + "\n| docs-diet 文件瘦身 | 文件變短 | — | 未開工，排在 M1 之後 |")
         self.assertEqual([(m["dir"], len(m["tickets"])) for m in self.check()["milestones"]][-1], ("docs-diet", 1))
 
     def open_m0(self):
+        self.fill_gates()
         self.set_state("M0 骨架", "進行中，已拆 2 張票")
         self.write(".scratch/m0/spec.md", spec())
         self.write(".scratch/m0/issues/01-gates.md", ticket("01", "閘門"))

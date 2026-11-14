@@ -43,10 +43,12 @@ GATES = {
     "scripts/check_commit_msg.py": "scripts/check_commit_msg.py",
     "scripts/docs_moved_lines.py": "scripts/docs_moved_lines.py",
     "scripts/ticket_notes.py": "scripts/ticket_notes.py",
+    "scripts/next_step.py": "scripts/next_step.py",
     "tests/test_check_docs.py": "scripts/tests/test_check_docs.py",
     "tests/test_check_commit_msg.py": "scripts/tests/test_check_commit_msg.py",
     "tests/test_docs_moved_lines.py": "scripts/tests/test_docs_moved_lines.py",
     "tests/test_ticket_notes.py": "scripts/tests/test_ticket_notes.py",
+    "tests/test_next_step.py": "scripts/tests/test_next_step.py",
 }
 KEPT_DIRS = ("docs/adr", "docs/research", "docs/archive", "scripts/experiments")
 PLACEHOLDER = re.compile(r"\{\{(PROJECT|ONE_LINE|DATE|MAIN_BRANCH)\}\}")

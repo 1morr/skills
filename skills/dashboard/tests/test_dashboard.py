@@ -434,6 +434,23 @@ class PageTest(Repo):
         self.sub("docs/progress.md", "等使用者：試用 M1", "新 session 下 `/x`")
         self.assertIsNone(self.collect()["waiting_from"])
 
+    def test_every_open_question_is_listed_and_a_waiting_ticket_is_not_next(self):
+        self.assertEqual(self.collect()["waiting_all"], [])
+        ticket = (self.repo / ".scratch/m1/issues/01-lookup.md").read_text(encoding="utf-8")
+        self.assertIn("\n## Comments", ticket)
+        self.write(".scratch/m1/issues/01-lookup.md", ticket + "\n等使用者：答過的。\n決定：用 fst（使用者定）\n等使用者：碼表放 `core` 還是外掛？\n")
+        self.sub("docs/progress.md", "新 session 下 `/implement .scratch/m1/issues/02-bar.md`", "等使用者：試用 M1")
+        d = self.collect()
+        self.assertEqual(d["waiting_all"], [
+            {"text": "碼表放 core 還是外掛？", "ticket": "M1 票 01", "date": "", "file": ".scratch/m1/issues/01-lookup.md"},
+            {"text": "試用 M1", "ticket": "M1 01", "date": "2026-01-05", "file": "docs/progress.md"}])
+        self.assertEqual(d["next_ticket"]["file"], "02-bar.md")
+        # 票做完、里程碑結束、題目寫在 Comments 之前，都不算在等
+        self.sub(".scratch/m1/issues/01-lookup.md", "Status: ", "Status: done ")
+        self.assertEqual([a["file"] for a in self.collect()["waiting_all"]], ["docs/progress.md"])
+        self.write(".scratch/m1/issues/02-bar.md", ticket.replace("\n## Comments", "\n等使用者：在 Comments 之前。\n\n## Comments"))
+        self.assertEqual([a["file"] for a in self.collect()["waiting_all"]], ["docs/progress.md"])
+
     def test_static_output(self):
         out = self.root / "out.html"
         self.assertEqual(m.main([str(self.repo), "-o", str(out)]), 0)

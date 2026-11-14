@@ -54,7 +54,7 @@ argument-hint: "[專案一句話]"
 ## 5. 閘門
 
 1. `git config core.hooksPath .githooks`。
-2. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
+2. 專案已經有檢查指令（lint、test）：填進 `docs/development.md`〈閘門〉對應的列，加進〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就讓整張表留著「待定」，M0 的第一張票會填，roadmap〈M0 骨架〉已經寫了。
 
 完成條件：下面四條都親自跑過、結果如括號所寫。
 
@@ -68,7 +68,7 @@ sh .githooks/pre-commit                                        # exit 0
 ## 6. 交付
 
 1. commit：`docs: scaffold agent workflow, brief and architecture skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
-2. 告訴使用者建了哪些檔，並印出下一個 session 要貼的訪談指令，`<…>` 換成實際內容：
+2. 告訴使用者建了哪些檔，以及之後隨時可以跑 `python3 scripts/next_step.py` 看下一步。印出下一個 session 要貼的訪談指令，`<…>` 換成實際內容：
 
    ```
    /grill-with-docs 填 docs/design-brief.md：<專案一句話>。<使用者在這次對話提過的平台、限制、參考產品>

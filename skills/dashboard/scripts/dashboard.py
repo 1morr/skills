@@ -11,7 +11,8 @@
                        （票沒有〈驗收〉這一段時，數 `## Comments` 之前的）
                        有 issues/ 卻不在里程碑表裡的目錄，另列在「不在 roadmap 的工作」
                        還沒驗收的里程碑，票在 `## Comments` 之後留的 `Session 紀錄：<日期> …`、`決定：…（<決定者>）`、
-                       `變更：<分類>｜<功能>｜<一句>`（列在「變更」的未發版裡，標「待組裝」；`變更：無` 不列）：
+                       `變更：<分類>｜<功能>｜<一句>`（列在「變更」的未發版裡，標「待組裝」；`變更：無` 不列），
+                       以及沒做完的票還沒回答的 `等使用者：<題目>`（它後面沒有 `決定：` 行；列在「等你決定」）：
                        票是這兩種紀錄唯一的來源，沒寫日期的用票檔的修改日期。舊骨架把它們抄進下面兩個檔，
                        那兩個檔已經有同一張票的條目（「M1 票 03」「M1 03」）時不再從票讀一次
   docs/decisions.md    〈紀錄〉每條：日期、里程碑、決定者、內容（不是做票時定的決定）
@@ -25,7 +26,9 @@
                        「功能」區把同一個 <功能> 的條目排成一條時間線（新的在前），最早那一條的版本是它出現的版本
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
-                       下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
+                       「等你決定」的每一題在 `waiting_all`：票上的在前，progress.md 的在後
+                       下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完、自己沒在等使用者的票；
+                       否則是最後一列寫的。算法和 project-init 的 `scripts/next_step.py` 同一套，`tests/test_skeleton_contract.py` 對
                        那張票另外放在 `next_ticket`（在等使用者時也有），頁面把它的指令放進可以複製的框
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
 
@@ -164,9 +167,16 @@ def ticket(path: Path) -> dict:
     criteria = parts[ACCEPTANCE] if ACCEPTANCE in parts else lines[:next((i for i, l in enumerate(lines) if l.startswith(COMMENTS.strip())), len(lines))]
     boxes = [m.group(1) != " " for m in map(CHECKBOX.match, criteria) if m]
     number = TICKET_NUMBER.match(path.name)
+    asked, body = [], "\n".join(lines)
+    for l in body.split(COMMENTS, 1)[1].split("\n") if COMMENTS in body else []:
+        if l.startswith(DECISION_NOTE):  # 回答寫成一行「決定：」，它前面的題就算答了
+            asked = []
+        elif l.startswith(WAITING) and l[len(WAITING):].strip():
+            asked.append(plain(l[len(WAITING):]))
+    closed = status.lower().startswith("done") or bool(DROPPED.match(status))
     return {"file": path.name, "number": number.group(1) if number else path.stem, "title": plain(title), "status": status,
             "done": status.lower().startswith("done"), "dropped": bool(DROPPED.match(status)), "blocked": blocked,
-            "checked": sum(boxes), "boxes": len(boxes)}
+            "checked": sum(boxes), "boxes": len(boxes), "waiting": [] if closed else asked}
 
 
 def notes(path: Path) -> dict:
@@ -211,14 +221,14 @@ def ticket_notes(repo: Path, live: list) -> list:
 
 
 def next_ticket(listed: list):
-    """進行中的里程碑裡第一張沒做完、擋它的票都做完（或不做）的票：{milestone, dir, file, number, title, command}；沒有就是 None。"""
+    """進行中的里程碑裡第一張沒做完、擋它的票都做完（或不做）、自己沒在等使用者的票：{milestone, dir, file, number, title, command}；沒有就是 None。"""
     for m in listed:
         if m["state"] != "active":
             continue
         closed = {t["number"] for t in m["tickets"] if t["done"] or t["dropped"]}
         known = {t["number"] for t in m["tickets"]}
         for t in m["tickets"]:
-            if t["number"] not in closed and all(b in closed or b not in known for b in t["blocked"]):
+            if t["number"] not in closed and not t["waiting"] and all(b in closed or b not in known for b in t["blocked"]):
                 return {"milestone": m["name"].split()[0], "dir": m["dir"], "file": t["file"], "number": t["number"], "title": t["title"],
                         "command": f"/implement .scratch/{m['dir']}/issues/{t['file']}"}
     return None
@@ -475,12 +485,16 @@ def collect(repo: Path) -> dict:
     old_sessions, odd_rows = archived_sessions(repo)
     changes, odd_entries = changelog(repo, kept)
     ahead = next_ticket(ms)
+    asked = [{"text": q, "ticket": f"{m['name'].split()[0]} 票 {t['number']}", "date": "", "file": f".scratch/{m['dir']}/issues/{t['file']}"}
+             for m in ms + loose if m["state"] in ("todo", "active") for t in m["tickets"] for q in t["waiting"]]
+    if step.startswith(WAITING):
+        asked.append({"text": step[len(WAITING):].strip(), "ticket": last["ticket"], "date": last["date"], "file": "docs/progress.md"})
     if ahead and not step.startswith(WAITING):
         step = f"新 session 下 `{ahead['command']}`"
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
             "adrs": adrs(repo), "changelog": changes, "features": features(changes), "sessions": log[-30:][::-1], "next": step, "next_ticket": ahead,
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
-            "waiting_from": {"date": last["date"], "ticket": last["ticket"]} if step.startswith(WAITING) else None,
+            "waiting_from": {"date": last["date"], "ticket": last["ticket"]} if step.startswith(WAITING) else None, "waiting_all": asked,
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
             "unreadable": odd_states + odd_sessions + unreadable + odd_rows + odd_entries, "unlisted": loose}
@@ -560,6 +574,7 @@ h2 a { font-size: 0.875rem; font-weight: 400; margin-left: auto; }
 .next.waiting { border-top-color: var(--now); }
 .next .why { margin-top: 0.6rem; color: var(--ink-2); max-width: 70ch; text-wrap: balance; }
 .next .why b { color: var(--now-ink); }
+.next .asks { margin-top: 0.9rem; max-width: 70ch; border-top: 1px solid var(--rule); }
 .next h1 code { font-size: 0.7em; }
 .cmd-label { font-size: 0.8125rem; color: var(--ink-2); margin-bottom: 0.35rem; }
 .cmd { display: flex; align-items: center; gap: 0.75rem; border: 2px solid var(--ink); border-radius: 4px; padding: 0.55rem 0.6rem 0.55rem 0.9rem; }
@@ -720,7 +735,7 @@ const href = (project, name) => `#${project}/${name}`;
 
 /* 「你上次看過之後變了」：每樣東西記一個指紋，存在這個瀏覽器；按「標為看過」才更新 */
 function prints(p) {
-  const out = { "next": p.waiting || p.next };
+  const out = { "next": p.waiting_all.map(a => a.text).join("|") || p.next };
   for (const m of p.milestones.concat(p.unlisted)) {
     out["m:" + m.name] = m.state;
     for (const t of m.tickets) out[`t:${m.dir}/${t.file}`] = `${t.status}|${t.checked}/${t.boxes}`;
@@ -765,13 +780,15 @@ function isNow(p, m, t) {
 }
 
 function nextBlock(p) {
-  const t = p.next_ticket, code = t ? el("code", {}, t.command) : null;
-  return el("section", { class: "next" + (p.waiting ? " waiting" : "") },
+  const t = p.next_ticket, code = t ? el("code", {}, t.command) : null, asks = p.waiting_all, ask = asks[0];
+  const from = a => a.file === "docs/progress.md" ? ["docs/progress.md 最後一列留的", el("span", { class: "wt" }, `（${a.date}　${a.ticket}）`)] : [`${a.ticket} 留在票上的`];
+  return el("section", { class: "next" + (ask ? " waiting" : "") },
     el("div", {},
-      el("h1", {}, phrases(p.waiting ? command(p.waiting) : t ? [`做 ${t.milestone} 票 ${t.number}：${bare(t)}`] : p.next ? command(p.next) : ["還沒有下一步"])),
-      el("p", { class: "why" }, p.waiting ? [el("b", {}, "等你決定。"), "docs/progress.md 最後一列留的", p.waiting_from ? el("span", { class: "wt" }, `（${p.waiting_from.date}　${p.waiting_from.ticket}）`) : null, "；開一個新的 session 回答。"]
-        : t ? "開一個新的 session，貼上這條指令。" : p.next ? "這是 docs/progress.md 最後一列寫的下一步。" : "docs/progress.md 還沒有 session 紀錄；第一張票做完就會出現在這裡。", " ", mark("next"))),
-    t ? el("div", {}, el("div", { class: "cmd-label" }, p.waiting ? `答完之後的下一步：${t.milestone} 票 ${t.number} ${bare(t)}` : "新 session 的指令"),
+      el("h1", {}, phrases(ask ? command(ask.text) : t ? [`做 ${t.milestone} 票 ${t.number}：${bare(t)}`] : p.next ? command(p.next) : ["還沒有下一步"])),
+      el("p", { class: "why" }, ask ? [el("b", {}, asks.length > 1 ? `等你決定，共 ${asks.length} 題。` : "等你決定。"), from(ask), "；開一個新的 session 回答。"]
+        : t ? "開一個新的 session，貼上這條指令。" : p.next ? "這是 docs/progress.md 最後一列寫的下一步。" : "docs/progress.md 還沒有 session 紀錄；第一張票做完就會出現在這裡。", " ", mark("next")),
+      asks.length > 1 ? el("ul", { class: "rows two asks" }, asks.slice(1).map(a => el("li", {}, el("span", {}, a.file === "docs/progress.md" ? "progress.md" : a.ticket), el("span", {}, a.text)))) : null),
+    t ? el("div", {}, el("div", { class: "cmd-label" }, p.waiting ? `答完之後的下一步：${t.milestone} 票 ${t.number} ${bare(t)}` : ask ? `這張不用等，可以先做：${t.milestone} 票 ${t.number} ${bare(t)}` : "新 session 的指令"),
       el("div", { class: "cmd" }, code, copyButton(t.command, code))) : null);
 }
 function notes(p) {
