@@ -50,7 +50,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - **提問**：需求類的照依據回答；要它判斷的回「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都留在你這裡。
    - **Heads up**：照 COORDINATOR.md 記下原文、收起，但不轉給審查員：把它當成這一輪多出來的一條意見，跟報告一起進第 4 步查證。只有內容是審查員自己在改檔、做 git 或對外動作時，才馬上叫它停。
    - **做完了**：讀 `r<N>/report.md`。`git -C <審查 worktree> status --short` 有東西或多了 commit，代表它違反只讀：記進 ledger，它改的不會進你的分支。
-   - **收掉**：`bash <O>/scripts/close-worktree.sh <repo> <審查 worktree>`：關終端、移除 worktree、刪掉沒有新 commit 的分支。審查員有 commit 時分支會留著，收尾時列給使用者。
+   - **收掉**：`bash <O>/scripts/close-worktree.sh <repo> <審查 worktree>`：關終端、移除 worktree。分支 `review/<名稱>/r<N>` 會留著（它帶著你還沒合併的 commit，`git branch -d` 不刪），收尾合併後才刪。
 4. **查證**：報告的每一條和這一輪的 Heads up 都由你親自查，只用一種方法：數字就重算，引用就打開依據找原文，版面就渲染出來看。引用要查兩件事：原文在，而且那段原文管的是**本題**（同一份題目、同一小題）。別份作業的規定抄得再準，放到這一題也只是讀法。
    - 每一條只有兩種結果：採納（附證據）或駁回（附理由）。
    - 級別由你照 `reviewer.md` 的分級標準重新判，審查員給的級別只是參考。
@@ -90,7 +90,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
    輸出到 `<批次目錄>/work` 裡產出旁邊的 `<產出名> 修改對照（起點→最終版）.html`，照 DOCUMENT.md 的檢查確認。
 3. **寫回定案**：使用者在這幾輪新拍板的決定，連同理由，寫進專案記錄決定的地方（例如評核資料夾的 README）。和總 diff 放在同一個 commit。
-4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後 `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照 COORDINATOR.md〈規則〉，分支是 `BASE_BR`。
+4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後 `git -C <repo> worktree remove <批次目錄>/work`，再對 `review/<名稱>/work` 和每一輪的 `review/<名稱>/r<N>` 各跑 `git -C <repo> branch -d`；刪不掉的是審查員自己 commit 過的，列進最後報告。push 照 COORDINATOR.md〈規則〉，分支是 `BASE_BR`。
 5. **最後報告**：
    - 結論：能不能交
    - 跑了幾輪，每輪採納和駁回各幾條

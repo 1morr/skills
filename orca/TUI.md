@@ -48,7 +48,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 處理的順序在 COORDINATOR.md〈Heads up〉；這裡是按鍵和畫面。
 
 - 畫面底部一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。摘要只有一句，完整內容（原因、推測的後果、建議）在 Learn more 裡。
-- 全文用 `python3 <O>/scripts/headsup.py <jsonl>` 讀，不必展開畫面。全文只在掛著時存在，收起後只剩摘要：先記進 ledger 再收。
+- 全文用 `python3 <O>/scripts/headsup.py <jsonl>` 讀，不必展開畫面。全文只在掛著時存在，收起後 `headsup.py` 讀不到：先記進 ledger 再收。
 - **收起只用 `0`**（不加 `--enter`），在輸入框是空的、沒有 AskUserQuestion 開著時送。`2` 和展開後的 `1`（Understood）會把這句記成「這個人已經懂」，全機所有 session 之後都不再提，而看到的是你、不是使用者。
 - 送 `0` 後畫面會留一行 `Dismissed.` 和回饋選項約 20 秒，這段時間先別送數字鍵。
 - 子 session 停在 AskUserQuestion 時先答題，等它回到空輸入框再按 Heads up 的鍵：題目開著時數字鍵會被當成選項。
