@@ -1,5 +1,6 @@
 # 用法：bash waitbg.sh <handle> <子 session 的 jsonl 路徑> [sent]（Bash run_in_background 掛著）
-# 子 session 停下來才返回，第一行印 state=…，後面是畫面。判斷以 state.py（transcript）為準；
+# 子 session 停下來才返回，第一行印 state=…，後面是畫面；state=asking 時畫面之前多一段
+# 「--- questions（transcript）---」到「--- end ---」，是 ask.py 印的全部題目。判斷以 state.py（transcript）為準；
 # 畫面只當補充：transcript 說 done、畫面卻還有背景 shell / monitor 的計數時繼續等（state.py 認不出 Monitor）。
 #   sent：剛送出新指示時帶上。transcript 在這支腳本開始之後有新的寫入，才承認 done / asking——
 #         否則讀到的是上一輪的 done，會提早返回。WAITBG_SENT_TIMEOUT（預設 300 秒）內都沒寫入就印
@@ -60,5 +61,9 @@ if [ -n "$hu" ]; then
   else
     echo "headsup-src=screen"
   fi
+fi
+# 多題時畫面一次只顯示一題：從 transcript 印出全部，協調者不必翻頁就能讀完
+if [ "$st" = asking ] && qs=$("$PY" ask.py "$J" 2>/dev/null); then
+  echo "--- questions（transcript）---"; printf '%s\n' "$qs"; echo "--- end ---"
 fi
 PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 45

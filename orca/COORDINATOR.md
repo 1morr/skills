@@ -21,7 +21,7 @@ ticket-coordinator、bake-off、review-loop 的協調者都照這份做；各 sk
 
 1. **開**：用各 skill 指定的腳本。它印出 `handle=`、`jsonl=`（檔名去掉 `.jsonl` 是 session id），寫進 ledger。印 `started: NO` 或 `expanded: NO` 照 TUI.md〈開 session〉；它說算卡住的，停下照〈回報〉告訴使用者卡在哪、試過什麼。
 2. **等**：Bash `run_in_background` 跑 `bash <O>/scripts/waitbg.sh <handle> <jsonl>`，然後結束回合等通知。之後每次送訊息給它（代答、叫它補、轉貼 Heads up）再掛等待，最後加 `sent`：沒加會讀到上一輪的 done，馬上返回。
-3. **被叫醒**：讀 ledger。背景輸出第一行是 `state=`，後面是畫面；不夠就 `python3 <O>/scripts/scr.py <handle> 40`。照情況處理：
+3. **被叫醒**：讀 ledger。背景輸出第一行是 `state=`，後面是畫面（`state=asking` 時畫面之前有全部題目）；不夠就 `python3 <O>/scripts/scr.py <handle> 40`。照情況處理：
    - **Heads up**（`state=heads-up`，或任何返回帶著 `headsup=`）：見下一節。
    - **提問**：按鍵見 TUI.md〈回答 AskUserQuestion〉，答什麼照各 skill。答完把「題目 → 答案 → 理由」寫進 ledger。
    - **要人做事**：只有使用者本人才有的（密碼、登入、2FA、實體操作、付款）才轉給使用者；它或你查得到、做得到、驗得到的，叫它自己做並告訴它怎麼做。

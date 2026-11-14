@@ -17,7 +17,10 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 
 - 同一個 worktree 裡常有 Orca 自動開的 shell 終端（`orca terminal list` 會列出兩個）。用 worktree 路徑反查可能查到 shell，整段話會被當指令送進 zsh。
 - `python3 <O>/scripts/scr.py <handle> [行數]` 讀畫面。`status: running` 只代表終端還在，不代表子 session 在忙。
-- 送出後讀畫面核對：`accepted: true` 只代表輸入被收下，沒反應先讀畫面再決定要不要重送。handle 失效（Orca 重啟後）用 `orca terminal list` 重找，只對新的送。
+- 送訊息或按鍵之前先讀畫面，送出後再讀一次核對。`waitbg.sh` 剛印的畫面，在你醒來後還沒做別的事（查證、跑指令、送過別的鍵）時算送出前那一次。
+  - 送出前看它停在哪：空輸入框或在忙（訊息會排隊）就送；停在題目就先照〈回答 AskUserQuestion〉答掉，題目開著時送進去的數字會被當成選項。
+  - 送出後：`accepted: true` 只代表輸入被收下，沒反應先讀畫面再決定要不要重送。
+- handle 失效（Orca 重啟後）用 `orca terminal list` 重找，只對新的送。
 - 畫面停在捲動模式（出現 `Jump to bottom`、看不到 spinner）：送 Ctrl+End `orca terminal send --terminal <h> --text $'\033[1;5F' --json`。
 - 查子 session 的 jsonl 只印短結果（`grep -c` / `grep -o`）：原始行會灌爆你的上下文。
 
@@ -40,7 +43,11 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 - 按鍵一律 `orca terminal send --terminal <h> --text <鍵> --json`，不加 `--enter`。每按一次就讀畫面核對。
 - 游標預設在第 1 項，通常就是 Recommended：送 Enter（`$'\r'`）。
 - 帶預覽的版面（右側有方框示意）數字鍵無效，移動用 ↓（`$'\033[B'`）。
-- 多題分頁：每題 Enter 後會跳下一題。最後出現 `Review your answers` / `Submit answers` 時，再送一次 Enter。
+- 多題分頁：頂端一列 `←  ☐ Color  ☐ Size  ✔ Submit  →`（答過的變 `☒`），畫面一次只顯示一題。
+  - 全部題目讀 `waitbg.sh` 在 `state=asking` 印的 `--- questions（transcript）---` 那一段（手動：`python3 <O>/scripts/ask.py <jsonl>`），不用翻頁。每一題的答案都決定好，再按第一個鍵。
+  - 從第 1 題照順序答：每題 Enter 後自動跳下一題，答完最後一題停在 `Review your answers`。核對它列出的每個答案，再送一次 Enter（游標在 `Submit answers`）。
+  - 開答之前畫面上不是第 1 題（有人翻過頁）：送 ←（`$'\033[D'`）退回第 1 題，一次退一頁，→ 是 `$'\033[C'`。在後面的題先答會一路跳到 `Review your answers`，要退好幾頁才回得去。
+  - 要改已答的某一題：← 退到那一題重選，讀畫面看它停在哪一頁再繼續。
 - 自訂答案：先用 ↓ 移到 `Type something.`，送出整段文字（不加 `--enter`），讀畫面確認整句都在，再送 Enter。
 
 ## Heads up

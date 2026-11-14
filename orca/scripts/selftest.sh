@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、ask.py、py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -29,6 +29,15 @@ ok "state parallel tool still running" "$(st "$A" "$TOOL" "$TOOL" "$RES")" busy
 ok "state unknown (no turn end)"     "$(st "$A")" unknown
 printf '%s\n' "$A" "$TD" > "$X/s.jsonl"
 ok "state recent write is busy"      "$("$PY" "$D/state.py" "$X/s.jsonl")" busy
+
+# ---- ask.py（停著的那次 AskUserQuestion 的全部題目；已經答掉的不算）
+Q2='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"AskUserQuestion","input":{"questions":[{"question":"哪個顏色？","header":"Color","multiSelect":false,"options":[{"label":"Red","description":"紅"},{"label":"Blue"}]},{"question":"哪些尺寸？","header":"Size","multiSelect":true,"options":[{"label":"S","description":"小"}]}]}}]}}'
+ANS='{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"User has answered"}]}}'
+aq() { printf '%s\n' "$@" > "$X/q.jsonl"; "$PY" "$D/ask.py" "$X/q.jsonl"; }
+ok "ask prints every question and option" "$(aq "$A" "$Q2" | tr '\n' '|')" "[1/2] Color（單選）：哪個顏色？|  1. Red —— 紅|  2. Blue|[2/2] Size（複選）：哪些尺寸？|  1. S —— 小|"
+ok "ask ignores junk and system lines"    "$(aq "$Q2" 'not json' "$TD" | grep -c '^\[')" 2
+aq "$Q2" "$ANS" >/dev/null; ok "ask answered question is not pending" $? 1
+aq "$A" "$TD" >/dev/null;   ok "ask no question exits 1" $? 1
 
 # ---- py.sh
 ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.version_info[0])')" 3
@@ -146,6 +155,12 @@ wb() { secs=$1; shift
 printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 echo '❯' > "$SCREEN"
 ok "waitbg done returns at once"                   "$(wb 5)" "state=done"
+grep -q '^--- questions' "$Wb/out"; ok "waitbg done prints no questions" $? 1
+# 停在多題的 AskUserQuestion：畫面只有第一題，全部題目從 transcript 印出來
+printf '%s\n' "$A" "$Q2" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
+ok "waitbg asking returns"                         "$(wb 5)" "state=asking"
+ok "waitbg asking prints every question"           "$(sed -n '/^--- questions/,/^--- end ---/p' "$Wb/out" | grep -c '^\[')" 2
+printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 # 票 22：回合結束了，畫面卻還掛著子代理留下的 shell，舊版一直等
 echo '  ⏵⏵ bypass permissions on · 1 shell' > "$SCREEN"
 ok "waitbg done with a lingering shell keeps waiting while fresh" "$(WAITBG_BG_STALE=600 wb 4)" "TIMEOUT"
