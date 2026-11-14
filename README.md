@@ -13,7 +13,7 @@
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭骨架，已有骨架的 repo 則逐項對齊最新範本：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions / CHANGELOG 的空殼、票的慣例、文件格式與 commit message 的檢查和 CI。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement` 等 skill，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
 | [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <要審的成品>`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 另開新 session 當審查員，主對話逐條查證、在自己的 worktree 修改。收斂後做一次精簡審查，出一份起點→最終版的總 diff，照授權合併回原分支 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列。可設額度門檻與同時上限 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人，目標是考 90 分：左右兩欄的 HTML 導讀頁、還沒交的作業的答案紙、練習頁和計時模擬卷。練習在頁面上對答案、照給分點自評，結果貼回對話安排複習 |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人，目標是考 90 分：像課本一樣一條捲軸的 HTML 導讀頁（左邊目錄即時顯示讀到哪）、還沒交的作業的答案紙、練習頁和計時模擬卷。練習在頁面上對答案、照給分點自評，結果貼回對話安排複習 |
 
 bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff、dashboard 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 

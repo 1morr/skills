@@ -1,4 +1,7 @@
-"""把講解頁的原始 HTML 組成單一檔案，並檢查寫作規則；規則不過就不產出。
+"""把導讀頁的原始 HTML 組成單一檔案，並檢查寫作規則；規則不過就不產出。
+
+原始檔分兩部：<section class="course"> 是講義導讀，<section class="problems"> 是例題和作業。
+組好的頁是一條捲軸：左邊固定的目錄、中間正文、右邊的對照欄（§ 連結、速查卡、名詞表、查表都在那裡打開）。
 
     python build.py <src.html> [-o <out.html>]
 
@@ -23,14 +26,14 @@ import overflow  # noqa: E402
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
 
-# 頁面分左右兩欄：左邊課件導讀，右邊例題和作業，各自捲動，連結可以跨欄跳
+# 原始檔的兩部：講義導讀在前，例題和作業在後；組好的頁把它們接成一條捲軸
 PANES = ("course", "problems")
 # 每個 h2 段落的字數上限，單位見 text_units。整頁不設上限：課件導讀要教完宣告的每一頁，由頁數覆蓋把關
 PER_SECTION = 2000
 # 一句話的字數上限：讀者是零基礎，一句一件事
 MAX_SENTENCE = 50
-# 題目欄每一題最多連到課件欄幾段：用到的定義和公式要在題目旁邊原地再寫一次，不叫讀者跳來跳去
-MAX_CROSS = 3
+# 估閱讀時間：一分鐘讀幾個字（單位見 text_units）。教材要邊讀邊算，比一般閱讀慢
+UNITS_PER_MIN = 80
 # 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
 KINDS = ("calc", "text")
 
@@ -51,7 +54,8 @@ LINKED_FROM = {"table", "count"}
 
 # 這些框的標籤由樣式加上；內文開頭再寫一次就重複了
 LABELS = {"why": ("為什麼",), "trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
-          "sheet": ("答案紙上寫這樣",)}
+          "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "test": ("怎樣才算",), "yes": ("是：", "是:"),
+          "no": ("不是：", "不是:")}
 # 整頁太長的提醒（不擋產出）：正文字數，和沒有摺起來的圖的張數
 PROSE_WARN = 15000
 FIGURE_WARN = 60
@@ -174,9 +178,7 @@ class Lint(HTMLParser):
             what = ", ".join(sorted(cls & ANSWER_ONLY))
             self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
         if tag == "figure":
-            if self.sections and self.inside_class("why"):
-                self.sections[-1]["why_fig"] = True
-            self.shown_figures += not self.inside("details")
+            self.shown_figures += not self.inside("details") and "src" not in cls
             if self.inside_class("panel") and not (a.get("data-tab") or "").strip():
                 self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
             self.figures.append({"caption": "", "in_caption": False, "page": "page" in cls, "id": a.get("id") or "",
@@ -200,14 +202,15 @@ class Lint(HTMLParser):
             if self.pane() == "problems":
                 self.problems_h2 = True
             self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
-                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0, "why_refs": [], "calc_first": False,
+                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0, "uses": False, "uses_refs": [], "calc_first": False,
                                   "pane": self.pane(), "depth": len(self.stack), "last": set(),
-                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "why_fig": False, "done": False,
+                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "done": False,
                                   "keys": False})
         if self.sections:
             sec = self.sections[-1]
             sec["method"] |= bool(cls & METHOD_CLASSES)
             sec["why"] |= "why" in cls
+            sec["uses"] |= "uses" in cls
             if "summary" in cls and not sec["h3"]:
                 sec["keys"] = True  # 課件欄：重點放在這一頁的開頭，第一個 h3 之前
             if "calc" in cls and not sec["origin"]:
@@ -367,8 +370,8 @@ class Lint(HTMLParser):
         self.refs += found
         if self.sections:
             self.sections[-1]["refs"] += found
-            if self.inside_class("why"):
-                self.sections[-1]["why_refs"] += found
+            if self.inside_class("uses"):
+                self.sections[-1]["uses_refs"] += found
         if self.skipping():
             return
         if not self.in_heading and not self.defs and re.search(r"\d", data):
@@ -405,20 +408,12 @@ def lint(src: str) -> list:
         title, n = sec["title"][:30], sec["units"]
         if n > PER_SECTION:
             problems.append(f"§「{title}」有 {n} 字，每段上限 {PER_SECTION}：拆成幾段，或刪掉不是在教這頁的東西")
-        if sec["pane"] == "problems" and not sec["recap"]:  # 總結是整個 topic 的導覽，連回課件不限
-            cross = {r.split(".")[0] for r in sec["refs"]} & course
-            if len(cross) > MAX_CROSS:
-                problems.append(f"§「{title}」連到課件欄 {len(cross)} 段（§{'、§'.join(sorted(cross, key=int))}），"
-                                f"上限 {MAX_CROSS}：用到的定義和公式在這題旁邊原地再寫一次，§ 連結只留「想看完整推導再點」的")
         if sec["pane"] == "problems" and sec["method"]:
-            if not sec["why"]:
-                problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="why" 的區塊：要講這題在問什麼、用到課件哪裡')
-            else:
-                if not any(r.split(".")[0] in course for r in sec["why_refs"]):
-                    problems.append(f"§「{title}」的「為什麼」沒有連到課件欄：寫出用到課件的 §N，讀者點了左欄就跳過去")
-                if not sec["why_fig"]:
-                    problems.append(f"§「{title}」的「為什麼」沒有課件截圖：把這題用到的那一塊課件（公式、規則）截過來放在這裡，"
-                                    "讀者不用跳去左欄找")
+            if not sec["uses"]:
+                problems.append(f'§「{title}」有計算或答案紙，卻沒有 <ul class="uses"> 的「這題用到」：一行列一樣用到的公式或規則，'
+                                "後面寫講義的 §N；教學只寫在講義那一段，不在題目旁邊重寫一次")
+            elif not any(r.split(".")[0] in course for r in sec["uses_refs"]):
+                problems.append(f"§「{title}」的「這題用到」沒有連到講義：每一樣寫出講義的 §N，讀者按了那一段就在旁邊打開")
             if p.kind == "text":
                 pass
             elif not sec["origin"]:
@@ -537,7 +532,7 @@ def number_headings(src: str):
 
 
 def link_refs(src: str, anchors: dict) -> str:
-    """把內文的 §N、§N.M 換成連到那一段的連結；標籤裡、<a> 裡、標題編號不動。"""
+    """把內文的 §N、§N.M 換成連到那一段的連結（class="ref"：按了在對照欄打開）；標籤裡、<a> 裡、標題編號不動。"""
     out, depth_a, in_num = [], 0, False
     for part in re.split(r"(<[^>]+>)", src):
         if part.startswith("<"):
@@ -555,69 +550,242 @@ def link_refs(src: str, anchors: dict) -> str:
             out.append(part)
         else:
             out.append(SECTION_REF.sub(
-                lambda m: f'<a href="#{anchors[m.group(1)]}">{m.group(0)}</a>' if m.group(1) in anchors else m.group(0),
+                lambda m: f'<a class="ref" href="#{anchors[m.group(1)]}">{m.group(0)}</a>' if m.group(1) in anchors else m.group(0),
                 part))
     return "".join(out)
 
 
 NUMBERED_H2 = re.compile(r'<h2([^>]*)><span class="num">§(\d+)</span> (.*?)</h2\s*>', re.I | re.S)
 ID_ATTR = re.compile(r"""\bid\s*=\s*["']?([^"'\s>]+)""")
+DOT = '<span class="dot">·</span>'
+ICONS = {"check": '<path d="M3 8.5l3.2 3.2L13 4.5"/>', "x": '<path d="M4 4l8 8M12 4l-8 8"/>',
+         "chev": '<path d="M6 3.5L10.5 8 6 12.5"/>', "list": '<path d="M2.5 4h11M2.5 8h11M2.5 12h7"/>'}
 
 
-def pane_start(src: str, name: str) -> int:
-    """<section class="name"> 開始標籤結束的位置；沒有就回傳 -1。"""
-    m = re.search(rf"""<section\b[^>]*\bclass\s*=\s*["'][^"']*\b{name}\b[^"']*["'][^>]*>""", src, re.I)
-    return m.end() if m else -1
+def icon(name: str) -> str:
+    return f'<svg class="i" viewBox="0 0 16 16" aria-hidden="true">{ICONS[name]}</svg>'
 
 
-def add_toc(src: str) -> str:
-    """每一欄的第一個 h2 前面放一份只列這一欄 h2 的目錄，預設摺起來。"""
-    cut = pane_start(src, "problems")
-    parts = [src[:cut], src[cut:]] if cut >= 0 else [src]
-    out = []
-    for part in parts:
-        items = "".join(f'<li><a href="#{ID_ATTR.search(m.group(1)).group(1)}">§{m.group(2)} '
-                        f'{" ".join(TAG.sub("", m.group(3)).split())}</a></li>'
-                        for m in NUMBERED_H2.finditer(part))
-        if items:
-            nav = f'<details class="toc"><summary>目錄</summary><ol>{items}</ol></details>\n'
-            part = re.sub(r"<h2[\s>]", lambda m: nav + m.group(0), part, count=1, flags=re.I)
-        out.append(part)
-    return "".join(out)
+def plain(html: str) -> str:
+    return " ".join(TAG.sub("", html).split())
 
 
-def add_toolbars(src: str) -> str:
-    """課件欄頂端放「圖片中文／原文」切換（有翻譯圖才放），題目欄頂端放「展開全部做法」。"""
-    here = '<button type="button" class="here" data-act="toc" title="回到這一欄的目錄"></button>'
-    bars = {"problems": '<button type="button" data-act="print">列印速查卡</button>'
-                        '<button type="button" data-act="answers">展開全部做法</button>', "course": ""}
-    if re.search(r'<aside\b[^>]*\bid="panel"', src, re.I):
-        bars["problems"] = '<button type="button" data-act="panel">查表</button>' + bars["problems"]
-    if re.search(r"<img\b[^>]*\bdata-zh\s*=", src, re.I):
-        bars["course"] = '<button type="button" data-act="lang">圖片：中文（點這裡全部換成原文）</button>'
-    for name in ("problems", "course"):  # 先插後面那欄，前面那欄的位置才不會變
-        at = pane_start(src, name)
-        if at >= 0:
-            src = src[:at] + f'<div class="bar">{here}{bars[name]}</div>' + src[at:]
+def has_class(name: str) -> str:
+    """比對 class 屬性裡有 name 這個字的樣式片段。"""
+    return rf"""[^>]*\bclass\s*=\s*["'](?:[^"']*\s)?{name}(?:\s[^"']*)?["'][^>]*"""
+
+
+def pane_start(src: str, name: str, end: bool = True) -> int:
+    """<section class="name"> 開始標籤結束的位置（end=False 是標籤開始的位置）；沒有就回傳 -1。"""
+    m = re.search(rf"<section\b{has_class(name)}>", src, re.I)
+    return (m.end() if end else m.start()) if m else -1
+
+
+# 目錄上不重複標題尾巴的頁碼：「……（講義 p.3）」
+PAGE_TAIL = re.compile(r"\s*[（(][^（）()]*\bp{1,2}\.\s*\d[^（）()]*[）)]\s*$")
+
+
+def add_meta(src: str, anchors: dict) -> str:
+    """每個編號的 h2 寫上 data-n、data-min，後面接一行：約幾分鐘；講義那部的段再列出用到它的題目。"""
+    heads = list(NUMBERED_H2.finditer(src))
+    cut = pane_start(src, "problems", end=False)
+    # 每一段的正文到下一個 h2 為止；講義最後一段只到講義那部結束，題目那部開頭的速查卡不算它的
+    ends = [heads[i + 1].start() if i + 1 < len(heads) else len(src) for i in range(len(heads))]
+    bodies = [src[m.end():(cut if m.start() < cut < end else end)] for m, end in zip(heads, ends)]
+    label_of = {anchor: label.split(".")[0] for label, anchor in anchors.items()}
+    used = {}  # 講義段的編號 → 用到它的題目段
+    for m, body in zip(heads, bodies):
+        if cut >= 0 and m.start() > cut:
+            for anchor in re.findall(r'<a class="ref" href="#([^"]+)"', body):
+                users = used.setdefault(label_of.get(anchor), [])
+                if m.group(2) not in users:
+                    users.append(m.group(2))
+    out, pos = [], 0
+    for m, body in zip(heads, bodies):
+        n = m.group(2)
+        minutes = max(1, round(text_units(TAG.sub("", body)) / UNITS_PER_MIN))
+        bits = [f"約 {minutes} 分鐘"]
+        if (cut < 0 or m.start() < cut) and used.get(n):
+            bits.append("用到這頁的題目 " + "、".join(f'<a class="ref" href="#{anchors[u]}">§{u}</a>' for u in used[n]))
+        attrs, title = m.group(1), PAGE_TAIL.sub("", plain(m.group(3)))
+        if "data-short" not in attrs:  # 目錄和頁眉用的短標題：去掉尾巴的頁碼
+            attrs += f' data-short="{title}"'
+        out += [src[pos:m.start()],
+                f'<h2{attrs} data-n="{n}" data-min="{minutes}"><span class="num">§{n}</span> {m.group(3)}</h2>',
+                f'<p class="meta">{DOT.join(bits)}</p>']
+        pos = m.end()
+    return "".join(out) + src[pos:]
+
+
+SRC_FIG = re.compile(rf"<figure\b({has_class('src')})>(.*?)</figure\s*>", re.I | re.S)
+
+
+def mark_sources(src: str) -> str:
+    """figure.src（只當佐證的講義原文）加上一列可以按的標題，圖和圖說包進 .fig-body：
+    寬螢幕它縮在右邊留白，窄螢幕只剩這一列，按了才在正文展開。"""
+    def repl(m):
+        cap = re.search(r"<figcaption[^>]*>(.*?)</figcaption\s*>", m.group(2), re.I | re.S)
+        return (f'<figure{m.group(1)}><button type="button" class="fig-open" aria-expanded="false">{icon("chev")}'
+                f'<b>講義原文</b><span>{plain(cap.group(1)) if cap else ""}</span></button>'
+                f'<div class="fig-body">{m.group(2)}</div></figure>')
+
+    return SRC_FIG.sub(repl, src)
+
+
+def add_cheat(src: str) -> str:
+    """速查卡前面加一個不編號的標題（目錄和頁眉的「速查卡」連到它），和列印、展開全部做法的按鈕。"""
+    m = re.search(rf"<div\b{has_class('cheat')}>", src, re.I)
+    if not m:
+        return src
+    head = ('<h2 class="plain" id="cheat">速查卡</h2><p class="cheat-tools">'
+            '<button type="button" class="btn" data-act="print">列印速查卡</button>'
+            '<button type="button" class="btn" data-act="answers">展開全部做法</button></p>')
+    return src[:m.start()] + head + src[m.start():]
+
+
+DFN = re.compile(r"<dfn\b[^>]*>(.*?)</dfn\s*>\s*(?:[（(]([^（）()]*)[）)])?", re.I | re.S)
+HEAD_TAG = re.compile(r"<h[23]\b[^>]*>", re.I)
+
+
+def add_terms(src: str, anchors: dict) -> str:
+    """最後加一張名詞表：每個 <dfn> 一列，緊跟在它後面括號裡的是另一種語言的寫法；連到它所在的那一段。"""
+    label_of = {anchor: label for label, anchor in anchors.items()}
+    heads = [(m.start(), ID_ATTR.search(m.group(0))) for m in HEAD_TAG.finditer(src)]
+    heads = [(pos, m.group(1)) for pos, m in heads if m and m.group(1) in label_of]
+    rows = []
+    for m in DFN.finditer(src):
+        before = [anchor for pos, anchor in heads if pos < m.start()]
+        if before:
+            rows.append((plain(m.group(1)), m.group(1), plain(m.group(2) or ""), before[-1]))
+    end = src.lower().rfind("</section>")
+    if not rows or end < 0:
+        return src
+    rows.sort(key=lambda r: r[0].lower())
+    items = "".join(f'<li><a class="ref" href="#{anchor}">{term}</a><span>{alt}</span>'
+                    f'<span class="where">§{label_of[anchor]}</span></li>' for _, term, alt, anchor in rows)
+    table = ('<h2 class="plain" id="terms">名詞表</h2><p class="meta">這一頁定義過的名詞，照原文排。按名詞在旁邊打開定義。</p>'
+             f'<ul class="terms">{items}</ul>')
+    return src[:end] + table + src[end:]
+
+
+PART = re.compile(rf"<p\b{has_class('part')}>(.*?)</p\s*>", re.I | re.S)
+
+
+def add_parts(src: str) -> str:
+    """每一部的開頭要有 <p class="part">：作者沒寫的，講義那部補「講義」，題目那部補「題目」。"""
+    for name, label in (("problems", "題目"), ("course", "講義")):  # 先補後面那部，前面那部的位置才不會變
+        start = pane_start(src, name)
+        end = pane_start(src, "problems") if name == "course" else -1
+        end = len(src) if end < 0 else end
+        if start < 0 or PART.search(src, start, end):
+            continue
+        m = re.compile(r"<h2[\s>]", re.I).search(src, start, end)
+        if m:
+            src = src[:m.start()] + f'<p class="part">{label}</p>' + src[m.start():]
     return src
 
 
-PANEL = re.compile(r"""<aside\b[^>]*\bclass\s*=\s*["'][^"']*\bpanel\b[^"']*["'][^>]*>(.*?)</aside\s*>""", re.I | re.S)
-PANEL_FIG = re.compile(r"""<figure\b[^>]*\bdata-tab\s*=\s*["']([^"']*)["'][^>]*>(.*?</figure\s*>)""", re.I | re.S)
+OUTLINE = re.compile(rf"<p\b{has_class('part')}>(?P<part>.*?)</p\s*>|<h(?P<level>[123])\b(?P<attrs>[^>]*)>(?P<inner>.*?)</h(?P=level)\s*>",
+                     re.I | re.S)
+NUM_SPAN = re.compile(r'<span class="num">.*?</span>', re.S)
+
+
+def outline(src: str) -> list:
+    """讀出目錄：一組一組的 {"label", "note", "items"}；項目是 {"id", "n", "title", "subs"}，subs 是 [(id, 文字)]。"""
+    groups = [{"label": "開始", "note": "", "items": []}]
+    for m in OUTLINE.finditer(src):
+        if m.group("part") is not None:
+            note = re.search(r"<span[^>]*>(.*?)</span\s*>", m.group("part"), re.I | re.S)
+            groups.append({"label": plain(re.sub(r"<span.*", "", m.group("part"), flags=re.I | re.S)),
+                           "note": plain(note.group(1)) if note else "", "items": []})
+            continue
+        attrs, inner = m.group("attrs"), m.group("inner")
+        own = ID_ATTR.search(attrs)
+        if not own:
+            continue
+        if m.group("level") == "3":
+            if groups[-1]["items"]:
+                groups[-1]["items"][-1]["subs"].append((own.group(1), plain(inner)))
+            continue
+        n = re.search(r'\bdata-n="(\d+)"', attrs)
+        short = re.search(r"""\bdata-short\s*=\s*["']([^"']+)["']""", attrs)
+        title = short.group(1) if short else PAGE_TAIL.sub("", plain(NUM_SPAN.sub("", inner)))
+        if m.group("level") == "1":
+            title = "開始之前"
+        if re.search(r"\brecap\b", attrs) and groups[-1]["label"] != "總結":
+            groups.append({"label": "總結", "note": "", "items": []})
+        groups[-1]["items"].append({"id": own.group(1), "n": n.group(1) if n else "", "title": title, "subs": []})
+    return [g for g in groups if g["items"]]
+
+
+def rail(src: str, groups: list) -> str:
+    """左邊固定的目錄：書名、讀了幾段、每段一格的進度條、切換鈕，再來是一組一組的段落。"""
+    h1 = re.search(r"<h1\b[^>]*>(.*?)</h1\s*>", src, re.I | re.S)
+    title = re.search(r"<title[^>]*>(.*?)</title\s*>", src, re.I | re.S)
+    book = plain(h1.group(1)) if h1 else plain(title.group(1)) if title else ""
+    cells = '<i class="gap"></i>'.join(
+        "".join(f'<i data-for="{it["id"]}"></i>' for it in g["items"] if it["n"]) for g in groups if any(it["n"] for it in g["items"]))
+    seg = ('<div class="seg" role="group" aria-label="{}"><button type="button" data-act="{}" aria-pressed="true">{}</button>'
+           '<button type="button" data-act="{}" aria-pressed="false">{}</button></div>')
+    quick = "".join(f'<button type="button" class="btn" data-act="{act}">{label}</button>'
+                    for act, label in (("cheat", "速查卡"), ("terms", "名詞表"), ("panel", "查表")) if f'id="{act}"' in src)
+    out = ['<nav class="rail" aria-label="目錄"><div class="rail-top">', f'<p class="book">{book}</p>',
+           f'<button type="button" class="shut" data-act="scrim" aria-label="關閉目錄">{icon("x")}</button>',
+           '<p class="status" aria-live="polite"></p>', f'<div class="strip" aria-hidden="true">{cells}</div>',
+           seg.format("顯示多少", "digest-off", "全文", "digest-on", "只看重點"),
+           f'<div class="quick">{quick}</div>' if quick else "", "</div>"]
+    if re.search(r"<img\b[^>]*\bdata-zh\s*=", src, re.I):
+        out.append(seg.format("截圖的語言", "lang-en", "截圖：原文", "lang-zh", "截圖：翻譯"))
+    out.append(seg.format("頁面的明暗", "theme-light", "淺色", "theme-dark", "深色"))
+    for g in groups:
+        out.append(f'<h2>{g["label"]}<span>{g["note"]}</span></h2><ol>')
+        for it in g["items"]:
+            subs = "".join(f'<li><a href="#{sid}">{text}</a></li>' for sid, text in it["subs"])
+            out.append(f'<li><a href="#{it["id"]}"><span class="n">{it["n"]}</span><span class="t">{it["title"]}</span>'
+                       f'<span class="st">{icon("check")}<span class="vh">讀過了</span></span></a>'
+                       + (f'<ol class="sub">{subs}</ol>' if subs else "") + "</li>")
+        out.append("</ol>")
+    out.append('<button type="button" class="reset" data-act="reset">清掉「讀過」的記號</button></nav>')
+    return "".join(out)
+
+
+def add_shell(src: str) -> str:
+    """把兩部包進一條捲軸的版面：目錄、頁眉（現在讀到哪、速查卡、名詞表、查表、只看重點）、正文、對照欄。"""
+    if not re.search(r"<h1\b[^>]*\bid\s*=", src, re.I):
+        src = re.sub(r"<h1\b", '<h1 id="top"', src, count=1, flags=re.I)
+    src = re.sub(r"</h1\s*>", lambda m: m.group(0)
+                 + '<p class="digest-note">現在每段只顯示重點和定義。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
+                 + '<p class="resume" hidden>上次讀到這裡：<a href="#"></a></p>', src, count=1, flags=re.I)
+    tools = "".join(f'<button type="button" class="tool wide" data-act="{act}">{label}</button>'
+                    for act, label in (("cheat", "速查卡"), ("terms", "名詞表"), ("panel", "查表")) if f'id="{act}"' in src)
+    head = (f'<div class="head"><button type="button" class="tool" data-act="nav">{icon("list")}目錄</button>'
+            f'<p class="crumb"></p><p class="count"></p>{tools}'
+            '<button type="button" class="tool" data-act="digest-toggle" aria-pressed="false">只看重點</button>'
+            '<span class="bar" aria-hidden="true"></span></div>')
+    peek = ('<button type="button" class="scrim" data-act="scrim" aria-label="關閉"></button>'
+            '<aside class="peek" aria-label="旁邊打開的那一段"><div class="peek-head"><h2></h2><p></p>'
+            f'<button type="button" class="close" data-act="peek-close" aria-label="關閉">{icon("x")}</button>'
+            '<div class="peek-acts"><button type="button" class="btn back" data-act="peek-back" hidden>返回</button>'
+            '<button type="button" class="btn split" data-act="split" aria-pressed="false">並排</button>'
+            '<a class="go" href="#">跳到這一段</a></div></div><div class="peek-body"></div></aside>')
+    opening = re.search(r"<body\b[^>]*>", src, re.I)
+    start = opening.end() if opening else 0
+    end = src.lower().rfind("</body>")
+    end = len(src) if end < 0 else end
+    return (src[:start] + rail(src, outline(src)) + "<main>" + head + '<div class="page">' + src[start:end]
+            + "</div></main>" + peek + src[end:])
+
+
+PANEL = re.compile(rf"<aside\b{has_class('panel')}>(.*?)</aside\s*>", re.I | re.S)
+PANEL_FIG = re.compile(r"""<figure\b[^>]*\bdata-tab\s*=\s*["'][^"']*["'][^>]*>.*?</figure\s*>""", re.I | re.S)
 
 
 def add_panel(src: str) -> str:
-    """<aside class="panel"> 裡的 figure 變成「查表」按鈕打開的分頁面板：整張統計表放這裡，不用每題重貼。"""
+    """<aside class="panel"> 裡的 figure 收成 #panel：頁眉的「查表」把它們在對照欄打開，一張一個分頁。"""
     m = PANEL.search(src)
     if not m:
         return src
-    tabs, bodies = [], []
-    for i, fm in enumerate(PANEL_FIG.finditer(m.group(1))):
-        tabs.append(f'<button type="button" data-tab="t{i}" aria-pressed="{"true" if i == 0 else "false"}">{fm.group(1)}</button>')
-        bodies.append(f'<figure data-tab="t{i}"{"" if i == 0 else " hidden"}>{fm.group(2)}')
-    panel = (f'<aside id="panel" aria-label="查表"><header>{"".join(tabs)}'
-             f'<button type="button" class="close">關閉</button></header><div class="body">{"".join(bodies)}</div></aside>')
-    return src[:m.start()] + panel + src[m.end():]
+    return src[:m.start()] + f'<div id="panel">{"".join(PANEL_FIG.findall(m.group(1)))}</div>' + src[m.end():]
 
 
 IMG_TAG = re.compile(r"<img\b[^>]*>", re.I)
@@ -627,7 +795,7 @@ CLASS_ATTR = re.compile(r"""(\sclass\s*=\s*["'])""", re.I)
 
 
 def split_bilingual(src: str) -> str:
-    """<img src="原圖" data-zh="翻譯圖"> 拆成兩張：翻譯圖（class zh）和原圖（class en），點圖切換。"""
+    """<img src="原圖" data-zh="翻譯圖"> 拆成兩張：原圖（class en，預設顯示）和翻譯圖（class zh，按「看中文」才顯示）。"""
     def with_class(tag, name):
         if CLASS_ATTR.search(tag):
             return CLASS_ATTR.sub(lambda m: m.group(1) + name + " ", tag, count=1)
@@ -640,7 +808,7 @@ def split_bilingual(src: str) -> str:
             return tag
         base = ZH_ATTR.sub("", tag)
         zh_tag = SRC_ATTR.sub(lambda s: s.group(1) + zh.group(1) + s.group(3), base, count=1)
-        return with_class(zh_tag, "zh") + with_class(base, "en")
+        return with_class(base, "en") + with_class(zh_tag, "zh")
 
     return IMG_TAG.sub(repl, src)
 
@@ -661,10 +829,13 @@ def inline_images(src: str, base: Path) -> str:
 
 
 VIEWPORT = '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+# 深淺色由讀者切換、記在瀏覽器（練習頁用同一個鍵）；在樣式之前套上，打開時才不會先閃一下白底
+THEME = ('<script>try { if (localStorage.getItem("tutor-theme") === "dark") '
+         'document.documentElement.dataset.theme = "dark"; } catch (e) {}</script>\n')
 
 
 def inject_assets(src: str) -> str:
-    style = f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n"
+    style = f"{THEME}<style>\n{CSS.read_text(encoding='utf-8')}</style>\n"
     if not re.search(r"<meta\b[^>]*\bname\s*=\s*[\"']viewport[\"']", src, re.I):
         style = VIEWPORT + style  # 沒有它，手機用桌面寬度排版再縮小
     if re.search(r"</head>", src, re.I):
@@ -679,7 +850,9 @@ def inject_assets(src: str) -> str:
 
 def build(src: str, base: Path) -> str:
     src, anchors = number_headings(src)
-    src = add_toolbars(add_toc(link_refs(add_panel(src), anchors)))
+    src = add_meta(link_refs(add_panel(src), anchors), anchors)
+    src = add_terms(add_cheat(mark_sources(src)), anchors)
+    src = add_shell(add_parts(src))
     return inject_assets(inline_images(split_bilingual(src), base))
 
 
