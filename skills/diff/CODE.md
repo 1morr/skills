@@ -65,13 +65,13 @@
 10. **親自試**：從乾淨的 checkout 出發、用假資料看到改動的步驟。
 11. **沒驗證到的**：平台、流程、邊界情況。
 
-hunk 和證據輸出由程式填進頁面：把 `git diff <base> <head> -- <檔>` 和指令輸出存成檔，頁面放 `<script type="application/json" id="data">__DATA__</script>` 和讀它的 JS，再
+hunk 和證據輸出照 SKILL.md〈共同標準〉第 1 條填進頁面：把 `git diff <base> <head> -- <檔>` 和指令輸出存成檔，再
 
 ```
 python <S>/fill.py page-src.html -o <輸出.html> --text hunk_a=a.diff --text tests_before=before.txt …
 ```
 
-（截圖和錄影用相對路徑寫在 `<img>` / `<video>` 裡，會一起內嵌。）交出前用 `grep` 掃一次頁面和證據文字有沒有家目錄路徑、像金鑰的字串。
+截圖和錄影用相對路徑寫在 `<img>` / `<video>` 裡。交出前用 `grep` 掃一次頁面和證據文字有沒有家目錄路徑、像金鑰的字串。
 
 完成條件：讀者只看摘要、為什麼、親自試，就答得出「改了什麼、為什麼、我怎麼看到」。
 
@@ -79,3 +79,5 @@ python <S>/fill.py page-src.html -o <輸出.html> --text hunk_a=a.diff --text te
 
 - 使用者要貼到 PR：另寫一份純文字 Markdown（圖改成說明文字），問過再用 `gh pr comment <編號> --body-file`。`gh` 傳不了 HTML，要在 PR 上看到圖，請使用者在網頁把 HTML 檔拖進留言框。
 - 這次自己找出或問來的跑法（指令、陷阱、出處確認方式），repo 的指令檔沒寫的：把打算寫的文字給使用者看，同意才寫進 repo 的 `AGENTS.md` 或 `CLAUDE.md`。
+
+完成條件：貼到 PR 或寫進指令檔的每一段文字，使用者都先看過、同意了。
