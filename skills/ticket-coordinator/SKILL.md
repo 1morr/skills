@@ -23,7 +23,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 4. 用 AskUserQuestion 問一次（連同 COORDINATOR.md〈授權〉），文件查得到的不問：
    - 隊列與順序（參數已給就只確認衝突）
    - 之後在不在場：不在場就一路做下去，只有〈真的卡住〉才停
-5. `bash <O>/scripts/preflight.sh <repo> <主分支>`：主目錄要乾淨、本機主分支與 origin 一致。有 WARN 先查清楚是誰的（可能是別的 session 在主目錄工作），確定是殘留才處理；來歷不明的 commit 留給使用者，不跟著你的 push 上去。
+5. `bash <O>/scripts/preflight.sh <repo> <主分支>`。有 WARN 先查清楚是誰的（可能是別的 session 在主目錄工作），確定是殘留才處理；來歷不明的 commit 留給使用者，不跟著你的 push 上去。
 6. ledger 的「目前」段再記下 `REQUIRE`（完成標準要求每張票的分支都動到的檔，沒有就留空）、額度門檻與同時上限。
 
 完成條件：隊列每張票的 `Blocked by` 和驗收條件都核對過；`preflight.sh` 的每條 WARN 都查清了來歷；ledger「目前」段每一欄都有值。
@@ -32,7 +32,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 1. **開 session**：每張票一個自己的 worktree 與分支，主目錄留給你。開之前過兩道上限（有給才查）：
    - 同時上限：running 的票到上限就等。
-   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次就停下問使用者，原因見 TUI.md「額度」。
+   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md「額度」。
 
    `BASE=<主分支> bash <O>/scripts/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`。
 

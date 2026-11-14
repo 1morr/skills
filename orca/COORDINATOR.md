@@ -29,7 +29,7 @@ ticket-coordinator、bake-off、review-loop 的協調者都照這份做；各 sk
    - **要人做事**：只有使用者本人才有的（密碼、登入、2FA、實體操作、付款）才轉給使用者；它或你查得到、做得到、驗得到的，叫它自己做並告訴它怎麼做。
    - **停了但沒做完**：先看它是不是在等自己的背景工作（子代理、背景指令），是就重新掛等待；真的停了才叫它接著做完。
    - **額度用完**、`stalled`、`done-bg`、`no-response`：照 TUI.md 對應的段落。
-4. **收**：只關這個 handle 的終端。jsonl 留著，使用者會用 `claude --resume <session id>` 回看。
+4. **收**：照各 skill 的收尾指令；各 skill 沒給指令時只關這個 handle 的終端。jsonl 留著，使用者會用 `claude --resume <session id>` 回看。
 
 完成條件：`orca terminal list` 裡沒有這個 handle；ledger 有它的 session id 和最後的結果。
 
@@ -38,13 +38,13 @@ ticket-coordinator、bake-off、review-loop 的協調者都照這份做；各 sk
 Heads up 是 Claude Code 給在場者的風險提醒，只在畫面和 mod 的狀態檔裡，子 session 的 transcript 沒有，所以它不知道。每一則照這個順序：
 
 1. **記**：把 `waitbg.sh` 附的全文和 `shown=` 時間記進 ledger。沒附全文（`headsup-src=screen`，或 `text:` 後面是空的）就照 TUI.md「Heads up」展開讀。
-2. **收**：照 TUI.md「Heads up」送 `0`，`python3 <O>/scripts/headsup.py --summary <jsonl>` exit 1 才算收掉，再照原樣重新掛等待（送過訊息就加 `sent`）。每一則都馬上收：掛著的時候下一則出不來。
+2. **收**：照 TUI.md「Heads up」送 `0`，`python3 <O>/scripts/headsup.py --summary <jsonl>` exit 1 才算收掉（exit 2 是狀態檔讀不到：改讀畫面，底部沒有 `✦ Heads up` 那一行才算），再照原樣重新掛等待（送過訊息就加 `sent`）。每一則都馬上收：掛著的時候下一則出不來。
 3. **分兩級**：
    - **馬上處理**：涉及刪檔或丟掉改動、破壞性 git、push 或對外寫入、金鑰或個人資料外洩、改隱私或安全約定、超出任務範圍。
    - **其他**：等子 session 停下（說做完或來問）再處理。中途的 Heads up 常是它還沒定案的想法，停下時已經自己改掉的，在 ledger 註明「已不適用」。
 4. **查證**：對任務來源、文件或程式碼查證一次（各 skill 另有規定的照它，例如 review-loop 把它當成審查意見）。屬實又該修的，把完整原文貼給**同一個 session**，開頭註明「以下是 Claude Code 給在場者的 Heads up 原文」，你的查證與修法另起一段；它在忙時送出的訊息會排隊，最晚在它停下時讀到。不屬實或不修的，寫進 ledger 的「待使用者看」並附理由。
 
-完成條件：`headsup.py --summary` exit 1；這一則在 ledger 裡有原文和處置（已轉給子 session、已不適用，或待使用者看）。
+完成條件：`headsup.py --summary` exit 1（exit 2 時畫面底部沒有 `✦ Heads up`）；這一則在 ledger 裡有原文和處置（已轉給子 session、已不適用，或待使用者看）。
 
 ## 規則
 
