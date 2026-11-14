@@ -594,7 +594,7 @@ def add_toolbars(src: str) -> str:
     if re.search(r'<aside\b[^>]*\bid="panel"', src, re.I):
         bars["problems"] = '<button type="button" data-act="panel">查表</button>' + bars["problems"]
     if re.search(r"<img\b[^>]*\bdata-zh\s*=", src, re.I):
-        bars["course"] = '<button type="button" data-act="lang">圖片：中文（點這裡全部換成原文）</button>'
+        bars["course"] = '<button type="button" data-act="lang">圖片：中文</button>'
     for name in ("problems", "course"):  # 先插後面那欄，前面那欄的位置才不會變
         at = pane_start(src, name)
         if at >= 0:

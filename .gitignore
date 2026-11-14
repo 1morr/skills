@@ -1,3 +1,4 @@
 __pycache__/
 CLAUDE.local.md
 .playwright-mcp/
+.impeccable/hook.cache.json
