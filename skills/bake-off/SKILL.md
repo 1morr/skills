@@ -15,7 +15,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 ## 開工
 
-1. 照 COORDINATOR.md「開工」。
+1. 照 COORDINATOR.md〈開工〉。
 2. 讀 prompt（參數是檔案路徑就讀檔）和專案的 CLAUDE.md / AGENTS.md，找出：任務的來源（題目、評分指引、需求文件）、現有的舊產出。任務要自己找的數據，來源寫**原始來源**（網站、指標、取得方式）；repo 裡處理過的數據檔（檔名帶期間、篩過的）算舊產出，因為它帶著上一次的讀法。
    - **外部版本**：使用者附上的現成版本（檔案、資料夾、zip、claude.ai artifact 連結）不開 session，審查時和其他版一起渲染、打分。zip 解到 `<批次目錄>/external/<名稱>/`；artifact 用 `read_artifact` 讀出存成檔。
    - **使用者的偏好**（例如「我覺得 X 比較簡潔順眼」）記進 ledger，報告裡要正面回應。
@@ -55,7 +55,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 ## 進行中
 
-照 COORDINATOR.md「子 session 的一輪」，另外：
+照 COORDINATOR.md〈子 session 的一輪〉，另外：
 
 - **提問**：任務來源原文有明確答案的，照原文回答並附原文；同一題每一版給同一個答案，第一次回答就記進 ledger 的「共同答案」，之後照抄。設計上的取捨和原文有兩種讀法的問題，回「你自己判斷，寫進最後的回報」，選項題選它推薦的。各版的讀法記進 ledger。
 - **Heads up** 的原文只貼給出現它的那一版。
@@ -93,7 +93,7 @@ argument-hint: "[版數，預設 3；0 = 只比較現成版本] <任務 prompt �
 
 ## 收尾（使用者指示後才做）
 
-- **合併選定版**：要改的和要搬進來的交給基礎版的子 session 做。比較已經結束，訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每項附來源的絕對路徑和位置。驗收它的 commit 後，在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `git merge --no-ff bake/<任務名>/<版號>`（base 的清除 commit 一起進來，舊產出正好被取代）。push 照 COORDINATOR.md「規則」。選的是外部版本時，由你把它放到產出原本的位置、改好、commit。
+- **合併選定版**：要改的和要搬進來的交給基礎版的子 session 做。比較已經結束，訊息裡明說「這一步可以讀下列其他 worktree 的檔案」，每項附來源的絕對路徑和位置。驗收它的 commit 後，在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `git merge --no-ff bake/<任務名>/<版號>`（base 的清除 commit 一起進來，舊產出正好被取代）。push 照 COORDINATOR.md〈規則〉。選的是外部版本時，由你把它放到產出原本的位置、改好、commit。
 - **寫回讀法**：使用者拍板的讀法連同原文、其他讀法、拍板的回覆，寫進專案記錄決定的地方（例如評核資料夾的 README），和合併同一個 commit。之後 review-loop 會把它當成定案。
 - **清 worktree**：每一版跑 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`。沒合併的分支會留著，列給使用者決定要不要刪。
 

@@ -29,7 +29,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 - `stalled`：多半是它停了背景工作卻沒留紀錄，或行程卡死。讀畫面，叫它說明在等什麼、接著做完。
 - `done-bg`：多半是殘留的背景程序（曾有子代理留下的 `find /` 跑了 7 小時）。叫子 session 查清楚、收掉，確認 `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
 - `no-response`：讀畫面，停在輸入框就是字被吞了，補送一次。
-- `heads-up`：照 COORDINATOR.md「Heads up」。同一則不會再叫醒你。
+- `heads-up`：照 COORDINATOR.md〈Heads up〉。同一則不會再叫醒你。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，再讀子終端。它通常活著。
@@ -45,7 +45,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 
 ## Heads up
 
-處理的順序在 COORDINATOR.md「Heads up」；這裡是按鍵和畫面。
+處理的順序在 COORDINATOR.md〈Heads up〉；這裡是按鍵和畫面。
 
 - 畫面底部一行 `✦ Heads up · <摘要>`，下面是 `1: Learn more   2: Knew this already   0: Dismiss`。摘要只有一句，完整內容（原因、推測的後果、建議）在 Learn more 裡。
 - 全文用 `python3 <O>/scripts/headsup.py <jsonl>` 讀，不必展開畫面。全文只在掛著時存在，收起後只剩摘要：先記進 ledger 再收。

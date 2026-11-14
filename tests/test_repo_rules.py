@@ -240,9 +240,26 @@ def check_orca_keys(root: Path) -> list:
     return out
 
 
+SECTION_REF = re.compile(r"([A-Za-z][A-Za-z0-9_-]*\.md)`?〈([^〉]+)〉")
+HEADING = re.compile(r"^#+\s+(?:\d+\.\s*)?(.+?)\s*$", re.M)
+
+
+def check_section_refs(root: Path) -> list:
+    """md 裡寫 `X.md〈節名〉` 時，X.md（同一個資料夾、orca/、pages/ 或 repo 根目錄的）要有以節名開頭的標題；標題的編號不算。templates/ 裡的 md 講的是使用者的專案，不查。"""
+    out = []
+    for md in docs(root):
+        if "templates" in md.relative_to(root).parts:
+            continue
+        for name, section in sorted(set(SECTION_REF.findall(read(md)))):
+            target = next((d / name for d in (md.parent, root / "orca", root / "pages", root) if (d / name).is_file()), None)
+            if target and not any(h.startswith(section) for h in HEADING.findall(read(target))):
+                out.append(f"{md.relative_to(root)} 寫了 {name}〈{section}〉，{target.relative_to(root)} 沒有這個開頭的標題")
+    return out
+
+
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
           check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header, check_no_opening_for_user, check_orca_keys)
+          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs)
 
 
 class RepoTest(unittest.TestCase):
@@ -598,3 +615,28 @@ class OrcaKeysTest(Fixture):
         sub(self.root, "orca/COORDINATOR.md", "時先記下來", "的那一輪，把全文抄進 ledger，再帶 `BASE=main` 跑；orca 回 `accepted: true`")
         write(self.root, "skills/diff/LOOK.md", "# 外觀\n\n照 `<P>/TOKENS.md`。屬性寫 `data-tol=x`、`state=whatever`。\n")
         self.clean(check_orca_keys)
+
+
+class SectionRefsTest(Fixture):
+    def setUp(self):
+        super().setUp()
+        write(self.root, "orca/COORDINATOR.md", "# 流程\n\n## 2. 開工：先查主分支\n\n## 授權\n")
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "照 COORDINATOR.md〈開工〉和 `<O>/COORDINATOR.md`〈授權〉。先讀")
+
+    def test_section_that_does_not_exist(self):
+        sub(self.root, "skills/notes/SKILL.md", "〈開工〉", "〈開公〉")
+        self.red(check_section_refs)
+
+    def test_heading_renamed_under_a_reference(self):
+        sub(self.root, "orca/COORDINATOR.md", "## 授權", "## 權限")
+        self.red(check_section_refs)
+
+    def test_file_next_to_the_reference_is_checked_too(self):
+        sub(self.root, "skills/diff/SKILL.md", "細節見", "照 LOOK.md〈文件頁〉。細節見")
+        self.red(check_section_refs)
+
+    def test_numbering_quotes_and_unknown_files_do_not_matter(self):
+        sub(self.root, "orca/COORDINATOR.md", "## 2. 開工", "### 7. 開工")
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "回「照你的判斷」，見〈下面那一節〉和專案的 development.md〈全部檢查〉。先讀")
+        write(self.root, "skills/notes/templates/instructions.md", "照 README.md〈使用者專案才有的節〉。\n")
+        self.clean(check_section_refs)

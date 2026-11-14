@@ -17,7 +17,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 ## 開工
 
-1. 照 COORDINATOR.md「開工」。
+1. 照 COORDINATOR.md〈開工〉。
 2. 讀專案的 CLAUDE.md / AGENTS.md，找出：票放在哪、狀態欄位、每張票的指令（例如 `/implement <票路徑>`）、**完成標準**，以及它要求每張票的分支都動到哪些檔（project-init 的骨架沒有：做票的紀錄留在票上）。
 3. 排隊列：參數給了順序就照它，沒給就照檔名。逐張核對 `Blocked by` 和驗收條件：要用到別張票產出的東西（頁面、端點、資料表）也算擋。已經 done 的跳過，衝突先問使用者。
 4. 用 AskUserQuestion 問一次（連同 COORDINATOR.md〈授權〉），文件查得到的不問：
@@ -32,12 +32,12 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 1. **開 session**：每張票一個自己的 worktree 與分支，主目錄留給你。開之前過兩道上限（有給才查）：
    - 同時上限：running 的票到上限就等。
-   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md「額度」。
+   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md〈額度〉。
 
    `BASE=<主分支> bash <O>/scripts/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`。
 
-   互不相擋的票可以同時開，一張一行呼叫（見 TUI.md「跨平台」）。會撞的排先後：改同一區程式碼、同一張登記表或閘門測試、都新增資料庫 migration（合起來會有兩個 head）。
-2. **等與被叫醒**：照 COORDINATOR.md「子 session 的一輪」。提問這樣答：
+   互不相擋的票可以同時開，一張一行呼叫（見 TUI.md〈跨平台〉）。會撞的排先後：改同一區程式碼、同一張登記表或閘門測試、都新增資料庫 migration（合起來會有兩個 head）。
+2. **等與被叫醒**：照 COORDINATOR.md〈子 session 的一輪〉。提問這樣答：
    - **選項題**：選標 `(Recommended)` 的。沒有推薦就查票、票指定的章節、名詞表、決定紀錄、程式碼，照文件既有的決定回答，附一句理由；選項都不對就用「Type something」寫自訂答案。文件互相矛盾時選最貼近需求文件的，記進「判斷紀錄」。
    - **文字提問**：採用它自己提的建議；沒給建議就照上一條查。
    - **本機環境壞了**（服務回 500、要重啟共享的容器）：換一條不動共享環境的路，例如在 CI 上跑；使用者正在用的環境保持原樣。
@@ -47,7 +47,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
    - **跟上主分支**：這張票開出後主分支多了程式碼，叫子 session 在它的分支 `git merge <本機主分支>`：用 git 預設的合併訊息（自訂標題會被 `merge-ticket.sh` 擋）、不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，下一條的補跑不必再做。
    - **綠燈**：lint / type / test 全套，而且是最後一次改動之後跑的。主分支在這張票開出後只多了文件類 commit 時不重跑。子 session 只重跑了部分時你補跑，放在隔離的 worktree（`git worktree add --detach <scratchpad>/verify-<票> <commit>` → 裝依賴、跑全套 → `git worktree remove --force`）。檢查指令包在 `bash <O>/scripts/run-check.sh <指令>` 裡：它回報紅才是真的紅，機器崩潰不算進「偶發紀錄」。
    - **合併**：`bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `BASE=<主分支> REQUIRE="<檔>" bash <O>/scripts/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。印 `NOT READY` 就把那幾行原樣轉給子 session（標題太長叫它自己改寫並建備份分支）。`CONFLICT`：紀錄檔類的你解；程式碼衝突 `git merge --abort`，回到「跟上主分支」。
-   - **push**：照 COORDINATOR.md「規則」用 `push-ci.sh`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
+   - **push**：照 COORDINATOR.md〈規則〉用 `push-ci.sh`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
 
    **偶發紅燈**：子 session 附註「既有紅燈，在前一個 commit 上也紅」可以接受一次，記進「偶發紀錄」。同一條紅燈第二次出現（不論哪張票、本機或 CI）或變成穩定紅：插一張修復票 `<NN>b-<slug>.md` 排在下一張之前並 commit。原因不明時票上寫明：先分清是產品還是測試的問題、要有會紅的 repro、只拉長逾時而說不出原因的不收。修復票的驗收包含回頭補勾被它卡住的票。使用者在場就先問再插。
 4. **收尾**：CI 綠了才 `bash <O>/scripts/close-worktree.sh <repo> <worktree>`。寫 ledger，回報這張票，開下一張。

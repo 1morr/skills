@@ -15,7 +15,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 開工
 
-1. 照 COORDINATOR.md「開工」，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`，下面提到的 DOCUMENT.md 也在那裡。
+1. 照 COORDINATOR.md〈開工〉，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`，下面提到的 DOCUMENT.md 也在那裡。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用瀏覽器自動化工具照實際尺寸截圖）。
@@ -46,7 +46,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
    **獨立**：prompt 只放固定部分和這一輪的變動；前幾輪的意見、駁回清單、你對成品的看法都留在 ledger。重複出現的意見由你對照 ledger 擋掉。
 2. **開審查 session**：先把要審的版本 commit 好，再 `bash <O>/scripts/open-worktree.sh <repo 選擇器> review-<名稱>-r<N> review/<名稱>/work review/<名稱>/r<N> <批次目錄>/r<N>/prompt.md`。審查員在自己的 worktree 裡渲染、跑腳本，碰不到你的檔。然後照 COORDINATOR.md 掛等待。
-3. **被叫醒**：照 COORDINATOR.md「子 session 的一輪」，另外：
+3. **被叫醒**：照 COORDINATOR.md〈子 session 的一輪〉，另外：
    - **提問**：需求類的照依據回答；要它判斷的回「照你的判斷，寫進報告」。成品好不好、前幾輪說了什麼，都留在你這裡。
    - **Heads up**：照 COORDINATOR.md 記下原文、收起，但不轉給審查員：把它當成這一輪多出來的一條意見，跟報告一起進第 4 步查證。只有內容是審查員自己在改檔、做 git 或對外動作時，才馬上叫它停。
    - **做完了**：讀 `r<N>/report.md`。`git -C <審查 worktree> status --short` 有東西或多了 commit，代表它違反只讀：記進 ledger，它改的不會進你的分支。
@@ -83,14 +83,14 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 給它沒有附說明的比對資料：`<DIFF>/scripts/diff.py <起點輸出> <最終輸出> -o <批次目錄>/plain-diff.json`（不帶 `--notes`；格式寫在 `diff.py` 開頭）。它讀資料比讀頁面準，這一步不做給人看的頁面。
    - 不給它輪次紀錄。
 
-   它的每一條意見照「每一輪」第 4 步查證。查證過的刪減和精簡照做，這一步不加內容，改完重建、渲染、commit。它指出的「改錯」算必須修：修好之後回到「每一輪」開下一輪審查，這一輪特別看那幾處，收斂後再回到這一步。這樣開的輪一樣算進輪數上限。
+   它的每一條意見照〈每一輪〉第 4 步查證。查證過的刪減和精簡照做，這一步不加內容，改完重建、渲染、commit。它指出的「改錯」算必須修：修好之後回到〈每一輪〉開下一輪審查，這一輪特別看那幾處，收斂後再回到這一步。這樣開的輪一樣算進輪數上限。
 2. **總 diff**：照 `diff` 的 DOCUMENT.md 做起點輸出對最終輸出，標籤用 `--before-label 起點 --after-label 最終版`。
    - `notes.json`：每一處改動對應哪一輪、哪一條意見、依據是什麼，從 ledger 抄。
    - 頁面另寫三段：不在文字裡的改動（版面、圖、顏色）、中途加過又刪掉的內容、起點和最終版的渲染圖並排。
 
    輸出到 `<批次目錄>/work` 裡產出旁邊的 `<產出名> 修改對照（起點→最終版）.html`，照 DOCUMENT.md 的檢查確認。
 3. **寫回定案**：使用者在這幾輪新拍板的決定，連同理由，寫進專案記錄決定的地方（例如評核資料夾的 README）。和總 diff 放在同一個 commit。
-4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後 `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照 COORDINATOR.md「規則」，分支是 `BASE_BR`。
+4. **合併**：照開工時問到的做（要先給使用者看，就先發第 5 步的報告、等回覆）。在主目錄跑 `bash <O>/scripts/preflight.sh <repo> <BASE_BR>`，再 `git -C <repo> merge --no-ff review/<名稱>/work -m "merge: review <名稱>"`。主目錄這段時間有了別的 commit 而撞到衝突：`git merge --abort`，問使用者。合併後 `git -C <repo> worktree remove <批次目錄>/work`、`git -C <repo> branch -d review/<名稱>/work`。push 照 COORDINATOR.md〈規則〉，分支是 `BASE_BR`。
 5. **最後報告**：
    - 結論：能不能交
    - 跑了幾輪，每輪採納和駁回各幾條
@@ -104,7 +104,7 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 ## 規則
 
-審查員只讀不改；修改只由你來做，而且只在 `<批次目錄>/work` 裡做。其餘照 COORDINATOR.md「規則」。
+審查員只讀不改；修改只由你來做，而且只在 `<批次目錄>/work` 裡做。其餘照 COORDINATOR.md〈規則〉。
 
 ## Ledger
 
