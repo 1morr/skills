@@ -64,9 +64,10 @@ PANZOOM = Pkg("@panzoom/panzoom", "4.6.2", "dist/panzoom.min.js",
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 # 這些屬性的網址會被瀏覽器自動載入；<a href> 是讀者自己點的，不算
 LOADING_ATTRS = {"src", "srcset", "poster", "data"}
+# 原始頁自己定義 tokens.css 的變數：兩份對不上時，頁面會和其他頁長得不一樣。變數名從 tokens.css 讀，它加了新的這裡就跟著擋
+TOKEN_NAMES = sorted(set(re.findall(r"--([a-z0-9-]+)\s*:", (HERE / "tokens.css").read_text(encoding="utf-8"))), key=len, reverse=True)
+OWN_TOKEN = re.compile(r"(?<![\w-])--(" + "|".join(map(re.escape, TOKEN_NAMES)) + r")\s*:")
 # 從遠端載東西的寫法：script 裡的 import … from "…"、import("…")；style 裡的 @import、url(…)
-# 原始頁自己定義 tokens.css 的變數：兩份對不上時，頁面會和其他頁長得不一樣
-OWN_TOKEN = re.compile(r"--(paper|panel|rule|ink|ink-2|accent|font-ui|font-doc|font-code)\s*:")
 REMOTE_IN_CODE = {
     "script": re.compile(r"""\bimport\b[^;"'`]*?["'`](https?:)?//""", re.I),
     "style": re.compile(r"""(@import\s+(url\(\s*)?|\burl\(\s*)["']?(https?:)?//""", re.I),

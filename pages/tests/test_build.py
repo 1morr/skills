@@ -6,6 +6,7 @@
 """
 
 import importlib.util
+import re
 import tempfile
 import unittest
 from html.parser import HTMLParser
@@ -63,6 +64,12 @@ class Lint(unittest.TestCase):
     def test_page_defining_its_own_tokens(self):
         self.assertFalse(ok(page(head="<style>:root{--paper:#fff;--ink:#000}</style>")))
         self.assertFalse(ok(page(head="<STYLE>\n:root {\n  --font-doc : Georgia;\n}\n</STYLE>")))
+        # 狀態色也是 tokens.css 的變數：tokens.css 有的每一個都擋
+        self.assertFalse(ok(page(head="<style>:root{--del-bg:#f00}</style>")))
+        self.assertFalse(ok(page(head="<style>:root{--note-bar: gold}</style>")))
+        for name in re.findall(r"--([a-z0-9-]+)\s*:", (build.HERE / "tokens.css").read_text(encoding="utf-8")):
+            self.assertFalse(ok(page(head=f"<style>:root{{--{name}:0}}</style>")), name)
+        self.assertTrue(ok(page(head="<style>.x{background:var(--del-bg);--my-gap:1rem;--my-ink:red}</style>")))
         # 用變數、定義自己的變數、補自己的 class 都可以；內文提到變數名也可以
         self.assertTrue(ok(page("<p>顏色取 <code>--paper: …</code></p>",
                                 "<style>.mine{color:var(--ink);--gap:1rem;background:var(--paper)}</style>")))
