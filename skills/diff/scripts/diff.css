@@ -1,0 +1,188 @@
+/* diff 頁的樣式；fill.py 把它接在 pages/scripts/tokens.css 後面內嵌進 <head>。
+   每個 class 用在哪寫在 skills/diff 的 LOOK.md：這裡加了或改了 class，那張表跟著改。
+   顏色和字體只從 tokens.css 的變數取。寬的東西（表格、程式碼、輸出）各自橫向捲動或換行，頁面不出現水平捲軸。 */
+* { box-sizing: border-box; }
+html { text-autospace: normal; -webkit-text-size-adjust: 100%; background: var(--paper); scrollbar-color: var(--rule) var(--paper); }
+body {
+  margin: 0; color: var(--ink); background: var(--paper); caret-color: var(--accent); accent-color: var(--accent);
+  font-family: var(--font-doc); font-size: 1.0625rem; line-height: 1.7; overflow-wrap: break-word;
+}
+body.sans { font-family: var(--font-ui); }
+::selection { background: var(--accent); color: var(--paper); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { font-family: var(--font-ui); text-wrap: balance; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 .5rem; }
+h2 { font-size: 1.375rem; line-height: 1.4; margin: 3.5rem 0 1rem; }
+h3 { font-size: 1.125rem; line-height: 1.5; margin: 2.25rem 0 .5rem; }
+p { margin: .8rem 0; }
+a { color: var(--accent); text-underline-offset: .2em; }
+code, pre, .mono { font-family: var(--font-code); }
+code { font-size: .9em; overflow-wrap: anywhere; }
+pre { font-size: .8125rem; line-height: 1.55; margin: 0; }
+button { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.meta, .lede, .note, .tag, .src, .toolbar, .colhead, .gap, .side-label, .cap { font-family: var(--font-ui); }
+.meta { color: var(--ink-2); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.lede { font-size: 1.25rem; line-height: 1.6; }
+
+/* ---- 版面：main 是文字欄；.wide 放並排的文件、證據、diff */
+main { max-width: 70ch; margin: 0 auto; padding: 2.5rem 1.5rem 6rem; }
+main.wide { max-width: calc(140ch + 4rem + 3rem); }
+.layout { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: 3rem; max-width: 100rem; margin: 0 auto; padding: 0 1.5rem; }
+/* 有目錄的頁：文字守 70ch，標了 .full 的證據和 diff 伸到整欄寬 */
+.layout main { max-width: none; min-width: 0; margin: 0; padding-left: 0; padding-right: 0; }
+.layout main > * { max-width: 70ch; }
+.layout main > .full { max-width: 72rem; }
+.toc { position: sticky; top: 1rem; align-self: start; padding-top: 2.5rem; font-family: var(--font-ui); font-size: .875rem; }
+.toc a { display: block; padding: .2rem 0 .2rem .75rem; color: var(--ink-2); text-decoration: none; border-left: 2px solid var(--rule); }
+.toc a.here { color: var(--ink); border-left-color: var(--accent); }
+@media (max-width: 1000px) { .layout { display: block; } .toc { display: none; } }
+
+/* ---- 工具列 */
+.toolbar {
+  position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 1rem; flex-wrap: nowrap;
+  padding: .5rem 1.5rem; background: var(--paper); border-bottom: 1px solid var(--rule); font-size: .875rem;
+}
+.toolbar .nav { margin-left: auto; display: flex; align-items: center; gap: .5rem; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: .3rem .8rem; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--paper); }
+.switch { display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; white-space: nowrap; }
+.toolbar .nav button, .pill button { border: 1px solid var(--rule); background: var(--paper); border-radius: 6px; padding: .3rem .6rem; cursor: pointer; }
+
+/* ---- 文件：每一組改動或沒改的段落是一列 .row */
+.colhead { position: sticky; top: var(--bar-h, 2.75rem); z-index: 2; margin: 0 -1.5rem; padding: .4rem 1.5rem; background: var(--paper); color: var(--ink-2); font-size: .875rem; }
+.row, .colhead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; }
+.row > *, .colhead > * { min-width: 0; }
+.row.same > :only-child { grid-column: 1 / -1; }
+[data-view="merged"] .row, [data-view="merged"] .colhead { display: block; max-width: 70ch; margin-left: auto; margin-right: auto; }
+[data-view="merged"] .colhead { display: none; }
+[data-view="merged"] > :is(h1, h2, p, .meta, .lede) { max-width: 70ch; margin-left: auto; margin-right: auto; }
+.pdf .row p { margin: .1rem 0; }
+.pdf .row.chg, .pdf .row:has(.run) { margin: .6rem 0; }
+.side-label { display: none; color: var(--ink-2); font-size: .875rem; }
+
+/* 段內改的字標得最濃 */
+del, ins { border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+del { background: var(--del-bg); color: var(--del-ink); text-decoration: line-through 1px; }
+ins { background: var(--ins-bg); color: var(--ins-ink); text-decoration: underline; text-underline-offset: .2em; }
+/* 讀屏器讀出是刪還是加 */
+del::before, ins::before { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+del::before { content: "刪除："; }
+ins::before { content: "新增："; }
+/* 整段刪除或新增淡一級 */
+.run { position: relative; padding: .05rem .5rem; border-radius: 2px; }
+.run p { margin: .4rem 0; }
+.run-del { background: color-mix(in oklch, var(--del-bg) 60%, var(--paper)); text-decoration: line-through 1px color-mix(in oklch, var(--del-ink) 50%, transparent); }
+.run-ins { background: color-mix(in oklch, var(--ins-bg) 60%, var(--paper)); }
+/* 修訂條：掛在每一塊改動自己身上，放在左側頁邊 */
+.chg { position: relative; }
+.run::before, .chg::before { content: ""; position: absolute; left: -1rem; top: 0; bottom: 0; width: 3px; border-radius: 2px; }
+.run-del::before { background: var(--del-bar); }
+.run-ins::before { background: var(--ins-bar); }
+.chg::before { background: var(--ink-2); }
+.cur .run::before, .cur.chg::before, .cur .chg::before { width: 5px; left: calc(-1rem - 1px); }
+
+/* 只看改動時收起的段落 */
+.gap { display: block; width: 100%; margin: 1rem auto; padding: .3rem 0; border: 0; border-top: 1px dashed var(--rule); background: none; color: var(--ink-2); font-size: .875rem; text-align: center; cursor: pointer; }
+[data-view="merged"] .gap { max-width: 70ch; }
+
+/* ---- 說明與標籤 */
+.note { margin: .4rem 0 1rem; padding: .5rem .75rem; background: var(--note-bg); color: var(--note-ink); border-radius: 4px; font-size: .875rem; line-height: 1.6; }
+.note::before { content: "註"; font-weight: 600; margin-right: .5rem; }
+.row > .note { grid-column: 2; }
+.tag { display: inline-block; margin-right: .4rem; padding: 0 .4rem; border: 1px solid currentColor; border-radius: 3px; font-size: .875rem; line-height: 1.5; white-space: nowrap; }
+.tag.guess { border-style: dashed; }
+.src { display: inline-block; padding: 0 .35rem; border: 1px solid var(--rule); border-radius: 3px; color: var(--ink-2); font-family: var(--font-code); font-size: .8125rem; overflow-wrap: anywhere; }
+
+/* ---- 表格：自己橫向捲動 */
+.tablewrap { overflow-x: auto; margin: 1rem 0; padding-left: 1.5rem; margin-left: -1.5rem; }
+table { border-collapse: collapse; font-size: .9375rem; line-height: 1.5; }
+th, td { border: 1px solid var(--rule); padding: .35rem .6rem; min-width: 4.5em; vertical-align: top; text-align: left; }
+tr:first-child > th, thead th { background: var(--panel); font-weight: 600; }
+td.cell-chg, th.cell-chg { position: relative; }
+.cell-chg::after { content: ""; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: var(--note-bar); border-right-color: var(--note-bar); }
+tr.row-add > td { background: var(--ins-bg); }
+tr.row-del > td { background: var(--del-bg); text-decoration: line-through 1px; }
+/* 新增或刪除的列，格內放原文：整列的底色已經說了是哪一種 */
+tr.row-add :is(ins, del), tr.row-del :is(ins, del) { background: none; color: inherit; text-decoration: inherit; }
+tr.row-add .cell-chg::after, tr.row-del .cell-chg::after { content: none; }
+td.mark, th.mark { min-width: 0; width: 1.5rem; padding: .35rem .25rem; border: 0; background: none !important; text-decoration: none !important; text-align: center; font-family: var(--font-code); color: var(--ink-2); }
+.col-add { background: var(--ins-bg); }
+.col-del { background: var(--del-bg); }
+
+/* ---- 渲染圖對照 */
+.shots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin: 1rem 0; padding: 1rem; background: var(--panel); border-radius: 6px; }
+.shots figure, figure.shot { margin: 0; }
+.shots img, .shot img, .slider img { display: block; max-width: 100%; height: auto; border: 1px solid var(--rule); box-shadow: 0 1px 2px rgb(0 0 0 / .08), 0 8px 24px rgb(0 0 0 / .08); cursor: zoom-in; }
+.cap, figcaption { font-family: var(--font-ui); font-size: .875rem; color: var(--ink-2); margin-bottom: .4rem; font-variant-numeric: tabular-nums; }
+.slider { position: relative; margin: 1rem 0; padding: 1rem; background: var(--panel); border-radius: 6px; }
+.slider .stack { position: relative; --at: 50%; }
+.slider .stack img + img { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--at)); }
+.slider .stack::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--at); width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 25%, transparent); pointer-events: none; }
+.slider .ends { display: flex; align-items: center; gap: .75rem; margin-top: .5rem; font-family: var(--font-ui); font-size: .875rem; color: var(--ink-2); }
+.slider input[type="range"] { flex: 1; min-width: 0; }
+dialog.zoom { max-width: 96vw; max-height: 96vh; padding: 0; border: 0; background: var(--panel); }
+dialog.zoom img { display: block; max-width: 96vw; max-height: 96vh; cursor: zoom-out; }
+dialog.zoom::backdrop { background: rgb(0 0 0 / .7); }
+@media (prefers-color-scheme: dark) { .shots img, .shot img, .slider img, dialog.zoom img { filter: brightness(.9); } }
+
+/* ---- 程式頁 */
+blockquote { margin: 1rem 0; padding: .5rem 1rem; background: var(--panel); border-radius: 4px; }
+.tree, .cmd { margin: 1rem 0; padding: .75rem 1rem; background: var(--panel); border-radius: 6px; font-family: var(--font-code); font-size: .8125rem; line-height: 1.55; overflow-x: auto; white-space: pre; color: var(--ink-2); }
+.tree .new { color: var(--ins-ink); }
+.cmd { color: var(--ink); user-select: all; }
+.risk { display: inline-block; margin-right: .5rem; padding: 0 .5rem; border: 1px solid currentColor; border-radius: 3px; font-family: var(--font-ui); font-size: .875rem; }
+.risk.one-way { color: var(--del-ink); }
+dl.decisions dt { font-family: var(--font-ui); font-weight: 600; margin-top: 1.25rem; }
+dl.decisions dd { margin: .25rem 0 0; }
+dl.decisions .alt { display: block; color: var(--ink-2); }
+.evidence { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; margin: 1rem 0; }
+.panel { min-width: 0; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem .75rem; background: var(--panel); font-family: var(--font-ui); font-size: .875rem; }
+.panel-head .bad { color: var(--del-ink); }
+.panel-head .good { color: var(--ins-ink); }
+pre.out { padding: .75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+pre.out > span { display: block; padding-left: 2ch; text-indent: -2ch; }
+pre.out .fail { background: var(--del-bg); }
+pre.out .pass { background: var(--ins-bg); }
+pre.out .cut, .hunk .skip { color: var(--ink-2); }
+.hunk { margin: .5rem 0 1.5rem; border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; }
+.hunk table { width: 100%; font-family: var(--font-code); font-size: .8125rem; line-height: 1.55; }
+.hunk td { border: 0; padding: 0 .5rem; min-width: 0; white-space: pre; }
+.hunk td.ln { width: 1%; text-align: right; color: var(--ink-2); user-select: none; font-variant-numeric: tabular-nums; }
+.hunk td.sign { width: 1%; user-select: none; }
+.hunk tr.add:not(.newfile) > td { background: var(--ins-bg); }
+.hunk tr.rm > td { background: var(--del-bg); }
+.hunk tr.add > td.sign { color: var(--ins-bar); }
+.hunk tr.rm > td.sign { color: var(--del-bar); }
+table.files { width: 100%; }
+table.files td { border: 0; border-top: 1px solid var(--rule); min-width: 0; }
+table.files .path { font-family: var(--font-code); font-size: .8125rem; overflow-wrap: anywhere; }
+table.files .dir { color: var(--ink-2); }
+table.files .stat { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plus { color: var(--ins-ink); }
+.minus { color: var(--del-ink); }
+ol.try li { margin: .75rem 0; }
+
+/* ---- 窄螢幕：並排改成上下疊，上一處／下一處移到右下角 */
+.pill { display: none; }
+@media (max-width: 760px) {
+  main, main.wide { padding-left: 1.25rem; padding-right: 1rem; }
+  h1 { font-size: 1.625rem; }
+  .row, .colhead, .shots, .evidence { display: block; }
+  .colhead { display: none; }
+  .row > * + * { margin-top: .5rem; }
+  .shots figure + figure, .evidence .panel + .panel { margin-top: 1rem; }
+  .side-label { display: block; }
+  .row > .note { grid-column: auto; }
+  .run::before, .chg::before { left: -.75rem; }
+  .cur .run::before, .cur.chg::before, .cur .chg::before { left: calc(-.75rem - 1px); }
+  .toolbar { padding: .5rem 1rem; gap: .5rem; }
+  .toolbar .nav { display: none; }
+  .pill { position: fixed; right: 1rem; bottom: 1rem; z-index: 4; display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem; background: var(--paper); border: 1px solid var(--rule); border-radius: 999px; box-shadow: 0 4px 16px rgb(0 0 0 / .15); font-family: var(--font-ui); font-size: .875rem; font-variant-numeric: tabular-nums; }
+  body { padding-bottom: 4rem; }
+  table.files tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  table.files td.what { grid-column: 1 / -1; border-top: 0; padding-top: 0; }
+}

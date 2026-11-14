@@ -1,5 +1,8 @@
+import contextlib
+import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -147,6 +150,52 @@ class Fill(unittest.TestCase):
                 page = f.read()
         self.assertIn('"diff": {"counts": {"groups": 1}}', page)
         self.assertIn('"hunk": "+added line\\n"', page)
+
+    def run_fill(self, body, head="", measure=lambda out: []):
+        tmp = tempfile.mkdtemp()
+        src, out = os.path.join(tmp, "p.html"), os.path.join(tmp, "o.html")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write(f"<!DOCTYPE html><html><head><title>t</title>{head}</head><body>{body}</body></html>")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = fill.main([src, "-o", out], measure=measure)
+        page = open(out, encoding="utf-8").read() if os.path.exists(out) else None
+        return code, page, err.getvalue()
+
+    def test_shared_styles_go_first_in_head(self):
+        code, page, _ = self.run_fill("<p><del>a</del></p>", "<style>.mine{color:var(--ink);--my-gap:1rem}</style>")
+        self.assertEqual(code, 0)
+        order = [page.index(x) for x in ("--paper:", ".run-del", ".mine{")]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual(page.count("--paper: oklch(0.985"), 1)
+        self.assertLess(page.index("<head>"), page.index("--paper:"))
+
+    def test_page_redefining_a_token_is_refused(self):
+        for css in (":root{--paper:#fff}", ":root{ --del-bg : red }", "@media print{:root{--font-doc:serif}}"):
+            code, page, err = self.run_fill("<p>x</p>", f"<style>{css}</style>")
+            self.assertEqual((code, page), (1, None), css)
+            self.assertIn("tokens.css", err)
+        # 用變數、定義自己的變數、在正文裡提到變數名都不算
+        code, page, _ = self.run_fill("<p>顏色取 <code>--paper: …</code></p>", "<style>.x{background:var(--del-bg);--my-ink:red}</style>")
+        self.assertEqual(code, 0)
+
+    def test_overflowing_page_is_not_delivered(self):
+        code, page, err = self.run_fill("<p>x</p>", measure=lambda out: ["視窗寬 390px：整頁被撐寬 40px"])
+        self.assertEqual((code, page), (1, None))
+        self.assertIn("視窗寬 390px", err)
+        # 找不到瀏覽器（None）照樣產出，並提醒
+        code, page, err = self.run_fill("<p>x</p>", measure=lambda out: None)
+        self.assertEqual(code, 0)
+        self.assertIsNotNone(page)
+        self.assertIn("沒有量水平溢出", err)
+
+    def test_every_colour_in_diff_css_comes_from_a_token(self):
+        css = open(os.path.join(HERE, "..", "scripts", "diff.css"), encoding="utf-8").read()
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b|\boklch\((?!\s*,)[0-9. ]+\)|\bhsl\(", css), [])
+        tokens = set(re.findall(r"--([a-z0-9-]+)\s*:", open(str(fill.STYLES[0]), encoding="utf-8").read()))
+        used = set(re.findall(r"var\(--([a-z0-9-]+)", css))
+        self.assertEqual(used - tokens - {"at", "bar-h"}, set())
 
 
 class Docx(unittest.TestCase):

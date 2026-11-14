@@ -23,7 +23,7 @@ stderr 最後一行是計數，給讀者看的改動數用 `groups`。數字大�
 
 ## 3. 寫頁面
 
-照 SKILL.md〈共同標準〉第 1 條寫 `page-src.html`，再把 `diff.json` 填進去：
+照 SKILL.md〈共同標準〉第 1 條寫 `page-src.html`（class 照 LOOK.md〈文件頁〉），再把 `diff.json` 填進去：
 
 ```
 python <S>/fill.py page-src.html -o <輸出.html> --json diff=<暫存>/diff.json
