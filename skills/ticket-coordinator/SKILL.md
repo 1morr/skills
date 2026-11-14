@@ -11,9 +11,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 `<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。**先讀 `<O>/COORDINATOR.md`**，這份只寫票獨有的部分。
 
-參數裡的兩個上限，沒給就不限：
-- **額度門檻**（例如「5h 80%」「7d 95%」）：到門檻就不開新票，在跑的票照常做完，額度刷新後接著開。沒給門檻時，額度快滿照常開。
-- **同時最多幾張**：在跑的票到這個數，就等其中一張收尾再開。
+參數裡的**額度門檻**（例如「5h 80%」「7d 95%」）和**同時最多幾張**，沒給就不限；怎麼用在〈每張票〉第 1 步。
 
 ## 開工
 
@@ -44,7 +42,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
    - **修不綠或原地打轉**：叫它用 diagnosing 類 skill 找根因，你讀程式碼與測試輸出給方向。
    - **說做完了**：還沒處理的 Heads up 都處理完，進第 3 步。
 3. **驗收與合併**，照下面的順序做，前一項成立才做下一項；缺一項就在同一個 session 叫它補，產品程式由它改：
-   - **跟上主分支**：這張票開出後主分支多了程式碼，叫子 session 在它的分支 `git merge <本機主分支>`：用 git 預設的合併訊息（自訂標題會被 `merge-ticket.sh` 擋）、不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，下一條的補跑不必再做。
+   - **跟上主分支**：這張票開出後主分支多了程式碼，叫子 session 在它的分支 `git merge <本機主分支>`：用 git 預設的合併訊息（`Merge ` 開頭才過 `merge-ticket.sh` 的標題檢查）、不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，下一條的補跑不必再做。
    - **綠燈**：lint / type / test 全套，而且是最後一次改動之後跑的。主分支在這張票開出後只多了文件類 commit 時不重跑。子 session 只重跑了部分時你補跑，放在隔離的 worktree（`git worktree add --detach <scratchpad>/verify-<票> <commit>` → 裝依賴、跑全套 → `git worktree remove --force`）。檢查指令包在 `bash <O>/scripts/run-check.sh <指令>` 裡：它回報紅才是真的紅，機器崩潰不算進「偶發紀錄」。
    - **合併**：`bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `BASE=<主分支> REQUIRE="<檔>" bash <O>/scripts/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。印 `NOT READY` 就把那幾行原樣轉給子 session（標題太長叫它自己改寫並建備份分支）。`CONFLICT`：紀錄檔類的你解；程式碼衝突 `git merge --abort`，回到「跟上主分支」。
    - **push**：照 COORDINATOR.md〈規則〉用 `push-ci.sh`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
@@ -56,7 +54,7 @@ argument-hint: "[票目錄或票清單] [順序，例如 01 → 02 → 14] [額�
 
 ## 隊列停下時
 
-隊列卡住，而專案的指令檔要求紀錄檔寫「下一步」時：照指令檔的格式在紀錄檔加一列（project-init 的骨架是 `docs/progress.md`），「下一步」寫「等使用者：…」，照〈協調者自己的 commit〉commit，再照 `push-ci.sh` 推上去。隊列做完時不寫：還有票，下一步就是下一張沒做的票，從票的狀態看得出來；里程碑做完，驗收票自己寫了。
+隊列卡住，而專案的指令檔要求紀錄檔寫「下一步」時：照指令檔的格式在紀錄檔加一列（project-init 的骨架是 `docs/progress.md`），「下一步」寫「等使用者：…」，照〈協調者自己的 commit〉commit，再照 `push-ci.sh` 推上去。只在隊列卡住時寫。
 
 ## 真的卡住
 

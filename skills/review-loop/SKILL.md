@@ -11,11 +11,11 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
 
 審查員用一個全新的 session、不用你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文要乾淨，沒有前幾輪的東西。
 
-`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。**先讀 `<O>/COORDINATOR.md`**，這份只寫審查獨有的部分。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`，`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`。**先讀 `<O>/COORDINATOR.md`**，這份只寫審查獨有的部分。
 
 ## 開工
 
-1. 照 COORDINATOR.md〈開工〉，再呼叫 Skill 工具載入 `diff`；`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`，下面提到的 DOCUMENT.md 也在那裡。
+1. 照 COORDINATOR.md〈開工〉，再呼叫 Skill 工具載入 `diff`；下面提到的 DOCUMENT.md 在 `<DIFF>` 裡。
 2. 讀專案的 CLAUDE.md / AGENTS.md 和要審的產出，找出：
    - 原始檔和輸出檔（例如 `build.py` 產生 docx、`poster.html` 輸出 PDF）。改的是原始檔，而且照專案的規定改。
    - 重建指令，以及怎麼渲染成看得到的形式（PDF 逐頁轉圖、HTML 用瀏覽器自動化工具照實際尺寸截圖）。
@@ -101,10 +101,6 @@ argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充
    - 每一輪審查 session 的 session id，可以用 `claude --resume` 回看
 
 完成條件：總 diff 頁首的改動數等於 `diff.json` 的 `counts.groups`；合併 commit 在 `BASE_BR` 上，或最後報告寫明還在等使用者；`git worktree list` 沒有這一場的審查 worktree。
-
-## 規則
-
-審查員只讀不改；修改只由你來做，而且只在 `<批次目錄>/work` 裡做。其餘照 COORDINATOR.md〈規則〉。
 
 ## Ledger
 
