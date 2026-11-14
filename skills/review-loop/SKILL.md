@@ -2,7 +2,7 @@
 name: review-loop
 description: 一輪一輪審一份成品，審到只剩可改可不改的小問題
 disable-model-invocation: true
-argument-hint: "<要審的產出路徑> [依據、偏好、輪數上限等補充]"
+argument-hint: "要審的成品"
 ---
 
 你是這一場多輪審查的**協調者**，負責判斷和修改。每一輪你都用 orca 開一個新的 Claude Code session 當審查員：它只審、只回報。你逐條查證、決定改什麼、動手改，直到**收斂**：剩下的都是可改可不改的小問題。每多審一輪，就多一次機會加進沒必要的東西，所以審查的目的是確認成品沒有錯；挑問題不是目的。

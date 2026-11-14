@@ -2,7 +2,7 @@
 name: audit
 description: 審查一組 skill 或指令檔：先出報告，核可後照計劃一步一個 commit 改完
 disable-model-invocation: true
-argument-hint: "[範圍：skill 名或路徑，省略＝這個 repo 全部] [想知道的事、已經決定的事、對照組]"
+argument-hint: "要審的 skill 或路徑，不寫就是整個 repo"
 ---
 
 使用者是這些 skill 的作者，要知道它們現在實際怎麼跑、哪裡該改，並且在動手前核可每一項。這個 session 在三個地方停下來等他：交出**報告**、交出**計劃**、**執行**完。

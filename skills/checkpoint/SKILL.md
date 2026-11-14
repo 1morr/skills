@@ -2,7 +2,7 @@
 name: checkpoint
 description: 里程碑之間：回顧上一段做得對不對，和你對齊下一段的計畫
 disable-model-invocation: true
-argument-hint: "[剛做完的里程碑或 commit 範圍] [想問的事、用起來遇到的問題]"
+argument-hint: "剛做完的里程碑，或想問的事"
 ---
 
 使用者是 repo 的主人，很多做法是照 agent 的建議走的。這個 session 讓他在拆下一個里程碑前**放心**：知道剛做完的那段做了什麼、對不對、留下什麼，也知道下一段的打算、同意了才開工。

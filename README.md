@@ -4,15 +4,15 @@
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
-| [audit](skills/audit/SKILL.md) | `/1morr:audit [範圍] [想知道的事、已經決定的事、對照組]`（只能手動叫用） | 審查一組 skill 或指令檔（省略範圍就是整個 repo），標準是 mattpocock 的 `writing-for-agents`。先出報告，你回答後寫計劃，確認後一步一個 commit 改完；可以給對照組（用過這個 skill 的專案、產出或對話紀錄）驗 skill 寫的和實際發生的對不對得上 |
-| [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <prompt 或 prompt 檔> [現成版本…]`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查。建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方交給你決定 |
-| [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [里程碑或 commit 範圍] [想問的事]`（只能手動叫用） | 一個里程碑做完、拆下一個之前：回顧做了什麼、對不對、遺留什麼，說明下一個的打算。出一頁臨時回顧頁，對話對齊後把定案寫回 repo 原有的文件 |
+| [audit](skills/audit/SKILL.md) | `/1morr:audit [要審的 skill 或路徑]`（只能手動叫用） | 審查一組 skill 或指令檔（省略範圍就是整個 repo），標準是 mattpocock 的 `writing-for-agents`。先出報告，你回答後寫計劃，確認後一步一個 commit 改完；可以給對照組（用過這個 skill 的專案、產出或對話紀錄）驗 skill 寫的和實際發生的對不對得上 |
+| [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <要做的任務>`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），先核可各版計畫，做完逐版渲染審查。建議用哪一版當基礎、還要改什麼、別版有哪些能合進來；各版讀法不同的地方交給你決定 |
+| [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [剛做完的里程碑，或想問的事]`（只能手動叫用） | 一個里程碑做完、拆下一個之前：回顧做了什麼、對不對、遺留什麼，說明下一個的打算。出一頁臨時回顧頁，對話對齊後把定案寫回 repo 原有的文件 |
 | [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：里程碑與票的進度、等你決定的事、功能與變更、決策、ADR、session 紀錄，可以同時看好幾個 repo。內容由腳本從 repo 的固定文件讀出，讀不懂的行會列出來；頁面不寫進 repo |
 | [diff](skills/diff/SKILL.md) | 說「給我一頁前後對照的 html」「做 diff 頁」，或由其他 skill 呼叫 | 做一頁給讀者看的前後對照：文件（docx、PDF、HTML、海報、Markdown、文字）逐字比對，或程式改動實跑前後並附證據。比對由腳本算，頁面由模型照內容設計 |
-| [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西> [想知道的事]`（只能手動叫用） | 解說 repo 裡某個功能、流程、頁面、機制或里程碑現在怎麼運作。一頁附 Mermaid 圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
+| [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西>`（只能手動叫用） | 解說 repo 裡某個功能、流程、頁面、機制或里程碑現在怎麼運作。一頁附 Mermaid 圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭骨架，已有骨架的 repo 則逐項對齊最新範本：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions / CHANGELOG 的空殼、票的慣例、文件格式與 commit message 的檢查和 CI。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement` 等 skill，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
-| [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <產出路徑> [補充]`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 另開新 session 當審查員，主對話逐條查證、在自己的 worktree 修改。收斂後做一次精簡審查，出一份起點→最終版的總 diff，照授權合併回原分支 |
-| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator <票目錄> [順序] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列。可設額度門檻與同時上限 |
+| [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <要審的成品>`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 另開新 session 當審查員，主對話逐條查證、在自己的 worktree 修改。收斂後做一次精簡審查，出一份起點→最終版的總 diff，照授權合併回原分支 |
+| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列。可設額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人，目標是考 90 分：左右兩欄的 HTML 導讀頁、還沒交的作業的答案紙、練習頁和計時模擬卷。練習在頁面上對答案、照給分點自評，結果貼回對話安排複習 |
 
 bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff、dashboard 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。

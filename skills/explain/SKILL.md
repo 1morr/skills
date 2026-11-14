@@ -2,7 +2,7 @@
 name: explain
 description: 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、附來源的臨時頁，加對話追問
 disable-model-invocation: true
-argument-hint: "<要解說的東西> [想知道的事]"
+argument-hint: "要解說的東西"
 ---
 
 使用者是 repo 的主人，很多做法是照 agent 的建議走的。這個 session 讓他看懂一樣東西**現在**怎麼運作、為什麼這樣，好在下一個決定前心裡有底。
