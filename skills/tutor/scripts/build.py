@@ -660,8 +660,13 @@ def inline_images(src: str, base: Path) -> str:
     return re.sub(r'(<img\b[^>]*?\bsrc=")([^"]+)(")', repl, src)
 
 
+VIEWPORT = '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+
+
 def inject_assets(src: str) -> str:
     style = f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n"
+    if not re.search(r"<meta\b[^>]*\bname\s*=\s*[\"']viewport[\"']", src, re.I):
+        style = VIEWPORT + style  # 沒有它，手機用桌面寬度排版再縮小
     if re.search(r"</head>", src, re.I):
         src = re.sub(r"</head>", lambda _: style + "</head>", src, count=1, flags=re.I)
     else:

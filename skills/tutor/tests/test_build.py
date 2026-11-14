@@ -988,6 +988,16 @@ class Output(unittest.TestCase):
         self.assertIn('<a href="#s3">§3 例一</a>', problems)
         self.assertLess(course.index('<details class="toc">'), course.index("<h2"))
 
+    def test_page_declares_a_viewport_once(self):
+        # 沒有 viewport 時手機用桌面寬度排版再縮小，窄螢幕的排法永遠用不到
+        out = self.built()
+        self.assertEqual(len(re.findall(r'<meta\s+name="viewport"', out)), 1)
+        self.assertLess(out.index('name="viewport"'), out.index("<style>"))
+        own = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        again = build.inject_assets(f"<html><head>{own}</head><body></body></html>")
+        self.assertEqual(again.count('name="viewport"'), 1)
+        self.assertIn(own, again)
+
     def test_bars_show_position_and_actions(self):
         out = self.built()
         self.assertEqual(out.count('class="here" data-act="toc"'), 2)
