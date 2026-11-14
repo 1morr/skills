@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T00:00:00Z",
+  "title": "Design System: tutor 紅黑雙色參考書",
+  "scope": "只涵蓋 skills/tutor/assets/ 的導讀頁、練習頁、模擬卷；其他 skill 的頁面不在範圍內。",
+  "extensions": {
+    "colorMeta": {
+      "paper": { "role": "neutral", "displayName": "白紙", "canonical": "#ffffff", "dark": "#141414", "tonalRamp": ["#141414", "#2b2b2b", "#474747", "#767676", "#a8a8a8", "#c9c9c9", "#e4e4e4", "#ffffff"] },
+      "ink": { "role": "neutral", "displayName": "黑墨", "canonical": "#111111", "dark": "#ededed", "tonalRamp": ["#000000", "#111111", "#2b2b2b", "#444444", "#555555", "#767676", "#a8a8a8", "#ededed"] },
+      "mute": { "role": "neutral", "displayName": "灰字", "canonical": "#555555", "dark": "#a8a8a8", "tonalRamp": ["#111111", "#2b2b2b", "#444444", "#555555", "#767676", "#a8a8a8", "#c9c9c9", "#e4e4e4"] },
+      "hair": { "role": "neutral", "displayName": "髮線灰", "canonical": "#c9c9c9", "dark": "#474747", "tonalRamp": ["#2b2b2b", "#474747", "#767676", "#999999", "#b0b0b0", "#c9c9c9", "#e4e4e4", "#f2f2f2"] },
+      "red": { "role": "primary", "displayName": "印刷紅", "canonical": "#c8201a", "dark": "#ff7566", "tonalRamp": ["#4a0b08", "#7a1410", "#a31b15", "#c8201a", "#e0473f", "#ff7566", "#ffa89f", "#fbe3e1"] },
+      "red-wash": { "role": "secondary", "displayName": "淡紅底", "canonical": "#fbe3e1", "dark": "#3b1b18", "tonalRamp": ["#3b1b18", "#5a2823", "#8a3d36", "#c8201a", "#e0473f", "#f2a39d", "#f8c8c4", "#fbe3e1"] },
+      "highlighter": { "role": "tertiary", "displayName": "螢光黃", "canonical": "#ffe45c", "dark": "#e6c84a", "tonalRamp": ["#4d4210", "#7a6a1a", "#a38e24", "#c9ae33", "#e6c84a", "#ffe45c", "#fff0a0", "#fff8d0"] },
+      "highlighter-ink": { "role": "neutral", "displayName": "螢光筆上的字", "canonical": "#111111", "tonalRamp": ["#000000", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777"] },
+      "grid": { "role": "neutral", "displayName": "方格灰", "canonical": "#e4e4e4", "tonalRamp": ["#a8a8a8", "#b8b8b8", "#c9c9c9", "#d4d4d4", "#e4e4e4", "#ececec", "#f2f2f2", "#f8f8f8"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "書名", "purpose": "h1；練習頁下壓一條 1.5px 黑線。" },
+      "band": { "displayName": "節標題", "purpose": "h2、h2.part、速查卡標題，黑底白字橫條。" },
+      "title": { "displayName": "小節標題", "purpose": "h3，下面一條 1.5px 黑線。" },
+      "body": { "displayName": "內文", "purpose": "中文黑體；導讀頁欄寬 44rem，練習頁 50rem。" },
+      "label": { "displayName": "條目標籤", "purpose": "定義、這題記住、為什麼、常見錯誤；書眉按鈕；爪標。" },
+      "math": { "displayName": "襯線數學", "purpose": "計算、答案紙、變數、英文原文。" },
+      "data": { "displayName": "等寬資料", "purpose": "填答格、軟體輸出、code。" }
+    },
+    "shadows": [
+      { "name": "panel-edge", "value": "-10px 0 28px -14px rgba(0,0,0,.35)", "purpose": "查表面板（#panel）從右側浮起的柔邊；整個系統唯一的陰影。" }
+    ],
+    "motion": [
+      { "name": "cover-lift", "value": "lift .32s cubic-bezier(.16, 1, .3, 1) forwards", "purpose": "遮字板點開時往右滑走（clip-path）；導讀頁唯一的動態，reduced-motion 時關閉。" },
+      { "name": "target-flash", "value": "flash 2.2s ease-out", "purpose": "跳轉到某一節後，用螢光黃淡出到透明。h2 不閃。" },
+      { "name": "smooth-scroll", "value": "scroll-behavior: smooth", "purpose": "練習頁錨點跳轉；reduced-motion 時關閉。" }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "560px", "purpose": "手機：內距 1rem、題號格只留題號。" },
+      { "name": "spread", "value": "1100px", "purpose": "導讀頁左右兩頁、爪標直立書口；練習頁查表面板推開 main。" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Section Band",
+      "kind": "custom",
+      "refersTo": "section-band",
+      "description": "一節的開頭：黑底白字橫條。實心黑的保留用途之一。",
+      "html": "<div class=\"ds-band\"><span class=\"ds-num\">§1</span>描述統計</div>",
+      "css": ".ds-band { background: #111; color: #fff; padding: .5rem .85rem; font: 700 1.16rem/1.45 'PingFang TC','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif; } .ds-num { margin-right: .6em; font-size: 1.3rem; font-variant-numeric: tabular-nums lining-nums; }"
+    },
+    {
+      "name": "Definition",
+      "kind": "custom",
+      "refersTo": "definition-test",
+      "description": "上緣黑線加粗體標籤；詞是紅字，判斷方法是螢光筆。",
+      "html": "<div class=\"ds-def\"><span class=\"ds-def-label\">定義</span><p><b class=\"ds-dfn\">變異數</b>：資料離平均數的平均平方距離。</p><p><span class=\"ds-test\"><b>怎樣才算：</b>資料越分散，數值越大。</span></p></div>",
+      "css": ".ds-def { border-top: 1.5px solid #111; padding: .55rem 0 .1rem; font: 16.5px/1.8 'PingFang TC','Noto Sans TC',system-ui,sans-serif; color: #111; } .ds-def-label { float: left; font-weight: 700; margin: .3rem .7em 0 0; } .ds-def p { margin: .3rem 0; } .ds-dfn { color: #c8201a; font-size: 1.06em; } .ds-test { background: linear-gradient(transparent 14%, #ffe45c 14%, #ffe45c 90%, transparent 90%); -webkit-box-decoration-break: clone; box-decoration-break: clone; }"
+    },
+    {
+      "name": "Common Mistake",
+      "kind": "custom",
+      "refersTo": "definition-test",
+      "description": "「常見錯誤」：整條換成紅線與紅色標籤，不上底色。",
+      "html": "<div class=\"ds-trap\"><span class=\"ds-trap-label\">常見錯誤</span><p>把樣本變異數的分母寫成 n。</p></div>",
+      "css": ".ds-trap { border-top: 1.5px solid #c8201a; border-bottom: 1.5px solid #c8201a; padding: .55rem 0 .4rem; font: 16.5px/1.8 'PingFang TC','Noto Sans TC',system-ui,sans-serif; color: #111; } .ds-trap-label { float: left; font-weight: 700; color: #c8201a; margin: .3rem .7em 0 0; } .ds-trap p { margin: .3rem 0; }"
+    },
+    {
+      "name": "Rail Tabs (爪標)",
+      "kind": "nav",
+      "refersTo": "tab-current",
+      "description": "書口那排方格；現在這節實心黑、上次讀到的那節有紅色摺角、hover 只畫底線。",
+      "html": "<div class=\"ds-tabs\"><a>1</a><a aria-current=\"true\">2</a><a class=\"mark\">3</a><a>4</a></div>",
+      "css": ".ds-tabs { display: flex; width: 220px; border-top: 3px solid #111; font: 700 .74rem/1 'PingFang TC',system-ui,sans-serif; font-variant-numeric: tabular-nums; } .ds-tabs a { flex: 1; display: grid; place-items: center; height: 36px; position: relative; color: #111; border-right: 1px solid #c9c9c9; cursor: pointer; } .ds-tabs a:hover { text-decoration: underline; text-decoration-thickness: 2px; } .ds-tabs a[aria-current=\"true\"] { background: #111; color: #fff; } .ds-tabs a.mark::after { content: ''; position: absolute; top: 0; right: 0; border: 6px solid #c8201a; border-left-color: transparent; border-bottom-color: transparent; }"
+    },
+    {
+      "name": "Cover Toggle",
+      "kind": "button",
+      "refersTo": "button-pressed-cover",
+      "description": "遮字板開關：狀態用字寫出來，遮住時是紅底。",
+      "html": "<button class=\"ds-cover\" aria-pressed=\"false\">遮住答案</button> <button class=\"ds-cover\" aria-pressed=\"true\">答案：已遮住</button>",
+      "css": ".ds-cover { font: inherit; font-size: .84rem; line-height: 1.5; color: #111; background: #fff; border: 1.5px solid #111; border-radius: 0; padding: .15rem .7rem; cursor: pointer; } .ds-cover:hover { background: #111; color: #fff; } .ds-cover:focus-visible { outline: 2px solid #c8201a; outline-offset: 2px; } .ds-cover[aria-pressed=\"true\"] { background: #c8201a; border-color: #c8201a; color: #fff; font-weight: 700; }"
+    },
+    {
+      "name": "Answer Disclosure",
+      "kind": "custom",
+      "refersTo": "button",
+      "description": "先自己做再打開：1.5px 黑框，右側用字寫狀態。",
+      "html": "<details class=\"ds-answer\"><summary>做法</summary><p>先算平均數，再算離差平方和。</p></details>",
+      "css": ".ds-answer { border: 1.5px solid #111; font: 16.5px/1.8 'PingFang TC',system-ui,sans-serif; color: #111; } .ds-answer > summary { cursor: pointer; font-weight: 700; list-style: none; display: flow-root; padding: .5rem .9rem; } .ds-answer > summary::-webkit-details-marker { display: none; } .ds-answer > summary::after { content: '先自己做，再打開'; float: right; font-weight: 400; font-size: .86rem; color: #555; } .ds-answer[open] > summary::after { content: '收起'; } .ds-answer > summary:hover { background: #111; color: #fff; } .ds-answer > summary:hover::after { color: #fff; } .ds-answer[open] > summary { border-bottom: 1px solid #111; } .ds-answer > p { margin: .7rem .9rem; }"
+    },
+    {
+      "name": "Jump Grid Cells",
+      "kind": "nav",
+      "refersTo": "jump-cell-done",
+      "description": "練習頁題號格：做對實心黑、答錯紅色虛線框、目前題下緣紅線。",
+      "html": "<nav class=\"ds-jump\"><a class=\"ok\"><b>1</b></a><a class=\"no\"><b>2</b></a><a aria-current=\"true\"><b>3</b></a></nav>",
+      "css": ".ds-jump { display: flex; font: .88rem/1.45 'PingFang TC',system-ui,sans-serif; padding: 1px 0 0 1px; } .ds-jump a { border: 1px solid #111; margin: -1px 0 0 -1px; padding: .3rem .7rem; color: #111; } .ds-jump a b { margin-right: .7em; } .ds-jump a.ok { background: #111; color: #fff; } .ds-jump a.no { color: #c8201a; border: 1.5px dashed #c8201a; font-weight: 700; position: relative; z-index: 1; } .ds-jump a[aria-current=\"true\"] { box-shadow: inset 0 -4px 0 #c8201a; }"
+    },
+    {
+      "name": "Fill Line",
+      "kind": "input",
+      "refersTo": "button",
+      "description": "填答格：考卷上的一條底線；對了雙底線，錯了紅色虛線加字。",
+      "html": "<div class=\"ds-fill no\"><input value=\"12.5\" aria-label=\"答案\"><button>對答案</button><span class=\"result\">不對，再看一次單位。</span></div>",
+      "css": ".ds-fill input { font: 1rem ui-monospace,'SF Mono',Consolas,monospace; width: 9em; padding: .05rem .4rem; color: #111; background: transparent; border: 0; border-bottom: 2px solid #111; border-radius: 0; } .ds-fill button { font: inherit; font-size: .88rem; color: #111; background: #fff; border: 1.5px solid #111; padding: .08rem .75rem; margin-left: .3rem; cursor: pointer; } .ds-fill button:hover { background: #111; color: #fff; } .ds-fill .result { display: block; font-size: .94rem; margin-top: .3rem; } .ds-fill.no .result { color: #c8201a; } .ds-fill.no input { border-bottom: 2px dashed #c8201a; }"
+    },
+    {
+      "name": "Running Head / Clock Strip",
+      "kind": "custom",
+      "refersTo": "running-head",
+      "description": "練習頁書眉與模擬卷計時列：同一個位置，46px 高、3px 黑底線。",
+      "html": "<div class=\"ds-head\"><button class=\"ds-here\">第 2 題</button><span class=\"ds-left\">38:12</span><button class=\"ds-go\">交卷</button></div>",
+      "css": ".ds-head { display: flex; align-items: center; gap: .6rem; min-height: 46px; background: #fff; border-bottom: 3px solid #111; font: 16.5px 'PingFang TC',system-ui,sans-serif; color: #111; } .ds-here { flex: 1; text-align: left; font: inherit; font-size: .92rem; font-weight: 700; color: #111; background: none; border: 0; cursor: pointer; } .ds-left { font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; } .ds-go { font: inherit; font-weight: 700; color: #fff; background: #111; border: 1.5px solid #111; padding: .2rem 1rem; cursor: pointer; } .ds-go.armed { background: #c8201a; border-color: #c8201a; }"
+    },
+    {
+      "name": "Canvas Pad",
+      "kind": "custom",
+      "refersTo": "answer-sheet",
+      "description": "畫布：工具列加白紙方格；方格是繪圖功能，不是裝飾。",
+      "html": "<div class=\"ds-pad\"><div class=\"ds-tools\"><button aria-pressed=\"true\">黑筆</button><button aria-pressed=\"false\">紅筆</button><button aria-pressed=\"false\">橡皮擦</button></div><div class=\"ds-board\"></div></div>",
+      "css": ".ds-pad { border: 1.5px solid #111; overflow: clip; background: #fff; } .ds-tools { display: flex; gap: .3rem; align-items: center; padding: .4rem .5rem; background: #fff; border-bottom: 1.5px solid #111; } .ds-tools button { font: inherit; font-size: .86rem; line-height: 1.5; border: 1px solid #111; background: #fff; color: #111; padding: .12rem .6rem; cursor: pointer; } .ds-tools button:hover, .ds-tools button[aria-pressed=\"true\"] { background: #111; color: #fff; } .ds-board { height: 120px; background-color: #fff; background-image: linear-gradient(#e4e4e4 1px, transparent 1px), linear-gradient(90deg, #e4e4e4 1px, transparent 1px); background-size: 28px 28px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "紅黑雙色參考書",
+    "overview": "像一本考前用的雙色印刷參考書。白紙、黑墨、一種紅、一種螢光黃，沒有灰底色塊。層次靠黑線、黑色橫條和字重，不靠淺色提示框。讀者是零基礎的學生，一次讀很久，要隨時知道自己在第幾節、先自己做再打開答案。\n\n三種頁面是同一本書的不同部分。導讀頁是閱讀：寬螢幕左右兩欄，左課件、右題目。練習頁和模擬卷是操作：一題一節，題目在上、畫布在下。模擬卷的計時列和練習頁的書眉扮演同一個角色。\n\n深色模式是黑紙白墨，紅和黃各換一個在黑底上讀得清楚的值。答案紙和畫布在深色模式仍是白紙。",
+    "keyCharacteristics": [
+      "紅色有固定語意：要背的詞、算出來的答案、答錯或錯誤狀態、需要再確認的動作。",
+      "黃色只有三個用途：判斷方法、選取文字、跳轉後的閃光。",
+      "實心黑只留給兩種東西：一節的黑色橫條、現在這節的爪標。",
+      "沒有淺色填色塊，沒有圓角，沒有彩色陰影。",
+      "狀態一律用字寫出來，顏色只是輔助。"
+    ],
+    "rules": [
+      { "name": "The Red Means Memorise Rule", "body": "紅色只出現在要背的詞、算出來的答案、答錯或錯誤狀態。不拿紅色當強調、裝飾或品牌色。", "section": "colors" },
+      { "name": "The Highlighter Is Not Hover Rule", "body": "黃色只給判斷方法、選取和跳轉閃光。滑過（hover）一律用反白（黑底白字）或底線，不用黃色。", "section": "colors" },
+      { "name": "The Solid Black Is Reserved Rule", "body": "實心黑底只給一節的黑色橫條和現在這節的爪標。滑過爪標只畫粗底線，不填黑。按鈕和選單的 hover 反白是短暫的互動回饋，不算保留。", "section": "colors" },
+      { "name": "The No Tint Rule", "body": "不用淺色底色塊分層次。要分開兩塊內容，用一條黑線或髮線加一個粗體標籤。", "section": "colors" },
+      { "name": "The Tabular Numbers Rule", "body": "數字欄、節號、計時、表格一律 tabular-nums lining-nums。", "section": "typography" },
+      { "name": "The Serif For Symbols Rule", "body": "變數、公式、英文原文用襯線；其餘一律黑體。不引入第三種展示字體。", "section": "typography" },
+      { "name": "The Flat Page Rule", "body": "除了查表面板，任何東西都不加陰影。層次用線，不用影。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 用紅色標示要背的詞、算出來的答案、錯誤狀態；用 colors.red 的淺色與深色兩個值，不另造第二種紅。",
+      "Do 把判斷方法畫成 inline 螢光筆（.def .test），選取和跳轉閃光用同一個黃。",
+      "Do 用一條黑線加一個粗體標籤分開條目；要分一節就用黑底白字的橫條。",
+      "Do 把狀態寫成字：打開／收起、遮住答案／答案：已遮住、已評、再按一次交卷；顏色是輔助。",
+      "Do 讓現在這節獨佔實心黑（爪標）；滑過只畫底線。",
+      "Do 讓模擬卷的計時列和練習頁的書眉保持同一個位置、同樣的 46px 和 3px 黑底線。",
+      "Do 讓答案紙和畫布在深色模式仍是白紙。"
+    ],
+    "donts": [
+      "Don't 用黃色當 hover、強調或圖示色。",
+      "Don't 用淺色底色塊、彩色提示框、卡片或側欄目錄樹把內容分層。",
+      "Don't 加藍色到頁面本身。畫布的藍筆是繪圖工具的墨色，見 DESIGN.md 的未決問題。",
+      "Don't 用圓角、漸層面板、除查表面板之外的陰影。",
+      "Don't 把速查卡答案預設遮住；遮字板是使用者自己要考時才開的。",
+      "Don't 拿掉畫布的方格，也不要把它當背景花紋複製到別處。"
+    ],
+    "openQuestions": [
+      "畫布藍筆（practice.js COLORS.blue #1f5fd1）是否違反使用者「不要藍色」，來源沒有說明。",
+      "答案紙內固定紅 #c8201a 是否要在其他白紙物件統一，未決。",
+      "間距沒有統一刻度，frontmatter 的 spacing 是整理出來的，需使用者確認。",
+      "其他 skill 的頁面不在本文件範圍。"
+    ]
+  }
+}
