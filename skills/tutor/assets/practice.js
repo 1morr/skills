@@ -585,14 +585,16 @@
     const sections = Array.from(document.querySelectorAll("section.q"));
     const links = Array.from(document.querySelectorAll("nav.jump a"));
     let queued = false;
+    let last = null;  // 回到題號格時還看得出剛才做到哪一題
     const sync = function () {
       queued = false;
       const line = strip.getBoundingClientRect().bottom + 28;
       let current = null;
       sections.forEach(function (s) { if (s.offsetParent && s.getBoundingClientRect().top <= line) current = s; });
       here.textContent = current ? current.querySelector("h2").textContent.trim() : "共 " + sections.length + " 題";
+      if (current) last = current;
       links.forEach(function (a) {
-        if (current && a.getAttribute("href") === "#" + current.id) a.setAttribute("aria-current", "true");
+        if (last && a.getAttribute("href") === "#" + last.id) a.setAttribute("aria-current", "true");
         else a.removeAttribute("aria-current");
       });
     };
