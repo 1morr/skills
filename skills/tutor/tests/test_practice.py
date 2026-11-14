@@ -459,6 +459,22 @@ class Build(Case):
         self.assertIn('data-en="data:image/png;base64,', img)
         self.assertNotIn("z.png", out)
 
+    def test_running_head_holds_position_and_panel_button(self):
+        # 書眉固定在頂端：現在第幾題（.here，由 practice.js 填）和「查表」都在裡面，不再有浮在右下角的按鈕
+        body = self.page().split("</style>")[1].split("<script>")[0]
+        bar = re.search(r'<div class="bar">(.*?)</div>', body, re.S).group(1)
+        self.assertIn('class="here"', bar)
+        self.assertIn('id="panel-btn"', bar)
+        self.assertEqual(body.count('id="panel-btn"'), 1)
+        self.assertLess(body.index('<div class="bar">'), body.index("<h1>"))
+
+    def test_mock_puts_position_and_panel_button_in_the_clock(self):
+        body = practice.build(src(MQ, MOCK_BODY), self.dir).split("</style>")[1].split("<script>")[0]
+        clock = re.search(r'<div class="clock"[^>]*>(.*?)</div>', body, re.S).group(1)
+        self.assertIn('class="here"', clock)
+        self.assertNotIn('<div class="bar">', body)
+        self.assertEqual(body.count('class="here"'), 1)
+
     def test_panel_becomes_tabs(self):
         out = self.page()
         self.assertIn('id="panel-btn"', out)

@@ -27,7 +27,7 @@ tutor 做材料的分支：導讀頁照 GUIDE.md 做好之後做這兩樣。讀�
 ```html
 <body data-title="STAT101 Topic 4 練習" data-key="stat101-topic4"
       data-guide="topic4-guide.html" data-answers="practice/topic4/answers.md">
-<aside class="panel" data-label="查表">   右下角按鈕打開：統計表、要對照的課件截圖
+<aside class="panel" data-label="查表">   書眉的「查表」按鈕打開：統計表、要對照的課件截圖
   <figure data-tab="Z 表"><img src="assets/z.png" data-zh="assets/z.zh.png"><figcaption>Statistical Tables p.1</figcaption></figure>
 </aside>
 <section class="q drill" data-id="df-one-sample"><h2>基本功 1</h2>
@@ -62,7 +62,7 @@ python <S>/practice.py practice-src.html -o topicN-practice.html
 
 畫布、範本答案的摺疊摘要、題目導覽、「複製填答結果」按鈕、`.ref` 裡 §N 到導讀頁的連結，都由 practice.py 加上，不用自己寫。它檢查本節的結構規則，並和導讀頁一樣量水平溢出，任何一條不過就不產出，並逐條印出原因；照訊息改到通過。
 
-完成條件：`practice.py` 通過。用瀏覽器自動化工具打開練習頁，下面每一項都試過：填答格答對、答錯兩次、再做一次各試一次；範本答案打開、勾給分點、分數會變；每張題目圖看得清楚軸和數字；題目導覽鈕會跟著對錯變色；手寫、打字、點字修改、復原；重新整理後筆跡和填答還在；「複製給 Claude」拿到的圖有題目代號；§ 連結打開導讀頁的那一段；查表面板能切換分頁和中英文。
+完成條件：`practice.py` 通過。用瀏覽器自動化工具打開練習頁，下面每一項都試過：填答格答對、答錯兩次、再做一次各試一次；範本答案打開、勾給分點、分數會變；每張題目圖看得清楚軸和數字；題目導覽鈕會跟著對錯變色；書眉跟著捲動顯示現在第幾題；手寫、打字、點字修改、復原；重新整理後筆跡和填答還在；「複製給 Claude」拿到的圖有題目代號；§ 連結打開導讀頁的那一段；查表面板能切換分頁和中英文。
 
 ## 模擬卷
 

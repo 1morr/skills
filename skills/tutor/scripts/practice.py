@@ -424,7 +424,7 @@ def nav(inner: str) -> str:
 
 
 def panel(inner: str):
-    """<aside class="panel" data-label="查表"> 裡的 figure 變成右下角按鈕打開的分頁面板。"""
+    """<aside class="panel" data-label="查表"> 裡的 figure 變成分頁面板；回傳（去掉 aside 的內文、放進書眉的按鈕、面板）。"""
     for m in re.finditer(r"(<aside\b[^>]*>)(.*?)</aside>", inner, re.S | re.I):
         a = tag_attrs(m.group(1))
         if "panel" not in (a.get("class") or "").split():
@@ -435,12 +435,11 @@ def panel(inner: str):
             tab = html.escape(tag_attrs(fm.group(1)).get("data-tab", ""))
             tabs.append(f'<button type="button" data-tab="t{i}" aria-pressed="{"true" if i == 0 else "false"}">{tab}</button>')
             bodies.append(f'<figure data-tab="t{i}"{"" if i == 0 else " hidden"}>{fm.group(2)}')
-        html_ = (f'<button id="panel-btn" type="button">{label}</button>\n'
-                 f'<aside id="panel" aria-label="{label}"><header>{"".join(tabs)}'
+        html_ = (f'<aside id="panel" aria-label="{label}"><header>{"".join(tabs)}'
                  f'<button type="button" class="close">關閉</button></header>\n'
                  f'<div class="body">{"".join(bodies)}</div></aside>\n')
-        return inner[:m.start()] + inner[m.end():], html_
-    return inner, ""
+        return inner[:m.start()] + inner[m.end():], f'<button id="panel-btn" type="button">{label}</button>', html_
+    return inner, "", ""
 
 
 def inline_images(page: str, base: Path) -> str:
@@ -482,7 +481,7 @@ HOWTO = """<details class="howto">
 HOWTO_MOCK = """<div class="howto">
 <b>這是模擬卷</b>
 <ul>
-<li>照考試做：不看導讀頁、不看筆記，只用考試發的表（右下角「查表」）。準備好再按「開始計時」。</li>
+<li>照考試做：不看導讀頁、不看筆記，只用考試發的表（計時列上的「查表」）。準備好再按「開始計時」。</li>
 <li>每題寫在畫布上，最後的數字填進格子。作答時不會告訴你對錯。</li>
 <li>寫完或時間到按「交卷」：填答格一次對完，每題的範本答案和給分點才會出現。照給分點一點一點勾，算出你的分數。</li>
 <li>對完按「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
@@ -492,7 +491,12 @@ HOWTO_MOCK = """<div class="howto">
 
 MOCK_BAR = ('<div class="clock" data-minutes="{minutes}"><span class="left" aria-live="off"></span>'
             '<button type="button" data-act="start">開始計時</button>'
-            '<button type="button" data-act="submit" hidden>交卷</button><span class="status" aria-live="polite"></span></div>\n')
+            '<button type="button" data-act="submit" hidden>交卷</button><span class="status" aria-live="polite"></span>'
+            '{here}{panel}</div>\n')
+
+# 書眉：固定在頂端，practice.js 把現在第幾題寫進 .here；模擬卷的書眉就是計時列
+HERE = '<button type="button" class="here" title="回到題號格"></button>'
+BAR = '<div class="bar">{here}{panel}</div>\n'
 
 REPORT = ('<p class="report"><button id="report" type="button">複製填答結果</button>'
           '<span class="status" aria-live="polite"></span></p>\n')
@@ -500,7 +504,7 @@ REPORT = ('<p class="report"><button id="report" type="button">複製填答結�
 
 def build(src: str, base: Path) -> str:
     a, inner = body_parts(src)
-    inner, panel_html = panel(inner)
+    inner, panel_btn, panel_html = panel(inner)
     mock = a.get("data-mode") == "mock"
     inner = finish_models(finish_sections(add_pads(inner)))
     if not mock:
@@ -509,11 +513,12 @@ def build(src: str, base: Path) -> str:
     lead = "" if has_lead or mock else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
     title = html.escape(a["data-title"])
     mode = ' data-mode="mock"' if mock else ""
-    howto = HOWTO_MOCK + MOCK_BAR.format(minutes=html.escape(a["data-minutes"].strip())) if mock else HOWTO
+    howto = (HOWTO_MOCK + MOCK_BAR.format(minutes=html.escape(a["data-minutes"].strip()), here=HERE, panel=panel_btn)) if mock else HOWTO
+    bar = "" if mock else BAR.format(here=HERE, panel=panel_btn)
     page = (f'<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
             f"<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
-            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}"{mode}>\n<main>\n<h1>{title}</h1>\n{lead}{howto}'
+            f'<body data-key="{html.escape(a["data-key"])}" data-title="{title}"{mode}>\n<main>\n{bar}<h1>{title}</h1>\n{lead}{howto}'
             f"{nav(inner)}{REPORT}{inner}\n</main>\n{panel_html}"
             f"<script>\n{JS.read_text(encoding='utf-8')}</script>\n</body>\n</html>\n")
     return inline_images(page, base)

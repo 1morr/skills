@@ -102,6 +102,8 @@ section.course .summary::before { content: "這頁重點"; }
 .trap::before { content: "常見錯誤"; color: var(--red); }
 .trap p { margin: .3rem 0; }
 .symbols ul { margin: .3rem 0; }
+details.symbols { border: 0; padding: 0; margin: 1rem 0; }
+details.symbols > summary b { font-weight: 700; }
 div.tr { margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
 div.tr::before { content: "譯文"; color: var(--mute); }
 .tr .en { font-family: var(--serif); }

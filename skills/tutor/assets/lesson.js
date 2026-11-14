@@ -91,6 +91,20 @@ document.querySelectorAll(".summary li").forEach((li) => {
   li.prepend(b);
 });
 
+// 符號小抄是查閱用的：摺起來，第一段當標題，課件欄一打開就看得到 §1；列印時展開
+document.querySelectorAll("div.symbols").forEach((box) => {
+  const first = box.firstElementChild;
+  if (!first || first.tagName !== "P") return;
+  const fold = document.createElement("details");
+  const summary = document.createElement("summary");
+  fold.className = "symbols";
+  summary.append(...first.childNodes);
+  first.remove();
+  fold.append(summary, ...box.childNodes);
+  box.replaceWith(fold);
+  window.addEventListener("beforeprint", () => { fold.open = true; });
+});
+
 // 遮字板
 const answers = [...document.querySelectorAll("table.types tbody td:nth-child(2)")];
 const coverBtn = document.createElement("button");

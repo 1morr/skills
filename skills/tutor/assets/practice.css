@@ -27,7 +27,7 @@ a:hover { background: var(--ink); color: var(--paper); }
 button { border-radius: 0; }
 main { max-width: 50rem; margin: 0 auto; padding: 0 1.25rem 7rem; }
 /* 卷頭：像考卷的封面，一條粗黑線壓在科目名稱下面 */
-h1 { font-size: 1.7rem; line-height: 1.3; font-weight: 800; margin: 0 0 .6rem; padding: 1.6rem 0 .7rem; border-bottom: 3px solid var(--ink); }
+h1 { font-size: 1.7rem; line-height: 1.3; font-weight: 800; margin: 0 0 .6rem; padding: 1.6rem 0 .7rem; border-bottom: 1.5px solid var(--ink); }
 .lead { margin: 0 0 1rem; }
 i, var { font-family: var(--serif); font-size: 1.06em; }
 sub, sup { line-height: 0; }
@@ -57,7 +57,7 @@ h2.part { font-size: 1.16rem; margin: 3.5rem 0 0; padding: .5rem .85rem; backgro
 p.part-lead { color: var(--mute); margin: .5rem 0 0; }
 
 /* 每題：一條黑線分隔，不做卡片；題目在上、畫布在下 */
-section.q { padding: 1.5rem 0 .5rem; margin: 1.5rem 0 0; border-top: 1.5px solid var(--ink); scroll-margin-top: 1rem; }
+section.q { padding: 1.5rem 0 .5rem; margin: 1.5rem 0 0; border-top: 1.5px solid var(--ink); scroll-margin-top: calc(46px + 1rem); }
 h2.part + p.part-lead + section.q, h2.part + section.q { border-top: 0; margin-top: 0; }
 /* 基本功：一題一格、沒有畫布，排緊一點 */
 section.q.drill { padding: .8rem 0 .4rem; margin: 0; border-top: 1px solid var(--hair); }
@@ -128,6 +128,17 @@ details.model .sheet p { margin: .35rem 0; }
 .rubric label:hover .marks { color: var(--paper); }
 details.model .score { font-weight: 800; margin: .7rem 0 1rem; text-align: right; }
 
+/* 書眉：固定在頂端，寫著現在第幾題，按一下回到題號格；「查表」在右邊。模擬卷的書眉是計時列 */
+.bar {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .6rem; min-height: 46px;
+  background: var(--paper); border-bottom: 3px solid var(--ink);
+}
+.here {
+  flex: 1 1 3rem; min-width: 0; padding: 0; text-align: left; font: inherit; font-size: .92rem; font-weight: 700;
+  color: var(--ink); background: none; border: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.clock .here { font-weight: 400; color: var(--mute); background: none; border: 0; padding: 0; }
+nav.jump a[aria-current="true"] { box-shadow: inset 0 -4px 0 var(--red); }
 /* 模擬卷：頂端的計時列；開始前看不到題目，交卷前不對答案、看不到範本答案 */
 .clock {
   position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
@@ -177,9 +188,8 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
 
 /* 查表面板 */
 #panel-btn {
-  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 10;
-  font: inherit; font-weight: 700; background: var(--ink); color: var(--paper); border: 1.5px solid var(--paper);
-  padding: .5rem 1.2rem; cursor: pointer; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .45);
+  flex: none; margin-left: auto; font: inherit; font-size: .88rem; font-weight: 400;
+  background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); padding: .12rem .75rem; cursor: pointer;
 }
 #panel-btn:hover { background: var(--ink); color: var(--paper); }
 #panel {
