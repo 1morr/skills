@@ -44,7 +44,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 - 游標預設在第 1 項，通常就是 Recommended：送 Enter（`$'\r'`）。
 - 帶預覽的版面（右側有方框示意）數字鍵無效，移動用 ↓（`$'\033[B'`）。
 - 多題分頁：頂端一列 `←  ☐ Color  ☐ Size  ✔ Submit  →`（答過的變 `☒`），畫面一次只顯示一題。
-  - 全部題目讀 `waitbg.sh` 在 `state=asking` 印的 `--- questions（transcript）---` 那一段（手動：`python3 <O>/scripts/ask.py <jsonl>`），不用翻頁。每一題的答案都決定好，再按第一個鍵。
+  - 全部題目讀 `waitbg.sh` 印的 `--- questions（transcript）---` 那一段（手動：`python3 <O>/scripts/ask.py <jsonl>`），不用翻頁。每一題的答案都決定好，再按第一個鍵。
   - 從第 1 題照順序答：每題 Enter 後自動跳下一題，答完最後一題停在 `Review your answers`。核對它列出的每個答案，再送一次 Enter（游標在 `Submit answers`）。
   - 開答之前畫面上不是第 1 題（有人翻過頁）：送 ←（`$'\033[D'`）退回第 1 題，一次退一頁，→ 是 `$'\033[C'`。在後面的題先答會一路跳到 `Review your answers`，要退好幾頁才回得去。
   - 要改已答的某一題：← 退到那一題重選，讀畫面看它停在哪一頁再繼續。

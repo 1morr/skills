@@ -177,6 +177,12 @@ printf '%s\n' '✻ Working…' '✦ Heads up · 主代理刪了整個 tests 目�
 ok "waitbg heads-up wakes while busy"              "$(wb 5)" "state=heads-up"
 ok "waitbg heads-up prints the summary"            "$(grep -m1 '^headsup=' "$Wb/out")" "headsup=主代理刪了整個 tests 目錄。"
 ok "waitbg same heads-up does not wake again"      "$(wb 3)" "TIMEOUT"
+# 題目開著時跳出 Heads up：state 是 heads-up，題目照樣要印（協調者得先答題才能收 Heads up）
+printf '%s\n' "$A" "$Q2" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
+ok "waitbg heads-up over an open question"         "$(wb 5)" "state=heads-up"
+ok "waitbg heads-up still prints the questions"    "$(grep -c '^\[' "$Wb/out")" 2
+printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
+ok "waitbg heads-up without a question prints none" "$(wb 5 >/dev/null; grep -c '^\[' "$Wb/out")" 0
 printf '%s\n' '✻ Working…' '✦ Heads up · 主代理開了 SIMD，舊瀏覽器載不起來。' '❯' > "$SCREEN"
 ok "waitbg a different heads-up wakes"             "$(wb 5)" "state=heads-up"
 printf '%s\n' '✻ Working…' '✦ Heads up · 第三則' '❯' > "$SCREEN"
