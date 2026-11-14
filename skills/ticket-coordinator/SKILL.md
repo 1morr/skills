@@ -44,6 +44,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 3. **驗收與合併**，照下面的順序做，前一項成立才做下一項；缺一項就在同一個 session 叫它補，產品程式由它改：
    - **跟上主分支**：這張票開出後主分支多了程式碼，叫子 session 在它的分支 `git merge <本機主分支>`：用 git 預設的合併訊息（`Merge ` 開頭才過 `merge-ticket.sh` 的標題檢查）、不 pull 不 push、解衝突、跑全套再交回。交回的樹就是合併結果，下一條的補跑不必再做。
    - **綠燈**：lint / type / test 全套，而且是最後一次改動之後跑的。主分支在這張票開出後只多了文件類 commit 時不重跑。子 session 只重跑了部分時你補跑，放在隔離的 worktree（`git worktree add --detach <scratchpad>/verify-<票> <commit>` → 裝依賴、跑全套 → `git worktree remove --force`）。檢查指令包在 `bash <O>/scripts/run-check.sh <指令>` 裡：它回報紅才是真的紅，機器崩潰不算進「偶發紀錄」。
+   - **紀錄落在票上**：ledger 和對話在這一場結束後就沒人讀得到，票才是紀錄。叫子 session 在票的 `## Comments` 補齊再 commit，格式照專案指令檔：你代答的每一題一行決定，決定者標 Agent 定（子 session 以為是使用者答的，常標成使用者定或使用者同意，叫它改）；跟票面不同的做法、推翻的舊決定各一行；沒處理的 code-review 發現和不修的 Heads up 各一句。
    - **合併**：`bash <O>/scripts/preflight.sh <repo> <主分支>`，再 `BASE=<主分支> REQUIRE="<檔>" bash <O>/scripts/merge-ticket.sh <repo> <worktree> <票路徑> "merge: ticket <NN> <slug>"`。印 `NOT READY` 就把那幾行原樣轉給子 session（標題太長叫它自己改寫並建備份分支）。`CONFLICT`：紀錄檔類的你解；程式碼衝突 `git merge --abort`，回到「跟上主分支」。
    - **push**：照 COORDINATOR.md〈規則〉用 `push-ci.sh`。CI 不綠，這張票還沒完成：叫同一個子 session 跟上主分支、修，修完重走這一步（補修的合併用 `REQUIRE=""`）。紅在本機全套沒跑到的檢查時，把本機的等價指令記進 ledger，之後每張票交回時都叫子 session 跑。
 
@@ -54,7 +55,23 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 
 ## 隊列停下時
 
-隊列卡住，而專案的指令檔要求紀錄檔寫「下一步」時：照指令檔的格式在紀錄檔加一列（project-init 的骨架是 `docs/progress.md`），「下一步」寫「等使用者：…」，照〈協調者自己的 commit〉commit，再照 `push-ci.sh` 推上去。只在隊列卡住時寫。
+隊列卡住時，把要使用者決定的事寫進 repo，照專案指令檔的格式（下面是 project-init 骨架的寫法）：
+
+- 卡在某一張票：在主目錄那張票的 `## Comments` 加一行 `等使用者：<題目>`，題目寫成沒讀過票也看得懂的話。
+- 卡在整個隊列（額度讀不到、主分支壞了）：`docs/progress.md` 加一列，「下一步」寫 `等使用者：…`。
+
+照〈協調者自己的 commit〉commit，再照 `push-ci.sh` 推上去。使用者回答後，在那一行下面記 `決定：<一句>（使用者定）` 並 commit；子 session 下次跟上主分支時會拿到。
+
+## 使用者插話
+
+使用者會在隊列進行中問問題、要求修正。每次處理完，回到原本的等待。
+
+- **問程式或進度**：從程式碼、票、spec、決定紀錄查出答案，每個說法附檔案路徑。你記得的不算來源；要圖或篇幅長的，建議他另開 session 下 `/1morr:explain`。
+- **要改東西**，先分類並用一句話告訴他你歸成哪一類，他同意後才動：
+  - **已做完的票做錯了**（跟票面或 spec 不符）：開修復票 `<NN>b-<slug>.md`，照專案的票範本寫，驗收條件裡有一條會紅的 repro；排在下一張之前。
+  - **票面本身不是他要的**（還沒做的票、spec、brief、設計稿）：這是推翻已定的決定。改那份文件，並照專案指令檔記一條決定，決定者是使用者定；被影響的票一起改，正在跑的那張把改動貼給它的子 session。brief、架構、ADR 的草稿先給他看。
+  - **新的要求**（不在這個里程碑的範圍）：寫進 roadmap 接手的里程碑那一節，沒人接的進〈不排里程碑〉；他要現在就做才開票排進隊列。
+- 開票、改文件照〈協調者自己的 commit〉。隊列變了就更新 ledger，並把新的順序報給他。
 
 ## 真的卡住
 
@@ -74,6 +91,6 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 ## 回報
 
 - 每張票一段：做了什麼、commit、驗收結果、代答了哪些題、要使用者看的決定、Heads up（每條一句：說什麼、修了還是為什麼不修）。
-- 隊列做完或卡住時一張總表：票、狀態、commit、session id、代答、沒處理的發現。
+- 隊列做完或卡住時一張總表：票、狀態、commit、session id、代答、沒處理的發現。專案有 `scripts/next_step.py` 時，最後跑 `python3 scripts/next_step.py`，把輸出原樣貼上：等使用者決定的事和下一條指令以它為準。
 
 完成條件：隊列的每張票在總表裡不是 done 就是 blocked，沒有 running；blocked 的每張都寫了需要使用者做什麼。
