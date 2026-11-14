@@ -13,4 +13,5 @@ def handles(listing, worktree):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(newline="\n")  # Windows 預設寫 \r\n：close-worktree.sh 的 for 會把 \r 留在 handle 尾巴
     print("\n".join(handles(json.load(sys.stdin), os.environ["W"])))

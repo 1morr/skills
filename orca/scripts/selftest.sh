@@ -67,12 +67,15 @@ hu --summary >/dev/null; ok "headsup unknown shape is unavailable" $? 2
 hstore '[{"id":"me","view":{"kind":"offer","explanation":"x"}}]'
 hu --summary >/dev/null; ok "headsup offer without a line is unavailable" $? 2
 
-# ---- terminals_in.py（close-worktree.sh 只關這個 worktree 的終端）
+# ---- terminals_in.py（close-worktree.sh 只關這個 worktree 的終端；Git Bash 會把環境變數裡的 /w/t07 改寫成 W:/t07，用 MSYS2_ENV_CONV_EXCL 擋掉這個變數）
+export MSYS2_ENV_CONV_EXCL=W
 TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
 ok "terminals: exact worktree only"     "$(echo "$TL" | W=/w/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_a term_c "
 ok "terminals: sibling with same prefix" "$(echo "$TL" | W=/w/t07b "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_b "
 TW='{"result":{"terminals":[{"handle":"term_w","worktreePath":"c:\\ws\\t07"},{"handle":"term_x","worktreePath":"C:\\ws\\t07b"}]}}'
 ok "terminals: windows path, drive case" "$(echo "$TW" | W=C:/ws/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_w "
+
+unset MSYS2_ENV_CONV_EXCL
 
 # ---- run-check.sh
 export CRASH_LOG="$X/crash.tsv"; : > "$CRASH_LOG"
@@ -139,16 +142,12 @@ ok "push-ci retries a failed run list before pushing" "$(tr '\n' ' ' < "$LOG")" 
 grep -q "ci=success" "$P/out"; ok "push-ci reports the run" $? 0
 [ -d "$L" ]; ok "push-ci releases the lock" $? 1
 
-# ---- waitbg.sh（假的 orca 印出指定的畫面；每個情境都限時，舊版會卡住的那幾個靠限時判出來）
-Wb="$X/wb"; mkdir -p "$Wb/bin"; SCREEN="$Wb/screen.txt"
-cat > "$Wb/bin/orca" <<EOF
-#!/bin/sh
-"$PY" -c 'import json,sys; print(json.dumps({"ok": True, "result": {"terminal": {"status": "running", "tail": open(sys.argv[1], encoding="utf-8").read().splitlines()}}}))' "$SCREEN"
-EOF
-chmod +x "$Wb/bin/orca"
+# ---- waitbg.sh（scr.py 從 SCR_SCREEN_FILE 讀指定的畫面，不叫 orca：Windows 的 Python 叫不到 PATH 上的假 sh 腳本；
+#      每個情境都限時，舊版會卡住的那幾個靠限時判出來）
+Wb="$X/wb"; mkdir -p "$Wb"; SCREEN="$Wb/screen.txt"; export SCR_SCREEN_FILE="$SCREEN"
 # 跑 waitbg 最多 $1 秒，印它的 state= 那一行（沒返回就印 TIMEOUT）
 wb() { secs=$1; shift
-  PATH="$Wb/bin:$PATH" WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" HEADSUP_STORE="${HEADSUP_STORE:-$Wb/nostore.json}" \
+  WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" HEADSUP_STORE="${HEADSUP_STORE:-$Wb/nostore.json}" \
     bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
   for i in $(seq 1 "$secs"); do kill -0 $p 2>/dev/null || break; sleep 1; done
   if kill -0 $p 2>/dev/null; then kill $p 2>/dev/null; wait $p 2>/dev/null; echo TIMEOUT; else wait $p; grep -m1 '^state=' "$Wb/out"; fi; }
@@ -205,9 +204,9 @@ wstore '[{"id":"s","view":{"kind":"asked","line":"主代理改了公開 API。."
 printf '%s\n' '✻ Working…' '✦ Heads up · 畫面上殘留的一則' '❯' > "$SCREEN"
 ok "waitbg file says none, the screen is not used" "$(HEADSUP_STORE="$WS" wb 3)" "TIMEOUT"
 
-# ---- quota.sh（先讀狀態列存下的檔，太舊或沒有才讀畫面；同一個假的 orca）
+# ---- quota.sh（先讀狀態列存下的檔，太舊或沒有才讀畫面；畫面同樣來自 SCR_SCREEN_FILE）
 QF="$Wb/rl.json"
-qt() { PATH="$Wb/bin:$PATH" QUOTA_FILE="$QF" bash "$D/quota.sh" "$@" term_x; }
+qt() { QUOTA_FILE="$QF" bash "$D/quota.sh" "$@" term_x; }
 fields() { sed -E 's/ (5h|7d)(_reset)?=[^ ]*//g'; }   # 只留 gate、src、sleep
 rl() { "$PY" -c 'import json, sys, time; n = time.time(); json.dump({"at": int(n) - int(sys.argv[1]), "rate_limits": {"five_hour": {"used_percentage": 60, "resets_at": int(n) + 1020}, "seven_day": {"used_percentage": 90, "resets_at": int(n) + 400000}}}, open(sys.argv[2], "w"))' "$1" "$QF"; }
 echo '  QIM main  ·  Opus  ·  5h 40% ↻ 17m · 7d 50% ↻ 4d16h' > "$SCREEN"
@@ -230,7 +229,7 @@ ok "quota unknown without gates does not wait" "$(qt 0 0 | fields)" "gate=unknow
 # ---- save-rate-limits.sh（狀態列指令裡的一段：存 rate_limits、原樣轉交 JSON；quota.sh 讀得回來）
 SF="$X/saved.json"; PAY='{"model":"x","rate_limits":{"five_hour":{"used_percentage":61,"resets_at":'$(( $(date +%s) + 600 ))'}}}'
 ok "save-rate-limits passes the payload through" "$(printf '%s' "$PAY" | QUOTA_FILE="$SF" sh "$D/save-rate-limits.sh")" "$PAY"
-ok "save-rate-limits output is read by quota.sh"  "$(PATH="$Wb/bin:$PATH" QUOTA_FILE="$SF" bash "$D/quota.sh" 60 0 term_x | fields | cut -d' ' -f1-2)" "gate=closed src=file"
+ok "save-rate-limits output is read by quota.sh"  "$(QUOTA_FILE="$SF" bash "$D/quota.sh" 60 0 term_x | fields | cut -d' ' -f1-2)" "gate=closed src=file"
 before=$(cat "$SF")
 ok "save-rate-limits passes a payload without limits" "$(printf '%s' '{"model":"x"}' | QUOTA_FILE="$SF" sh "$D/save-rate-limits.sh")" '{"model":"x"}'
 ok "save-rate-limits keeps the old file without limits" "$(cat "$SF")" "$before"

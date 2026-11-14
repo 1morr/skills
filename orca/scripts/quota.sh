@@ -22,7 +22,7 @@ except Exception:
     sys.exit(1)'; then
   screen=$(read_line); echo "$screen" | grep -q '[57][hd] [0-9]*%' || { sleep 2; screen=$(read_line); }
 fi
-printf '%s' "$screen" | T5="$T5" T7="$T7" FILE="$file" USE_FILE=$([ -z "$screen" ] && echo 1) "$PY" -c '
+printf '%s' "$screen" | T5="$T5" T7="$T7" FILE="$file" USE_FILE=$([ -z "$screen" ] && echo 1) PYTHONIOENCODING=utf-8 "$PY" -c '
 import json, os, re, sys, time
 now = time.time()
 def secs(t):
