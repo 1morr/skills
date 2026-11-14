@@ -15,7 +15,7 @@
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 當協調者，用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列。可設額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師課件把課程、作業或考試教給零基礎的人，目標是考 90 分：像課本一樣一條捲軸的 HTML 導讀頁（左邊目錄即時顯示讀到哪）、還沒交的作業的答案紙、練習頁和計時模擬卷。練習在頁面上對答案、照給分點自評，結果貼回對話安排複習 |
 
-bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff、dashboard 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
+bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器）；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 
 ## 安裝
 

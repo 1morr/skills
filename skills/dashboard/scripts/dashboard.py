@@ -26,10 +26,13 @@
   docs/adr/*.md        編號與標題
   docs/progress.md     〈Session 紀錄〉的表；最後一列的「下一步」，以「等使用者：」開頭時列在「等你決定」
                        下一步：沒在等使用者、進行中的里程碑又還有票時，是第一張沒做完、擋它的票都做完的票；否則是最後一列寫的
+                       那張票另外放在 `next_ticket`（在等使用者時也有），頁面把它的指令放進可以複製的框
   git worktree list    別的 worktree 裡和主目錄不同的票，當成「進行中」
 
-資料每次請求時現讀，不存快取。頁面不載入任何外部資源；配色取 plugin 根目錄的 pages/scripts/tokens.css。
+資料每次請求時現讀，不存快取。頁面不載入任何外部資源；配色和樣式都在本檔的 PAGE 裡，不取 pages/ 的。
 只有 --serve 的頁面會每 3 秒重讀，靜態頁不會。只用標準函式庫。
+頁面記在瀏覽器（localStorage）的兩件事：`dashboard-theme` 深淺色；`dashboard-seen:<repo 路徑>` 讀者按「標為看過」時
+每樣東西的指紋，之後不一樣的標成「變了」「新的」。腳本不讀它們，也不寫任何東西進 repo。
 """
 
 import argparse
@@ -64,8 +67,6 @@ CELL_SPLIT = re.compile(r"(?<!\\)\|")
 SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
 COMMENTS = "\n## Comments"
 ACCEPTANCE = "驗收"
-# 配色和字體的唯一來源，和 explain、checkpoint 的頁面同一份
-TOKENS = Path(__file__).resolve().parents[3] / "pages" / "scripts" / "tokens.css"
 NOTE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
 TICKET_NUMBER = re.compile(r"^(\d+[a-z]?)-")
 BLOCKED = re.compile(r"^Blocked by:\s*(.*)$", re.I)
@@ -209,8 +210,8 @@ def ticket_notes(repo: Path, live: list) -> list:
     return out
 
 
-def next_ticket(listed: list) -> str:
-    """進行中的里程碑裡第一張沒做完、擋它的票都做完（或不做）的票的指令；沒有就是空字串。"""
+def next_ticket(listed: list):
+    """進行中的里程碑裡第一張沒做完、擋它的票都做完（或不做）的票：{milestone, dir, file, number, title, command}；沒有就是 None。"""
     for m in listed:
         if m["state"] != "active":
             continue
@@ -218,8 +219,9 @@ def next_ticket(listed: list) -> str:
         known = {t["number"] for t in m["tickets"]}
         for t in m["tickets"]:
             if t["number"] not in closed and all(b in closed or b not in known for b in t["blocked"]):
-                return f"新 session 下 `/implement .scratch/{m['dir']}/issues/{t['file']}`"
-    return ""
+                return {"milestone": m["name"].split()[0], "dir": m["dir"], "file": t["file"], "number": t["number"], "title": t["title"],
+                        "command": f"/implement .scratch/{m['dir']}/issues/{t['file']}"}
+    return None
 
 
 def tickets(directory: Path) -> list:
@@ -376,18 +378,18 @@ def adrs(repo: Path) -> list:
 
 
 def sessions(repo: Path, from_tickets=()) -> tuple:
-    """(session 紀錄，舊的在前；progress.md 最後一列的下一步；讀不到的行)。票上的 session 紀錄排進來；progress.md 已經有那張票的列時不重複列。"""
+    """(session 紀錄，舊的在前；progress.md 最後一列的下一步；那一列，沒有就是 None；讀不到的行)。票上的 session 紀錄排進來；progress.md 已經有那張票的列時不重複列。"""
     unreadable = []
     rows = [row for _, row in numbered_table(numbered_sections(read(repo / "docs/progress.md")).get("Session 紀錄", []),
                                              "docs/progress.md", unreadable)]
     out = [{"date": r.get("日期", ""), "ticket": plain(r.get("票", "")), "result": plain(r.get("結果", "")),
             "next": r.get("下一步", "").strip()} for r in rows]
-    step = out[-1]["next"] if out else ""
+    step, last = (out[-1]["next"], out[-1]) if out else ("", None)
     copied = {s["ticket"].upper() for s in out}
     for milestone, number, found in from_tickets:
         if f"{milestone} {number}".upper() not in copied:
             out += [{"date": found["date"], "ticket": f"{milestone} {number}", "result": said, "next": ""} for said in found["sessions"]]
-    return sorted(out, key=lambda s: s["date"]), step, unreadable
+    return sorted(out, key=lambda s: s["date"]), step, last, unreadable
 
 
 def archived_sessions(repo: Path) -> tuple:
@@ -468,15 +470,17 @@ def collect(repo: Path) -> dict:
     expected = ("docs/roadmap.md", "docs/decisions.md", "docs/progress.md")
     loose = unlisted(repo, ms)
     kept = ticket_notes(repo, [m for m in ms + loose if m["state"] in ("todo", "active")])
-    log, step, odd_sessions = sessions(repo, kept)
+    log, step, last, odd_sessions = sessions(repo, kept)
     decided, unreadable = decisions(repo, kept)
     old_sessions, odd_rows = archived_sessions(repo)
     changes, odd_entries = changelog(repo, kept)
-    if not step.startswith(WAITING):
-        step = next_ticket(ms) or step
+    ahead = next_ticket(ms)
+    if ahead and not step.startswith(WAITING):
+        step = f"新 session 下 `{ahead['command']}`"
     return {"name": repo.name, "title": title_of(repo), "path": str(repo), "milestones": ms, "decisions": decided,
-            "adrs": adrs(repo), "changelog": changes, "features": features(changes), "sessions": log[-30:][::-1], "next": step,
+            "adrs": adrs(repo), "changelog": changes, "features": features(changes), "sessions": log[-30:][::-1], "next": step, "next_ticket": ahead,
             "waiting": step[len(WAITING):].strip() if step.startswith(WAITING) else "",
+            "waiting_from": {"date": last["date"], "ticket": last["ticket"]} if step.startswith(WAITING) else None,
             "unseen": [d for d in decided if d["decider"] == "Agent 定" and not d["archived"]], "archived_sessions": old_sessions,
             "working": worktrees(repo, ms), "missing": [f for f in expected if not (repo / f).is_file()],
             "unreadable": odd_states + odd_sessions + unreadable + odd_rows + odd_entries, "unlisted": loose}
@@ -485,61 +489,209 @@ def collect(repo: Path) -> dict:
 PAGE = r"""<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>專案總覽</title>
+<script>try { if (localStorage.getItem("dashboard-theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) { /* 讀不到就用淺色 */ }</script>
 <style>
-__TOKENS__* { box-sizing: border-box; }
-html { text-autospace: normal; }
-body { margin: 0; overflow-wrap: anywhere; background: var(--paper); color: var(--ink); font: 1rem/1.6 var(--font-ui); }
-main { max-width: 72rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
-h1 { font-size: 1.625rem; margin: 0; } h2 { font-size: 1.375rem; margin: 2.5rem 0 0.75rem; }
-header { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: baseline; justify-content: space-between; }
-nav { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/* dashboard 自己的配色，不取 pages/ 的：黑白灰管字、線、表和側欄；琥珀色只表示「現在」，紅色只表示「你上次看過之後變了」。
+   深色不跟系統：讀者在側欄切換，寫在 <html data-theme="dark">，記在這個瀏覽器。 */
+:root {
+  color-scheme: light;
+  --paper: #FFFFFF; --tint: #F5F5F5; --rule: #DCDCDC; --ink: #181818; --ink-2: #5E5E5E;
+  --rail: #F5F5F5; --rail-ink: #181818; --rail-2: #5E5E5E; --rail-on: #E4E4E4;
+  --head: #EDEDED; --head-ink: #181818; --link: #181818;
+  --now: #D97706; --now-ink: #9A4D00; --now-bg: #FEF3DC; --on-now: #181818;
+  --chg: #C8102E; --chg-bg: #FDECEF; --on-chg: #FFFFFF;
+  --font: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #121212; --tint: #181818; --rule: #2E2E2E; --ink: #E8E8E8; --ink-2: #A0A0A0;
+  --rail: #181818; --rail-ink: #E8E8E8; --rail-2: #A0A0A0; --rail-on: #2B2B2B;
+  --head: #242424; --head-ink: #E8E8E8; --link: #E8E8E8;
+  --now: #F0A030; --now-ink: #F5B95C; --now-bg: #33260E; --on-now: #181818;
+  --chg: #FF7A8C; --chg-bg: #3A151D; --on-chg: #181818;
+}
+* { box-sizing: border-box; }
+html { text-autospace: normal; -webkit-text-size-adjust: 100%; scrollbar-color: var(--rule) transparent; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 0.9375rem/1.55 var(--font); font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); min-height: 100vh; accent-color: var(--ink); caret-color: var(--ink); }
+::selection { background: var(--ink); color: var(--paper); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+a { color: var(--link); text-underline-offset: 0.2em; }
+code { font-family: var(--mono); font-size: 0.875rem; }
 button, select, input { font: inherit; color: inherit; }
-.tab, .chip { border: 1px solid var(--rule); background: var(--panel); border-radius: 999px; padding: 0.25rem 0.9rem; cursor: pointer; }
-.tab[aria-selected="true"], .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.small { font-size: 0.875rem; color: var(--ink-2); }
-.num { font-variant-numeric: tabular-nums; }
-.now { background: var(--note-bg); border-left: 4px solid var(--note-bar); padding: 0.9rem 1.1rem; border-radius: 0 0.5rem 0.5rem 0; margin-top: 1.25rem; }
-.now code, td code { font-family: var(--font-code); font-size: 0.9375rem; overflow-wrap: anywhere; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 0.9rem; align-items: start; }
-.card { border: 1px solid var(--rule); border-radius: 0.6rem; background: var(--panel); }
-.card > summary { list-style: none; cursor: pointer; padding: 0.9rem 1.1rem; }
-.card > summary::-webkit-details-marker { display: none; }
-.card[data-state="active"] { border-color: var(--accent); }
-.card .body { padding: 0 1.1rem 1rem; }
-.row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; }
-.name { font-weight: 600; }
-.bar { height: 0.4rem; background: var(--rule); border-radius: 999px; overflow: hidden; margin: 0.6rem 0 0.35rem; }
-.bar > i { display: block; height: 100%; background: var(--ins-bar); }
-.badge { font-size: 0.875rem; border-radius: 999px; padding: 0.05rem 0.6rem; white-space: nowrap; border: 1px solid var(--rule); }
-.badge.done { background: var(--ins-bg); color: var(--ins-ink); border-color: transparent; }
-.badge.active { color: var(--accent); border-color: var(--accent); }
-.badge.agent { background: var(--note-bg); color: var(--note-ink); border-color: transparent; }
-ul.plain { list-style: none; padding: 0; margin: 0.5rem 0 0; }
-ul.plain li { padding: 0.3rem 0; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; justify-content: space-between; align-items: baseline; }
-ul.plain li > * { min-width: 0; overflow-wrap: anywhere; }
-ul.scope { margin: 0.5rem 0 0; padding-left: 1.2rem; }
-.more { margin-top: 0.7rem; } .more > summary { cursor: pointer; } .more p { margin: 0.5rem 0 0; }
-.filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
-.filters input, .filters select { border: 1px solid var(--rule); background: var(--paper); border-radius: 0.4rem; padding: 0.3rem 0.6rem; }
-.table-wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.7rem 0.45rem 0; border-top: 1px solid var(--rule); }
-th { font-size: 0.875rem; color: var(--ink-2); font-weight: 600; border-top: 0; white-space: nowrap; }
-td.nowrap { white-space: nowrap; width: 1%; }
-.empty { color: var(--ink-2); padding: 0.5rem 0; }
-#live { font-size: 0.875rem; color: var(--ink-2); }
-</style></head><body><main>
-<header><div><h1 id="title">專案總覽</h1><div class="small" id="path"></div></div><nav id="tabs" role="tablist" aria-label="專案"></nav></header>
-<div id="live"></div>
-<div id="app"></div>
-</main>
+h1, h2, h3, p, ul, ol { margin: 0; } ul, ol { padding: 0; list-style: none; }
+
+/* 側欄 */
+.rail { background: var(--rail); color: var(--rail-ink); padding: 1.75rem 0 1.25rem; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.rail .title { font-size: 1.375rem; font-weight: 800; padding: 0 1.5rem 1.25rem; line-height: 1.25; }
+.rail a, .rail button { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; width: 100%; padding: 0.55rem 1.5rem; color: var(--rail-ink);
+  text-decoration: none; background: none; border: 0; text-align: left; cursor: pointer; transition: background-color 150ms; }
+.rail a:hover, .rail button:hover { background: color-mix(in srgb, var(--rail-on) 45%, transparent); }
+.rail [aria-current="page"], .rail [aria-pressed="true"] { background: var(--rail-on); font-weight: 700; }
+.rail .n { font-size: 0.8125rem; color: var(--rail-2); font-weight: 400; }
+.rail .n .chg { color: var(--on-chg); background: var(--chg); border-radius: 2px; padding: 0 0.35em; margin-left: 0.4em; font-weight: 700; }
+.rail .grp { font-size: 0.8125rem; color: var(--rail-2); padding: 1.5rem 1.5rem 0.35rem; }
+.rail .theme { margin-top: auto; font-size: 0.8125rem; color: var(--rail-2); }
+.rail .live { padding: 0.5rem 1.5rem 0; font-size: 0.8125rem; color: var(--rail-2); line-height: 1.5; }
+.rail .live.down { color: var(--rail-ink); font-weight: 700; }
+
+main { padding: 2rem 2.5rem 4rem; min-width: 0; max-width: 84rem; }
+h1 { font-size: 2rem; line-height: 1.25; font-weight: 800; }
+h1 .ph { display: inline-block; }
+h2 { font-size: 1.375rem; line-height: 1.3; font-weight: 800; margin: 2.5rem 0 0.75rem; display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; align-items: baseline; }
+h2 small, .small { font-size: 0.8125rem; font-weight: 400; color: var(--ink-2); }
+h2 a { font-size: 0.875rem; font-weight: 400; margin-left: auto; }
+.path { font-size: 0.8125rem; color: var(--ink-2); font-family: var(--mono); margin-bottom: 1.25rem; }
+.empty { color: var(--ink-2); padding: 0.75rem 0; }
+
+/* 變了的記號：紅色小方塊加字，留到按「標為看過」 */
+.chg-mark { color: var(--chg); font-weight: 700; font-size: 0.8125rem; white-space: nowrap; }
+.chg-mark::before { content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; background: var(--chg); margin-right: 0.35em; }
+.seen-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; background: var(--chg-bg); padding: 0.6rem 1rem; margin-bottom: 1.5rem; }
+.seen-bar b { color: var(--chg); }
+.btn { border: 1.5px solid var(--ink); background: var(--paper); border-radius: 3px; padding: 0.2rem 0.8rem; font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: background-color 150ms, color 150ms; }
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn:active { transform: translateY(1px); }
+.seen-bar .btn { margin-left: auto; }
+
+/* 最上面：該你做的事 */
+.next { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 32rem); gap: 1.25rem 2.5rem; align-items: end; padding: 1.25rem 0 1.5rem; border-top: 4px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.next.waiting { border-top-color: var(--now); }
+.next .why { margin-top: 0.6rem; color: var(--ink-2); max-width: 70ch; text-wrap: balance; }
+.next .why b { color: var(--now-ink); }
+.next h1 code { font-size: 0.7em; }
+.cmd-label { font-size: 0.8125rem; color: var(--ink-2); margin-bottom: 0.35rem; }
+.cmd { display: flex; align-items: center; gap: 0.75rem; border: 2px solid var(--ink); border-radius: 4px; padding: 0.55rem 0.6rem 0.55rem 0.9rem; }
+.cmd code { flex: 1; min-width: 0; }
+.cmd .btn { background: var(--ink); color: var(--paper); flex: none; }
+.cmd .btn:hover { background: var(--head); border-color: var(--head); color: var(--head-ink); }
+.notes { border-bottom: 1px solid var(--rule); padding: 0.6rem 0; }
+.notes > summary { cursor: pointer; font-weight: 700; }
+.notes li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 1.5rem; padding: 0.5rem 0; border-top: 1px solid var(--rule); }
+.notes li:first-child { margin-top: 0.6rem; }
+.notes .at { font-family: var(--mono); font-size: 0.8125rem; color: var(--ink-2); }
+
+/* 時刻表 */
+.tt-wrap { overflow-x: auto; border-bottom: 3px solid var(--ink); }
+table { border-collapse: separate; border-spacing: 0; width: 100%; }
+th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.9rem; }
+.tt { table-layout: fixed; min-width: calc(3.5rem + var(--cols) * 11rem); }
+.tt th, .tt td { border-right: 1px solid var(--rule); }
+.tt th:last-child, .tt td:last-child { border-right: 0; }
+.tt thead th { background: var(--head); color: var(--head-ink); font-weight: 400; font-size: 0.8125rem; line-height: 1.4; }
+.tt thead th a { color: inherit; text-decoration: none; display: block; }
+.tt thead th a:hover .nm { text-decoration: underline; }
+.tt thead b { display: block; font-size: 1.5rem; line-height: 1.15; font-weight: 800; }
+.tt thead .cnt { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 0.35rem; }
+.tt thead th.active { background: var(--now); color: var(--on-now); }
+.tt thead th.dropped b, .tt thead th.dropped .nm { text-decoration: line-through; }
+.tt thead th.loose { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.tt .ord { width: 3.5rem; color: var(--ink-2); font-size: 0.8125rem; position: sticky; left: 0; background: var(--paper); z-index: 1; }
+.tt thead .ord { background: var(--head); color: var(--head-ink); }
+.tt tbody td { border-bottom: 1px solid var(--rule); height: 3.4rem; }
+.tt tbody tr:nth-child(even) td { background: var(--tint); }
+.tt tbody tr:last-child td { border-bottom: 0; }
+.stop { display: grid; grid-template-columns: 0.75rem minmax(0, 1fr); gap: 0 0.55rem; align-items: baseline; }
+/* worktree 的名字整段不斷行，放不下就截掉，完整的在 title */
+.wt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.why .wt { display: inline-block; vertical-align: bottom; }
+.stop .sub { grid-column: 2; min-width: 0; font-size: 0.8125rem; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 0 0.75rem; }
+.dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 2px var(--ink-2); transform: translateY(0.05rem); flex: none; }
+.dot.done { background: var(--ink); box-shadow: none; }
+.dot.now { background: var(--now); box-shadow: 0 0 0 3px var(--now-bg); }
+.dot.dropped { box-shadow: none; background: linear-gradient(var(--ink-2), var(--ink-2)) center / 100% 2px no-repeat; }
+.tt td.now { box-shadow: inset 0 3px 0 var(--now), inset 0 -3px 0 var(--now); font-weight: 700; }
+.tt td.now .sub { color: var(--now-ink); font-weight: 400; }
+.tt td.dropped .t { text-decoration: line-through; color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; font-size: 0.8125rem; color: var(--ink-2); padding-top: 0.6rem; }
+.legend span { display: inline-flex; gap: 0.45rem; align-items: center; }
+
+/* 一列一列的清單與表 */
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 2.5rem; }
+.rows li, .rows tr > * { border-bottom: 1px solid var(--rule); }
+.rows li { display: grid; grid-template-columns: 5.5rem 5.5rem minmax(0, 1fr); gap: 0.15rem 0.9rem; padding: 0.5rem 0; align-items: baseline; }
+.rows li > :nth-child(-n+2), td.k { color: var(--ink-2); font-size: 0.8125rem; }
+.rows.two li { grid-template-columns: 5.5rem minmax(0, 1fr); }
+.rows.one li { grid-template-columns: minmax(0, 1fr); } .rows.one li > :first-child { color: inherit; font-size: inherit; }
+.rows li .chg-mark { grid-column: -2; }
+.grid th { white-space: nowrap; font-size: 0.8125rem; color: var(--ink-2); font-weight: 400; border-bottom: 2px solid var(--ink); padding-left: 0; }
+.grid td { padding-left: 0; }
+td.k { white-space: nowrap; width: 1%; padding-right: 1.25rem; }
+td.k.wrap { white-space: normal; width: 9rem; }
+.who { white-space: nowrap; }
+.who::before { content: ""; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.4em; box-shadow: inset 0 0 0 1.5px var(--ink-2); }
+.who.agent { font-weight: 700; } .who.agent::before { background: var(--ink); box-shadow: none; }
+.wide { overflow-x: auto; }
+
+/* 篩選列 */
+.filters { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; margin-bottom: 0.9rem; }
+.seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 3px; overflow: hidden; }
+.seg button { border: 0; background: var(--paper); padding: 0.25rem 0.8rem; cursor: pointer; font-size: 0.875rem; border-right: 1px solid var(--rule); transition: background-color 150ms; }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--tint); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); font-weight: 700; }
+.filters input[type="search"], .filters select { border: 1.5px solid var(--ink); background: var(--paper); border-radius: 3px; padding: 0.25rem 0.6rem; font-size: 0.875rem; min-width: 0; }
+.filters input::placeholder { color: var(--ink-2); opacity: 1; }
+.filters label { display: inline-flex; gap: 0.4rem; align-items: center; font-size: 0.875rem; }
+
+/* 里程碑一頁：左邊車次，右邊內容 */
+.ms { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 0.5rem 2rem; padding: 1.25rem 0 1.5rem; border-top: 3px solid var(--ink); }
+.ms.active { border-top-color: var(--now); }
+.ms .id b { font-size: 2rem; line-height: 1.1; font-weight: 800; display: block; }
+.ms .id .st { margin-top: 0.4rem; font-weight: 700; }
+.ms.active .id .st { color: var(--now-ink); }
+.ms .goal { font-size: 1.125rem; font-weight: 700; }
+.ms .detail { margin-top: 0.35rem; max-width: 70ch; color: var(--ink-2); }
+.ms details { margin-top: 0.75rem; } .ms details .wide { margin-top: 0.25rem; } .ms summary, .fold > summary { cursor: pointer; color: var(--link); }
+.ms .scope { margin-top: 0.4rem; padding-left: 1.2rem; list-style: disc; color: var(--ink-2); }
+.ms table { margin-top: 0.75rem; }
+.fold { border-bottom: 1px solid var(--rule); padding: 0.6rem 0; }
+.fold > summary { color: var(--ink); font-weight: 700; display: flex; flex-wrap: wrap; gap: 0 0.9rem; align-items: baseline; }
+.fold[open] > summary { margin-bottom: 0.4rem; }
+.kind { font-size: 0.8125rem; color: var(--ink-2); margin: 0.9rem 0 0.1rem; }
+.pending { font-size: 0.8125rem; color: var(--ink-2); white-space: nowrap; }
+
+/* 半邊視窗：側欄收到頂端 */
+@media (max-width: 62rem) {
+  body { display: block; }
+  .rail { position: static; height: auto; overflow: visible; padding: 0.75rem 1.25rem 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.25rem 1.25rem; align-items: baseline; }
+  .rail .title { padding: 0; font-size: 1.125rem; }
+  .rail nav { grid-column: 1 / -1; grid-row: 2; display: flex; overflow-x: auto; margin: 0 -1.25rem; padding: 0 0.75rem; scrollbar-width: none; }
+  .rail a, .rail button { width: auto; padding: 0.5rem 0.75rem; white-space: nowrap; }
+  .rail [aria-current="page"] { box-shadow: inset 0 -3px 0 var(--ink); }
+  .rail .grp { display: none; }
+  .rail .repos { display: flex; overflow-x: auto; }
+  .rail .repos button { padding: 0.15rem 0.6rem; border-radius: 3px; font-size: 0.875rem; }
+  .rail .theme { margin: 0; padding: 0.15rem 0.6rem; }
+  .rail .live { grid-column: 1 / -1; grid-row: 3; margin: 0; padding: 0 0 0.4rem; } .rail .live br { display: none; }
+  .rail nav { margin-bottom: 0.4rem; }
+  main { padding: 1.25rem 1.25rem 3rem; }
+  h1 { font-size: 1.625rem; }
+  .next, .cols { grid-template-columns: minmax(0, 1fr); }
+  .ms { grid-template-columns: minmax(0, 1fr); } .ms .id { display: flex; flex-wrap: wrap; gap: 0 0.9rem; align-items: baseline; } .ms .id .st { margin: 0; }
+}
+@media (max-width: 34rem) {
+  .rail { grid-template-columns: minmax(0, 1fr) auto; } .rail .repos { grid-column: 1 / -1; grid-row: 4; padding-bottom: 0.4rem; }
+  .rows li { grid-template-columns: 5.5rem minmax(0, 1fr); } .rows li > :nth-child(3) { grid-column: 1 / -1; }
+  .rows.two li > :nth-child(2) { grid-column: 2; }
+}
+</style></head><body>
+<div class="rail">
+  <div class="title" id="title">專案總覽</div>
+  <nav id="views" aria-label="分頁"></nav>
+  <div class="repos" id="repos"></div>
+  <button class="theme" id="theme" type="button"></button>
+  <div class="live" id="live" role="status"></div>
+</div>
+<main id="app"></main>
 <script id="data" type="application/json">__DATA__</script>
 <script>
 "use strict";
 let DATA = JSON.parse(document.getElementById("data").textContent);
 const LIVE = __LIVE__;
-const view = { project: 0, decider: "", milestone: "", query: "", archived: false, feature: "", repeated: false, open: {} };
+const VIEWS = [["now", "現在"], ["milestones", "里程碑"], ["changes", "功能與變更"], ["decisions", "決策"], ["log", "紀錄"]];
+const view = { decider: "", milestone: "", query: "", archived: false, feature: "", repeated: false, by: "version", state: "", open: {} };
 const el = (tag, attrs, ...kids) => {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -550,148 +702,255 @@ const el = (tag, attrs, ...kids) => {
   return n;
 };
 const STATE = { done: "已驗收", active: "進行中", todo: "未開工", dropped: "不做" };
-function command(text) {
-  const parts = String(text || "").split(/`([^`]*)`/);
-  return parts.map((p, i) => (i % 2 ? el("code", {}, p) : p));
-}
-function milestoneCard(m, key) {
-  const live = m.tickets.filter(t => !t.dropped), done = live.filter(t => t.done).length, total = live.length;
-  const id = key + "/" + m.name;
-  const card = el("details", { class: "card", "data-state": m.state, open: view.open[id] ?? m.state === "active" },
-    el("summary", {},
-      el("div", { class: "row" }, el("span", { class: "name" }, m.name), el("span", { class: "badge " + m.state }, STATE[m.state])),
-      el("div", { class: "small" }, m.goal),
-      m.tickets.length ? [el("div", { class: "bar", role: "img", "aria-label": `${done} / ${total} 張票完成` }, el("i", { style: `width:${total ? (100 * done / total) : 0}%` })),
-               el("div", { class: "small num" }, `${done} / ${total} 張票完成`)] : el("div", { class: "small" }, m.status)),
-    el("div", { class: "body" },
-      m.tickets.length ? el("div", { class: "small" }, m.status) : null,
-      m.tickets.length ? el("ul", { class: "plain" }, m.tickets.map(t => el("li", {},
-        el("span", {}, t.title),
-        el("span", { class: "badge " + (t.done ? "done" : "") + " num" }, t.done ? "完成" : (t.dropped ? "不做" : (t.checked ? `${t.checked}/${t.boxes}` : "未開始")))))) : null,
-      (m.detail || m.scope.length) ? el("details", { class: "more" }, el("summary", { class: "small" }, "目標與範圍"),
-        m.detail ? el("p", {}, m.detail) : null,
-        m.scope.length ? el("ul", { class: "scope" }, m.scope.map(s => el("li", { class: "small" }, s))) : null) : null));
-  card.addEventListener("toggle", () => { view.open[id] = card.open; });
-  return card;
-}
 const KIND = { Added: "新增", Changed: "修改", Deprecated: "將移除", Removed: "移除", Fixed: "修正", Security: "安全" };
-function entryItem(e, lead) {
-  return el("li", {}, el("span", {}, lead ? el("span", { class: "small" }, lead + "　") : null, e.feature ? el("b", {}, e.feature + "：") : null, e.text),
-    e.pending ? el("span", { class: "badge agent" }, "待組裝　" + e.pending) : null);
-}
-function changelogView(p) {
-  if (!p.changelog.length) return el("div", { class: "empty" }, "沒有 CHANGELOG.md。");
-  return p.changelog.map(v => { const id = p.name + "/changelog/" + v.version, waiting = v.entries.filter(e => e.pending).length;
-    const box = el("details", { class: "more", open: view.open[id] ?? v.version === "Unreleased" },
-      el("summary", {}, el("span", { class: "name" }, v.version === "Unreleased" ? "未發版" : v.version),
-        el("span", { class: "small num" }, `　${v.date ? v.date + "　" : ""}${v.entries.length} 條` + (waiting ? `，${waiting} 條還在票上、待組裝` : ""))),
-      v.entries.length ? Object.keys(KIND).filter(k => v.entries.some(e => e.kind === k)).map(k => [
-        el("div", { class: "small", style: "margin-top:.6rem" }, `${KIND[k]}（${k}）`),
-        el("ul", { class: "plain" }, v.entries.filter(e => e.kind === k).map(e => entryItem(e)))]) : el("div", { class: "empty" }, "還沒有條目。"));
-    box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; });
-}
 const versionName = v => (v === "Unreleased" ? "未發版" : v);
-function featuresView(p) {
-  if (!p.features.length) return el("div", { class: "empty" }, p.changelog.length ? "CHANGELOG.md 還沒有帶功能名的條目。" : "沒有 CHANGELOG.md。");
-  const repeated = p.features.filter(f => f.entries.length > 1).length, needle = view.feature.toLowerCase();
-  const list = p.features.filter(f => (!view.repeated || f.entries.length > 1)
-    && (!needle || (f.name + f.entries.map(e => e.text).join(" ")).toLowerCase().includes(needle)));
+const command = text => String(text || "").split(/`([^`]*)`/).map((p, i) => (i % 2 ? el("code", {}, p) : p));
+const bare = t => t.title.replace(new RegExp("^" + t.number + "\\s*[:：.、]\\s*"), "");
+/* 中文在哪個字都能斷行：大標切成一句一句，換行只發生在標點後面 */
+const phrases = parts => parts.map(p => (typeof p === "string" ? p.split(/(?<=[，；：。？！、])/).filter(Boolean).map(x => el("span", { class: "ph" }, x)) : p));
+const short = date => (date || "").slice(5) || "—";
+
+/* 網址的 # 記著哪個 repo、哪一頁：瀏覽器的上一頁回得去 */
+function route() {
+  const [a, b] = location.hash.slice(1).split("/");
+  const project = Math.min(Math.max(parseInt(a, 10) || 0, 0), DATA.projects.length - 1);
+  return { project, name: VIEWS.some(v => v[0] === b) ? b : "now" };
+}
+const href = (project, name) => `#${project}/${name}`;
+
+/* 「你上次看過之後變了」：每樣東西記一個指紋，存在這個瀏覽器；按「標為看過」才更新 */
+function prints(p) {
+  const out = { "next": p.waiting || p.next };
+  for (const m of p.milestones.concat(p.unlisted)) {
+    out["m:" + m.name] = m.state;
+    for (const t of m.tickets) out[`t:${m.dir}/${t.file}`] = `${t.status}|${t.checked}/${t.boxes}`;
+  }
+  for (const d of p.decisions) out[`d:${d.date}|${d.label}|${d.text}`] = "1";
+  for (const s of p.sessions) out[`s:${s.date}|${s.ticket}|${s.result}`] = "1";
+  for (const v of p.changelog) for (const e of v.entries) out[`c:${v.version}|${e.feature}|${e.text}`] = "1";
+  return out;
+}
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 存不了就當每次都是第一次看 */ } } };
+let seen = {}, now = {};
+function loadSeen(p) {
+  now = prints(p); seen = store.get("dashboard-seen:" + p.path);
+  if (!seen) { seen = now; store.set("dashboard-seen:" + p.path, now); }
+}
+const changed = key => seen[key] !== now[key];
+const mark = (key, word) => (changed(key) ? el("span", { class: "chg-mark" }, word || (key in seen ? "變了" : "新的")) : null);
+function tally() {
+  const of = prefix => Object.keys(now).filter(k => k.startsWith(prefix) && changed(k)).length;
+  return { now: (changed("next") ? 1 : 0), milestones: of("t:") + of("m:"), changes: of("c:"), decisions: of("d:"), log: of("s:") };
+}
+
+function copyButton(text, code) {
+  const b = el("button", { class: "btn", type: "button", onclick: async () => {
+    try { await navigator.clipboard.writeText(text); b.textContent = "已複製"; }
+    catch (e) { getSelection().selectAllChildren(code); b.textContent = "已選取，按複製鍵"; }
+    setTimeout(() => { b.textContent = "複製"; }, 1600);
+  } }, "複製");
+  return b;
+}
+function ticketWord(t) { return t.done ? "完成" : t.dropped ? "不做" : t.checked ? `驗收 ${t.checked} / ${t.boxes}` : "未開始"; }
+function waitsFor(m, t) {
+  const closed = new Set(m.tickets.filter(x => x.done || x.dropped).map(x => x.number)), known = new Set(m.tickets.map(x => x.number));
+  return t.done || t.dropped ? [] : t.blocked.filter(b => known.has(b) && !closed.has(b));
+}
+const workWord = w => (w.done ? "做完，等合併" : w.boxes ? `驗收 ${w.checked} / ${w.boxes}` : "進行中");
+const workOn = (p, m, t) => p.working.find(w => w.milestone === m.name && w.file === t.file);
+function counts(m) { const live = m.tickets.filter(t => !t.dropped); return [live.filter(t => t.done).length, live.length]; }
+function isNow(p, m, t) {
+  return !!workOn(p, m, t) || (p.next_ticket && p.next_ticket.dir === m.dir && p.next_ticket.file === t.file);
+}
+
+function nextBlock(p) {
+  const t = p.next_ticket, code = t ? el("code", {}, t.command) : null;
+  return el("section", { class: "next" + (p.waiting ? " waiting" : "") },
+    el("div", {},
+      el("h1", {}, phrases(p.waiting ? command(p.waiting) : t ? [`做 ${t.milestone} 票 ${t.number}：${bare(t)}`] : p.next ? command(p.next) : ["還沒有下一步"])),
+      el("p", { class: "why" }, p.waiting ? [el("b", {}, "等你決定。"), "docs/progress.md 最後一列留的", p.waiting_from ? el("span", { class: "wt" }, `（${p.waiting_from.date}　${p.waiting_from.ticket}）`) : null, "；開一個新的 session 回答。"]
+        : t ? "開一個新的 session，貼上這條指令。" : p.next ? "這是 docs/progress.md 最後一列寫的下一步。" : "docs/progress.md 還沒有 session 紀錄；第一張票做完就會出現在這裡。", " ", mark("next"))),
+    t ? el("div", {}, el("div", { class: "cmd-label" }, p.waiting ? `答完之後的下一步：${t.milestone} 票 ${t.number} ${bare(t)}` : "新 session 的指令"),
+      el("div", { class: "cmd" }, code, copyButton(t.command, code))) : null);
+}
+function notes(p) {
   return [
-    el("div", { class: "filters" },
-      el("button", { class: "chip", "aria-pressed": String(!view.repeated), onclick: () => { view.repeated = false; render(); } }, `全部 ${p.features.length}`),
-      el("button", { class: "chip", "aria-pressed": String(view.repeated), onclick: () => { view.repeated = true; render(); } }, `改過不只一次 ${repeated}`),
-      el("input", { type: "search", placeholder: "搜尋功能", "aria-label": "搜尋功能", value: view.feature, id: "fq",
-        oninput: e => { view.feature = e.target.value; render(); } })),
-    list.length ? el("div", { class: "grid" }, list.slice(0, 120).map(f => { const id = p.name + "/feature/" + f.name;
-      const card = el("details", { class: "card", open: view.open[id] ?? false },
-        el("summary", {}, el("div", { class: "name" }, f.name),
-          el("div", { class: "small num" }, `${versionName(f.since)} 起　${f.entries.length} 條` + (f.entries.some(e => e.pending) ? "，有待組裝的" : ""))),
-        el("div", { class: "body" }, el("ul", { class: "plain" }, f.entries.map(e => entryItem({ text: e.text, pending: e.pending }, `${versionName(e.version)}　${KIND[e.kind]}`)))));
-      card.addEventListener("toggle", () => { view.open[id] = card.open; }); return card; }))
-      : el("div", { class: "empty" }, "沒有符合的功能。"),
-    list.length > 120 ? el("div", { class: "small" }, `只顯示最近改過的 120 個，共 ${list.length} 個；用搜尋縮小範圍。`) : null];
+    p.missing.length ? el("div", { class: "notes" }, el("b", {}, "讀不到的檔："), p.missing.join("、") + "。這個 repo 還沒照 project-init 的骨架，對應的區塊會是空的。") : null,
+    p.unreadable.length ? fold(p.name + "/unreadable", false, [`讀不到的行：${p.unreadable.length} 行不是約定的寫法，沒有列進來`],
+      el("ul", {}, p.unreadable.map(u => el("li", {}, el("span", {}, u.text), el("span", { class: "at" }, `${u.file}:${u.line}`), el("span", { class: "small" }, u.why)))), "notes") : null];
+}
+function fold(id, openByDefault, summary, body, cls) {
+  const box = el("details", { class: cls || "fold", open: view.open[id] ?? openByDefault }, el("summary", {}, summary), body);
+  box.addEventListener("toggle", () => { view.open[id] = box.open; });
+  return box;
+}
+function timetable(p, project) {
+  const cols = p.milestones.map(m => [m, false]).concat(p.unlisted.map(m => [m, true]));
+  if (!cols.length) return el("div", { class: "empty" }, "docs/roadmap.md 的〈里程碑〉還沒有表；照 project-init 的骨架加上之後，每個里程碑會是這裡的一欄。");
+  const depth = Math.max(0, ...cols.map(([m]) => m.tickets.length));
+  const head = ([m, loose]) => { const [done, total] = counts(m), [id, ...rest] = m.name.split(/\s+/);
+    return el("th", { scope: "col", class: loose ? "loose" : m.state }, el("a", { href: href(project, "milestones") },
+      el("b", {}, id), el("span", { class: "nm" }, rest.join(" ") || (loose ? "不在 roadmap" : "")),
+      el("span", { class: "cnt" }, el("span", {}, total ? `${done} / ${total}` : "還沒拆票"), el("span", {}, loose ? "不在 roadmap" : STATE[m.state]), mark("m:" + m.name)))); };
+  const cell = (m, t) => { if (!t) return el("td", {});
+    const here = isNow(p, m, t), w = workOn(p, m, t), wait = waitsFor(m, t);
+    const sub = [w ? workWord(w) : !t.done && !t.dropped && t.checked ? `驗收 ${t.checked} / ${t.boxes}` : null, t.dropped ? "不做" : null,
+      w ? el("span", { class: "wt", title: "worktree " + w.worktree }, "在 " + w.worktree) : null, wait.length ? "等票 " + wait.join("、") : null].filter(Boolean);
+    return el("td", { class: here ? "now" : t.dropped ? "dropped" : "" }, el("div", { class: "stop" },
+      el("span", { class: "dot " + (t.done ? "done" : here ? "now" : t.dropped ? "dropped" : ""), role: "img", "aria-label": ticketWord(t) }),
+      el("span", { class: "t" }, bare(t)),
+      sub.length || changed(`t:${m.dir}/${t.file}`) ? el("span", { class: "sub" }, sub.map(s => (typeof s === "string" ? el("span", {}, s) : s)), mark(`t:${m.dir}/${t.file}`)) : null)); };
+  return [el("div", { class: "tt-wrap", id: "tt" }, el("table", { class: "tt", style: `--cols:${cols.length}` },
+    el("thead", {}, el("tr", {}, el("th", { class: "ord", scope: "col" }, "票"), cols.map(head))),
+    el("tbody", {}, Array.from({ length: depth }, (_, i) => el("tr", {}, el("td", { class: "ord" }, String(i + 1).padStart(2, "0")), cols.map(([m]) => cell(m, m.tickets[i]))))))),
+    depth ? el("div", { class: "legend" }, el("span", {}, el("i", { class: "dot done" }), "做完"), el("span", {}, el("i", { class: "dot now" }), "現在"),
+      el("span", {}, el("i", { class: "dot" }), "還沒"), el("span", {}, el("i", { class: "dot dropped" }), "不做")) : null];
+}
+function decisionRow(d) {
+  return el("li", {}, el("span", {}, short(d.date)), el("span", {}, d.label || d.milestone), el("span", {}, d.text, " ", mark(`d:${d.date}|${d.label}|${d.text}`, "新的")));
+}
+function sessionRows(list) {
+  return el("ul", { class: "rows" }, list.map(s => el("li", {}, el("span", {}, short(s.date)), el("span", {}, s.ticket), el("span", {}, s.result, " ", mark(`s:${s.date}|${s.ticket}|${s.result}`, "新的")))));
+}
+function nowView(p, project) {
+  const [done, total] = p.milestones.map(counts).reduce((a, c) => [a[0] + c[0], a[1] + c[1]], [0, 0]);
+  return [nextBlock(p), notes(p),
+    el("h2", {}, "里程碑時刻表", total ? el("small", {}, `${done} / ${total} 張票做完；一欄一個里程碑，琥珀色的線是現在`) : null), timetable(p, project),
+    el("div", { class: "cols" },
+      el("div", {}, el("h2", {}, "Agent 自己定、你還沒看的", el("small", {}, `${p.unseen.length} 條`), el("a", { href: href(project, "decisions") }, "全部決策")),
+        p.unseen.length ? el("ul", { class: "rows" }, p.unseen.slice(0, 6).map(decisionRow)) : el("div", { class: "empty" }, "沒有。Agent 做票時自己定的決定會先列在這裡。"),
+        p.unseen.length > 6 ? el("p", { class: "small", style: "margin-top:.5rem" }, `還有 ${p.unseen.length - 6} 條，在「決策」選「Agent 定」。`) : null),
+      el("div", {},
+        p.working.length ? [el("h2", {}, "正在做", el("small", {}, `${p.working.length} 個 worktree`)),
+          el("ul", { class: "rows" }, p.working.map(w => el("li", {}, el("span", {}, w.worktree), el("span", {}, w.milestone.split(/\s+/)[0] + " " + w.number),
+            el("span", {}, bare(w), "　", el("span", { class: "pending" }, workWord(w))))))] : null,
+        el("h2", {}, "最近的 session", el("a", { href: href(project, "log") }, "全部紀錄")),
+        p.sessions.length ? sessionRows(p.sessions.slice(0, 4)) : el("div", { class: "empty" }, "還沒有 session 紀錄。")))];
+}
+function milestonesView(p) {
+  const all = p.milestones.concat(p.unlisted), list = all.filter(m => !view.state || m.state === view.state);
+  const seg = (label, value) => el("button", { type: "button", "aria-pressed": String(view.state === value), onclick: () => { view.state = value; render(); } },
+    `${label} ${value ? all.filter(m => m.state === value).length : all.length}`);
+  const block = m => { const [done, total] = counts(m), [id, ...rest] = m.name.split(/\s+/), loose = p.unlisted.includes(m);
+    return el("section", { class: "ms " + m.state },
+      el("div", { class: "id" }, el("b", {}, id), el("span", {}, rest.join(" ")), el("div", { class: "st" }, loose ? "不在 roadmap" : STATE[m.state], total ? `　${done} / ${total}` : "", " ", mark("m:" + m.name))),
+      el("div", {}, m.goal ? el("p", { class: "goal" }, m.goal) : null, el("p", { class: "detail" }, m.detail || m.status),
+        m.scope.length ? fold(`${p.name}/scope/${m.name}`, false, `範圍 ${m.scope.length} 項`, el("ul", { class: "scope" }, m.scope.map(s => el("li", {}, s))), "more") : null,
+        m.tickets.length ? (body => (m.state !== "active" ? fold(`${p.name}/tickets/${m.name}`, false, `${m.tickets.length} 張票`, body, "more") : body))(el("div", { class: "wide" }, el("table", { class: "grid rows" },
+          el("thead", {}, el("tr", {}, ["票", "標題", "狀態", "等誰"].map(h => el("th", { scope: "col" }, h)))),
+          el("tbody", {}, m.tickets.map(t => { const wait = waitsFor(m, t), here = isNow(p, m, t), w = workOn(p, m, t);
+            return el("tr", {}, el("td", { class: "k" }, t.number),
+              el("td", {}, el("span", { class: "dot " + (t.done ? "done" : here ? "now" : t.dropped ? "dropped" : ""), style: "margin-right:.55rem" }), bare(t)),
+              el("td", { class: "k" }, w ? `${workWord(w)}　在 ${w.worktree}` : ticketWord(t), " ", mark(`t:${m.dir}/${t.file}`)), el("td", { class: "k" }, wait.length ? "票 " + wait.join("、") : "")); })))))
+          : el("p", { class: "empty" }, "還沒拆票。"))); };
+  return [el("h1", {}, "里程碑"), el("div", { class: "filters", style: "margin-top:1rem" },
+      el("div", { class: "seg", role: "group", "aria-label": "狀態" }, seg("全部", ""), seg("進行中", "active"), seg("未開工", "todo"), seg("已驗收", "done"))),
+    list.length ? list.map(block) : el("div", { class: "empty" }, all.length ? "這個狀態沒有里程碑。" : "docs/roadmap.md 的〈里程碑〉還沒有表。")];
+}
+function entry(e, lead) {
+  return el("li", {}, lead ? el("span", {}, lead) : null,
+    el("span", {}, e.feature ? el("b", {}, e.feature + "：") : null, e.text, " ", e.pending ? el("span", { class: "pending" }, `還在票上（${e.pending}），待組裝`) : null, " ", e.key ? mark(e.key, "新的") : null));
+}
+function changesView(p) {
+  const seg = (label, value) => el("button", { type: "button", "aria-pressed": String(view.by === value), onclick: () => { view.by = value; render(); } }, label);
+  const head = [el("h1", {}, "功能與變更"), el("div", { class: "filters", style: "margin-top:1rem" },
+    el("div", { class: "seg", role: "group", "aria-label": "排法" }, seg("依版本", "version"), seg(`依功能 ${p.features.length}`, "feature")),
+    view.by === "feature" ? [el("label", {}, el("input", { type: "checkbox", checked: view.repeated, onchange: e => { view.repeated = e.target.checked; render(); } }), `只看改過不只一次的 ${p.features.filter(f => f.entries.length > 1).length}`),
+      el("input", { type: "search", placeholder: "搜尋功能", "aria-label": "搜尋功能", value: view.feature, id: "fq", oninput: e => { view.feature = e.target.value; render(); } })] : null)];
+  if (!p.changelog.length) return [head[0], el("div", { class: "empty" }, "這個 repo 沒有 CHANGELOG.md；有了之後，每個版本會是這裡的一段。")];
+  if (view.by === "version") return [head, p.changelog.map(v => { const waiting = v.entries.filter(e => e.pending).length;
+    return fold(`${p.name}/v/${v.version}`, v.version === "Unreleased", [versionName(v.version), el("span", { class: "small" }, `${v.date ? v.date + "　" : ""}${v.entries.length} 條` + (waiting ? `，${waiting} 條還在票上` : ""))],
+      v.entries.length ? Object.keys(KIND).filter(k => v.entries.some(e => e.kind === k)).map(k => [el("div", { class: "kind" }, `${KIND[k]}（${k}）`),
+        el("ul", { class: "rows one" }, v.entries.filter(e => e.kind === k).map(e => entry({ ...e, key: `c:${v.version}|${e.feature}|${e.text}` })))]) : el("div", { class: "empty" }, "還沒有條目。")); })];
+  const needle = view.feature.toLowerCase();
+  const list = p.features.filter(f => (!view.repeated || f.entries.length > 1) && (!needle || (f.name + f.entries.map(e => e.text).join(" ")).toLowerCase().includes(needle)));
+  return [head, list.length ? list.slice(0, 120).map(f => fold(`${p.name}/f/${f.name}`, f.entries.length > 1 && list.length <= 12,
+      [f.name, el("span", { class: "small" }, `${versionName(f.since)} 起　${f.entries.length} 條`)],
+      el("ul", { class: "rows" }, f.entries.map(e => el("li", {}, el("span", {}, versionName(e.version)), el("span", {}, KIND[e.kind]),
+        el("span", {}, e.text, " ", e.pending ? el("span", { class: "pending" }, `還在票上（${e.pending}），待組裝`) : null))))))
+      : el("div", { class: "empty" }, p.features.length ? "沒有符合的功能；清掉搜尋或取消勾選。" : "CHANGELOG.md 還沒有寫成「**功能**：一句」的條目。"),
+    list.length > 120 ? el("p", { class: "small" }, `只顯示最近改過的 120 個，共 ${list.length} 個；用搜尋縮小範圍。`) : null];
 }
 function decisionsView(p) {
-  // 已封存里程碑的決定預設收起；選了某個里程碑或在搜尋時照樣找得到
   const pool = p.decisions.filter(d => view.archived || view.milestone || view.query || !d.archived);
   const list = pool.filter(d => (!view.decider || d.decider === view.decider) && (!view.milestone || d.milestone === view.milestone)
     && (!view.query || (d.text + d.label + d.milestone + d.date).toLowerCase().includes(view.query.toLowerCase())));
-  const count = who => pool.filter(d => d.decider === who).length;
+  const count = who => pool.filter(d => d.decider === who).length, archived = p.decisions.filter(d => d.archived).length;
   const names = [...new Set(p.decisions.map(d => d.milestone).filter(Boolean))];
-  const archived = p.decisions.filter(d => d.archived).length;
-  const chip = (label, value) => el("button", { class: "chip", "aria-pressed": String(view.decider === value),
-    onclick: () => { view.decider = value; render(); } }, label);
-  return [
-    el("div", { class: "filters" },
-      chip(`全部 ${pool.length}`, ""), chip(`Agent 定 ${count("Agent 定")}`, "Agent 定"),
-      chip(`使用者同意 ${count("使用者同意")}`, "使用者同意"), chip(`使用者定 ${count("使用者定")}`, "使用者定"),
-      count("未標") ? chip(`未標 ${count("未標")}`, "未標") : null,
-      archived ? el("button", { class: "chip", "aria-pressed": String(view.archived),
-        onclick: () => { view.archived = !view.archived; render(); } }, `含已封存的 ${archived}`) : null,
+  const seg = (label, value) => el("button", { type: "button", "aria-pressed": String(view.decider === value), onclick: () => { view.decider = value; render(); } }, label);
+  return [el("h1", {}, "決策"), el("div", { class: "filters", style: "margin-top:1rem" },
+      el("div", { class: "seg", role: "group", "aria-label": "決定者" }, seg(`全部 ${pool.length}`, ""), seg(`Agent 定 ${count("Agent 定")}`, "Agent 定"),
+        seg(`使用者同意 ${count("使用者同意")}`, "使用者同意"), seg(`使用者定 ${count("使用者定")}`, "使用者定"), count("未標") ? seg(`未標 ${count("未標")}`, "未標") : null),
       el("select", { "aria-label": "里程碑", onchange: e => { view.milestone = e.target.value; render(); } },
         el("option", { value: "" }, "所有里程碑"), names.map(n => el("option", { value: n, selected: view.milestone === n }, n))),
-      el("input", { type: "search", placeholder: "搜尋決策", "aria-label": "搜尋決策", value: view.query, id: "q",
-        oninput: e => { view.query = e.target.value; render(); } })),
-    list.length ? el("div", { class: "table-wrap" }, el("table", {},
-      el("thead", {}, el("tr", {}, ["日期", "里程碑", "決定者", "決定"].map(h => el("th", {}, h)))),
-      el("tbody", {}, list.slice(0, 300).map(d => el("tr", {},
-        el("td", { class: "nowrap num" }, d.date), el("td", { class: "nowrap" }, d.milestone),
-        el("td", { class: "nowrap" }, el("span", { class: "badge " + (d.decider === "Agent 定" ? "agent" : "") }, d.decider)),
-        el("td", {}, d.label && d.label !== d.milestone ? el("span", { class: "small" }, d.label + "　") : null, d.text))))))
-      : el("div", { class: "empty" }, p.decisions.length ? "沒有符合的決策。" : "還沒有決策紀錄。"),
-    list.length > 300 ? el("div", { class: "small" }, `只顯示最新的 300 條，共 ${list.length} 條；用篩選縮小範圍。`) : null];
+      el("input", { type: "search", placeholder: "搜尋決策", "aria-label": "搜尋決策", value: view.query, id: "q", oninput: e => { view.query = e.target.value; render(); } }),
+      archived ? el("label", {}, el("input", { type: "checkbox", checked: view.archived, onchange: e => { view.archived = e.target.checked; render(); } }), `含已封存的 ${archived} 條`) : null),
+    list.length ? el("div", { class: "wide" }, el("table", { class: "grid rows" },
+      el("thead", {}, el("tr", {}, ["日期", "里程碑", "決定者", "決定"].map(h => el("th", { scope: "col" }, h)))),
+      el("tbody", {}, list.slice(0, 300).map(d => el("tr", {}, el("td", { class: "k" }, d.date), el("td", { class: "k" }, d.milestone),
+        el("td", { class: "k" }, el("span", { class: "who" + (d.decider === "Agent 定" ? " agent" : "") }, d.decider)),
+        el("td", {}, d.label && d.label !== d.milestone ? el("span", { class: "small" }, d.label + "　") : null, d.text, " ", mark(`d:${d.date}|${d.label}|${d.text}`, "新的")))))))
+      : el("div", { class: "empty" }, p.decisions.length ? "沒有符合的決策；放寬篩選或清掉搜尋。" : "還沒有決策紀錄；寫進 docs/decisions.md 的〈紀錄〉或票的 Comments 就會出現。"),
+    list.length > 300 ? el("p", { class: "small" }, `只顯示最新的 300 條，共 ${list.length} 條；用篩選縮小範圍。`) : null,
+    el("h2", {}, "架構決定（ADR）", el("small", {}, `${p.adrs.length} 份`)),
+    p.adrs.length ? el("ul", { class: "rows two" }, p.adrs.map(a => el("li", {}, el("span", {}, a.number), el("span", {}, a.title, "　", el("span", { class: "small" }, "docs/adr/" + a.file)))))
+      : el("div", { class: "empty" }, "docs/adr/ 還沒有 ADR。")];
 }
+function logView(p) {
+  return [el("h1", {}, "紀錄"), el("h2", {}, "最近的 session", el("small", {}, `最新的 ${p.sessions.length} 列`)),
+    p.sessions.length ? sessionRows(p.sessions) : el("div", { class: "empty" }, "還沒有 session 紀錄；docs/progress.md 的表或票的 Comments 有了就會出現。"),
+    p.archived_sessions.length ? el("h2", {}, "已封存的") : null,
+    p.archived_sessions.map(a => fold(`${p.name}/sessions/${a.file}`, false, [a.milestone, el("span", { class: "small" }, `${a.rows.length} 列　docs/archive/${a.file}`)],
+      el("ul", { class: "rows" }, a.rows.map(s => el("li", {}, el("span", {}, short(s.date)), el("span", {}, s.ticket), el("span", {}, s.result))))))];
+}
+const PAGES = { now: nowView, milestones: milestonesView, changes: changesView, decisions: decisionsView, log: logView };
+let shown = "";
 function render() {
-  const p = DATA.projects[Math.min(view.project, DATA.projects.length - 1)];
+  const r = route(), p = DATA.projects[r.project];
+  loadSeen(p);
+  const diff = tally(), total = Object.values(diff).reduce((a, b) => a + b, 0);
+  const size = { now: "", milestones: p.milestones.length, changes: p.changelog.reduce((a, v) => a + v.entries.length, 0), decisions: p.decisions.length, log: "" };
   document.getElementById("title").textContent = p.title;
-  document.getElementById("path").textContent = p.path;
-  document.title = p.title + "：專案總覽";
-  const tabs = document.getElementById("tabs"); tabs.replaceChildren();
-  if (DATA.projects.length > 1) DATA.projects.forEach((q, i) => tabs.append(el("button", { class: "tab", role: "tab",
-    "aria-selected": String(i === view.project), onclick: () => { view.project = i; view.milestone = ""; render(); } }, q.name)));
+  document.title = `${p.title}：${VIEWS.find(v => v[0] === r.name)[1]}`;
+  document.getElementById("views").replaceChildren(...VIEWS.map(([name, label]) => el("a", { href: href(r.project, name), "aria-current": name === r.name ? "page" : false },
+    label, el("span", { class: "n" }, size[name], diff[name] ? el("span", { class: "chg" }, `${diff[name]} 變了`) : null))));
+  document.getElementById("repos").replaceChildren(...(DATA.projects.length > 1 ? [el("div", { class: "grp" }, "Repo"),
+    DATA.projects.map((q, i) => el("button", { type: "button", "aria-pressed": String(i === r.project), onclick: () => { view.milestone = ""; location.hash = href(i, r.name); } }, q.name))].flat() : []));
   const typing = ["q", "fq"].includes(document.activeElement && document.activeElement.id) ? document.activeElement.id : "";
-  const pos = typing ? document.activeElement.selectionStart : 0;
+  const pos = typing ? document.activeElement.selectionStart : 0, tt = document.getElementById("tt"), left = tt ? tt.scrollLeft : null;
+  const key = r.project + "/" + r.name;
   document.getElementById("app").replaceChildren(...[
-    p.missing.length ? el("div", { class: "now" }, "讀不到的檔：" + p.missing.join("、") + "。這個 repo 還沒照 project-init 的骨架，對應的區塊會是空的。") : null,
-    p.unreadable.length ? el("details", { class: "now" }, el("summary", {}, `讀不到的行：${p.unreadable.length} 行不是約定的寫法`),
-      el("ul", { class: "plain" }, p.unreadable.map(u => el("li", {}, el("span", {}, u.text, el("div", { class: "small" }, u.why)), el("span", { class: "small num" }, `${u.file}:${u.line}`))))) : null,
-    el("div", { class: "now" },
-      el("div", { class: "small" }, p.waiting ? "等你決定" : "下一步"), el("div", {}, p.waiting ? command(p.waiting) : (p.next ? command(p.next) : "progress.md 沒有 session 紀錄。")),
-      p.unseen.length ? el("details", { style: "margin-top:.7rem" }, el("summary", { class: "small" }, `Agent 自己定、你還沒看過的決定（${p.unseen.length} 條）`),
-        el("ul", { class: "plain" }, p.unseen.map(d => el("li", {}, el("span", {}, d.label ? el("span", { class: "small" }, d.label + "　") : null, d.text), el("span", { class: "small num" }, d.date))))) : null,
-      p.working.length ? [el("div", { class: "small", style: "margin-top:.7rem" }, `正在做（${p.working.length} 個 worktree）`),
-        el("ul", { class: "plain" }, p.working.map(w => el("li", {}, el("span", {}, `${w.milestone}　${w.title}`),
-          el("span", { class: "badge active num" }, (w.done ? "做完，等合併" : (w.boxes ? `${w.checked}/${w.boxes}` : "進行中")) + "　" + w.worktree))))] : null),
-    el("h2", {}, "里程碑"),
-    p.milestones.length ? el("div", { class: "grid" }, p.milestones.map(m => milestoneCard(m, p.name))) : el("div", { class: "empty" }, "roadmap.md 沒有里程碑表。"),
-    p.unlisted.length ? [el("h2", {}, "不在 roadmap 的工作"),
-      el("div", { class: "grid" }, p.unlisted.map(m => milestoneCard(m, p.name + "/unlisted")))] : null,
-    el("h2", {}, "功能"), featuresView(p),
-    el("h2", {}, "變更"), changelogView(p),
-    el("h2", {}, "決策"), decisionsView(p),
-    el("h2", {}, "架構決定（ADR）"),
-    p.adrs.length ? el("ul", { class: "plain" }, p.adrs.map(a => el("li", {}, el("span", {}, a.title), el("span", { class: "small num" }, a.file)))) : el("div", { class: "empty" }, "沒有 ADR。"),
-    el("h2", {}, "最近的 session"),
-    p.sessions.length ? el("div", { class: "table-wrap" }, el("table", {},
-      el("thead", {}, el("tr", {}, ["日期", "票", "結果"].map(h => el("th", {}, h)))),
-      el("tbody", {}, p.sessions.map(s => el("tr", {}, el("td", { class: "nowrap num" }, s.date), el("td", { class: "nowrap" }, s.ticket), el("td", {}, s.result))))))
-      : el("div", { class: "empty" }, "沒有 session 紀錄。"),
-    p.archived_sessions.map(a => { const id = p.name + "/sessions/" + a.file;
-      const box = el("details", { class: "more", open: view.open[id] ?? false }, el("summary", { class: "small" }, `${a.milestone} 封存的 session 紀錄（${a.rows.length} 列）`),
-        el("div", { class: "table-wrap" }, el("table", {}, el("tbody", {}, a.rows.map(s => el("tr", {}, el("td", { class: "nowrap num" }, s.date), el("td", { class: "nowrap" }, s.ticket), el("td", {}, s.result)))))));
-      box.addEventListener("toggle", () => { view.open[id] = box.open; }); return box; })].flat(Infinity).filter(Boolean));
-  if (typing) { const input = document.getElementById(typing); input.focus(); input.setSelectionRange(pos, pos); }
+    total ? el("div", { class: "seen-bar" }, el("span", {}, el("b", {}, `你上次看過之後有 ${total} 處變了`), "　紅色記號標著是哪幾處。"),
+      el("button", { class: "btn", type: "button", onclick: () => { store.set("dashboard-seen:" + p.path, now); render(); } }, "標為看過")) : null,
+    PAGES[r.name](p, r.project), el("p", { class: "path", style: "margin:2.5rem 0 0" }, p.path)].flat(Infinity).filter(Boolean));
+  if (typing && document.getElementById(typing)) { const input = document.getElementById(typing); input.focus(); input.setSelectionRange(pos, pos); }
+  const table = document.getElementById("tt");
+  if (table) { if (left != null && shown === key) table.scrollLeft = left;
+    else { const at = table.querySelector("th.active"); if (at) table.scrollLeft = Math.max(0, at.offsetLeft - 56 - (table.clientWidth - 56 - at.offsetWidth) / 2); } }
+  if (shown && shown !== key) scrollTo(0, 0);
+  shown = key;
 }
+const themeButton = document.getElementById("theme");
+function setTheme(dark) {
+  if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem("dashboard-theme", dark ? "dark" : "light"); } catch (e) { /* 存不了就只管這一次 */ }
+  themeButton.textContent = dark ? "換成淺色" : "換成深色";
+}
+themeButton.addEventListener("click", () => setTheme(document.documentElement.dataset.theme !== "dark"));
+setTheme(document.documentElement.dataset.theme === "dark");
+addEventListener("hashchange", render);
 render();
-if (!LIVE) document.getElementById("live").textContent = "靜態頁，內容停在產生的時候；要自動更新，叫 dashboard 時不要加 static。";
+const live = document.getElementById("live");
+if (!LIVE) live.append("靜態頁，停在產生的時候。", el("br"), "不加 static 才會自動更新。");
 else {
-  const live = document.getElementById("live"); let last = JSON.stringify(DATA);
+  let last = JSON.stringify(DATA);
   const tick = async () => {
     try {
       const text = await (await fetch("data.json", { cache: "no-store" })).text();
       if (text !== last) { last = text; DATA = JSON.parse(text); render(); }
-      live.textContent = "自動更新中，上次讀取 " + new Date().toLocaleTimeString();
-    } catch (e) { live.textContent = "讀不到伺服器，畫面停在上次的內容。"; }
+      live.className = "live"; live.replaceChildren("自動更新中，", el("br"), "上次讀取 " + new Date().toLocaleTimeString());
+    } catch (e) { live.className = "live down"; live.replaceChildren("讀不到伺服器，", el("br"), "畫面停在上次的內容。"); }
   };
   tick(); setInterval(tick, 3000);
 }
@@ -705,7 +964,7 @@ def data(repos: list) -> dict:
 
 def render(payload: dict, live: bool = False) -> str:
     """live：頁面要不要每 3 秒向伺服器重讀 data.json；只有 --serve 的頁是。"""
-    page = PAGE.replace("__TOKENS__", TOKENS.read_text(encoding="utf-8")).replace("__LIVE__", "true" if live else "false")
+    page = PAGE.replace("__LIVE__", "true" if live else "false")
     # </script> 不能出現在內嵌的 JSON 裡
     return page.replace("__DATA__", json.dumps(payload, ensure_ascii=False).replace("</", "<\\/"))
 

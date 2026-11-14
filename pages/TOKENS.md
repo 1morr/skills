@@ -1,10 +1,10 @@
 # 配色與字體
 
-diff、explain、checkpoint、dashboard 的頁面共用這組 token 和字體，讀者換一頁不必重新學怎麼讀。
+diff、explain、checkpoint 的頁面共用這組 token 和字體，讀者換一頁不必重新學怎麼讀。
 
 ## Token
 
-變數的值在 [scripts/tokens.css](scripts/tokens.css)，只有那一份：組頁的腳本內嵌它（explain、checkpoint 是 `build.py`，diff 是它自己的 `fill.py`，dashboard 是 `dashboard.py`），頁面裡不重寫。整頁的顏色只從這組變數取，不另寫色碼（陰影和遮罩用黑色加透明度除外）；深色模式跟著 `prefers-color-scheme`。
+變數的值在 [scripts/tokens.css](scripts/tokens.css)，只有那一份：組頁的腳本內嵌它（explain、checkpoint 是 `build.py`，diff 是它自己的 `fill.py`），頁面裡不重寫。整頁的顏色只從這組變數取，不另寫色碼（陰影和遮罩用黑色加透明度除外）；深色模式跟著 `prefers-color-scheme`。
 
 - 底與線：`--paper` 頁面、`--panel` 襯底、`--rule` 線。
 - 字：`--ink` 內文、`--ink-2` 次要。

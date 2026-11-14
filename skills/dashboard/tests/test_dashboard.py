@@ -402,7 +402,7 @@ class PageTest(Repo):
         page = m.render(m.data([self.repo]))
         self.assertNotRegex(page, r"""(?:src|href)\s*=\s*["']?(?:https?:)?//""")
         self.assertNotIn("@import", page)
-        self.assertEqual(page.count("</script>"), 2)
+        self.assertEqual(page.count("</script>"), 3)  # 深淺色、資料、頁面程式
         embedded = page.split('<script id="data" type="application/json">')[1].split("</script>")[0]
         self.assertEqual(json.loads(embedded), m.data([self.repo]))
 
@@ -412,11 +412,27 @@ class PageTest(Repo):
         self.assertIn("const LIVE = true;", served)
         self.assertNotIn("__LIVE__", static + served)
 
-    def test_colors_come_from_the_shared_tokens_file(self):
+    def test_colors_are_its_own_and_dark_is_manual(self):
         page = m.render(m.data([self.repo]))
-        tokens = m.TOKENS.read_text(encoding="utf-8")
-        self.assertIn(tokens, page)
-        self.assertEqual(page.count("--paper: oklch"), tokens.count("--paper: oklch"))
+        shared = (Path(m.__file__).resolve().parents[3] / "pages" / "scripts" / "tokens.css").read_text(encoding="utf-8")
+        self.assertNotIn(shared, page)
+        self.assertNotIn("oklch", page)  # pages/ 的 token 全是 oklch，這一頁的是自己的色碼
+        self.assertEqual(page.count("--paper:"), 2)  # 淺色一組、深色一組
+        self.assertIn(':root[data-theme="dark"]', page)
+        self.assertNotIn("prefers-color-scheme", page)
+
+    def test_next_ticket_carries_the_command_even_while_waiting(self):
+        self.assertEqual(self.collect()["next_ticket"], {"milestone": "M1", "dir": "m1", "file": "01-lookup.md", "number": "01",
+                                                         "title": "01: 查碼表", "command": "/implement .scratch/m1/issues/01-lookup.md"})
+        self.sub("docs/progress.md", "新 session 下 `/implement .scratch/m1/issues/02-bar.md`", "等使用者：試用 M1")
+        d = self.collect()
+        self.assertEqual((d["waiting"], d["next_ticket"]["file"]), ("試用 M1", "01-lookup.md"))
+        self.assertEqual(d["waiting_from"], {"date": "2026-01-05", "ticket": "M1 01"})
+        self.sub("docs/roadmap.md", "進行中，已拆 3 張票", "未開工")
+        d = self.collect()
+        self.assertIsNone(d["next_ticket"])
+        self.sub("docs/progress.md", "等使用者：試用 M1", "新 session 下 `/x`")
+        self.assertIsNone(self.collect()["waiting_from"])
 
     def test_static_output(self):
         out = self.root / "out.html"
