@@ -1,4 +1,4 @@
-# 用法：bash selftest.sh  —— 改了 state.py、ask.py、py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 state.py、ask.py、last.py、py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
@@ -38,6 +38,17 @@ ok "ask prints every question and option" "$(aq "$A" "$Q2" | tr '\n' '|')" "[1/2
 ok "ask ignores junk and system lines"    "$(aq "$Q2" 'not json' "$TD" | grep -c '^\[')" 2
 aq "$Q2" "$ANS" >/dev/null; ok "ask answered question is not pending" $? 1
 aq "$A" "$TD" >/dev/null;   ok "ask no question exits 1" $? 1
+
+# ---- last.py（最後一則回覆的全文：最後一筆 user 行之後 assistant 寫的文字）
+U='{"type":"user","message":{"content":"go"}}'
+A1='{"type":"assistant","message":{"content":[{"type":"text","text":"第一段\n第二行"}]}}'
+A2='{"type":"assistant","message":{"content":[{"type":"text","text":"收尾"}]}}'
+SIDE='{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":"子代理的話"}]}}'
+lr() { printf '%s\n' "$@" > "$X/l.jsonl"; "$PY" "$D/last.py" "$X/l.jsonl"; }
+ok "last joins the text after the last user line" "$(lr "$A" "$U" "$A1" "$TOOL" "$A2" "$TD" | tr '\n' '|')" "第一段|第二行||收尾|"
+ok "last drops the earlier turn"                  "$(lr "$A1" "$U" "$A2" "$TD" | tr '\n' '|')" "收尾|"
+ok "last skips sidechain and junk lines"          "$(lr "$U" "$A2" "$SIDE" 'not json' "$TD" | tr '\n' '|')" "收尾|"
+lr "$A1" "$U" "$TOOL" >/dev/null; ok "last no text since the last user line exits 1" $? 1
 
 # ---- py.sh
 ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.version_info[0])')" 3
@@ -155,10 +166,12 @@ printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 echo '❯' > "$SCREEN"
 ok "waitbg done returns at once"                   "$(wb 5)" "state=done"
 grep -q '^--- questions' "$Wb/out"; ok "waitbg done prints no questions" $? 1
+ok "waitbg done prints the last message"           "$(sed -n '/^--- last message/,/^--- end ---/p' "$Wb/out" | sed -n 2p)" "hi"
 # 停在多題的 AskUserQuestion：畫面只有第一題，全部題目從 transcript 印出來
 printf '%s\n' "$A" "$Q2" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 ok "waitbg asking returns"                         "$(wb 5)" "state=asking"
-ok "waitbg asking prints every question"           "$(sed -n '/^--- questions/,/^--- end ---/p' "$Wb/out" | grep -c '^\[')" 2
+grep -q '^--- last message' "$Wb/out"; ok "waitbg asking prints no last message" $? 1
+ok "waitbg asking prints every question"          "$(sed -n '/^--- questions/,/^--- end ---/p' "$Wb/out" | grep -c '^\[')" 2
 printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
 # 票 22：回合結束了，畫面卻還掛著子代理留下的 shell，舊版一直等
 echo '  ⏵⏵ bypass permissions on · 1 shell' > "$SCREEN"

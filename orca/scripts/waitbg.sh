@@ -1,6 +1,7 @@
 # 用法：bash waitbg.sh <handle> <子 session 的 jsonl 路徑> [sent]（Bash run_in_background 掛著）
 # 子 session 停下來才返回，第一行印 state=…，後面是畫面；停在 AskUserQuestion 時（state=asking，或題目開著而回 heads-up）畫面之前多一段
-# 「--- questions（transcript）---」到「--- end ---」，是 ask.py 印的全部題目。判斷以 state.py（transcript）為準；
+# 「--- questions（transcript）---」到「--- end ---」，是 ask.py 印的全部題目；
+# state=done / done-bg 時多一段「--- last message（transcript）---」到「--- end ---」，是 last.py 印的最後一則回覆全文。判斷以 state.py（transcript）為準；
 # 畫面只當補充：transcript 說 done、畫面卻還有背景 shell / monitor 的計數時繼續等（state.py 認不出 Monitor）。
 #   sent：剛送出新指示時帶上。transcript 在這支腳本開始之後有新的寫入，才承認 done / asking——
 #         否則讀到的是上一輪的 done，會提早返回。WAITBG_SENT_TIMEOUT（預設 300 秒）內都沒寫入就印
@@ -67,4 +68,10 @@ fi
 if qs=$("$PY" ask.py "$J" 2>/dev/null); then
   echo "--- questions（transcript）---"; printf '%s\n' "$qs"; echo "--- end ---"
 fi
+# 回合結束時印它最後一則回覆的全文：畫面只有最後 45 行，長的計畫或回報會被截掉
+case $st in done|done-bg)
+  if msg=$("$PY" last.py "$J" 2>/dev/null); then
+    echo "--- last message（transcript）---"; printf '%s\n' "$msg"; echo "--- end ---"
+  fi ;;
+esac
 PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 45
