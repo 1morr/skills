@@ -1,4 +1,4 @@
-<!-- project-init 的範本：新專案的 AGENTS.md。替換 {{…}}，照註解刪掉不適用的段落，最後刪掉所有註解。 -->
+<!-- project-init 的範本：新專案的 AGENTS.md。替換 {{…}}，照註解刪掉不適用的段落；註解的去留照 project-init 的 SKILL.md〈寫骨架〉第 3 步。 -->
 # {{PROJECT}}
 
 {{ONE_LINE}}文件是唯一的記憶，對話不是。
@@ -64,7 +64,7 @@
 
 - 讀大檔案、查文件、跑實驗交給子代理回摘要。
 - brief 只讀任務指到的章節。四個檔有字元上限，`scripts/check_docs.py` 強制：本檔 8,000、`ARCHITECTURE.md` 15,000、progress.md 20,000、brief 30,000；超過時搬走或刪掉內容，不靠縮短措辭湊數。
-- 對話已長或一個任務碰了十幾個檔案：把進度與下一步寫進 progress.md，結束 session。
+- 對話已長或一個任務碰了十幾個檔案：把進度與下一步寫下來，結束 session。做票時寫在票的 `## Comments`，其他 session 寫進 progress.md。
 
 <!-- 只在 repo 公開時保留這一段 -->
 ## 公開 repo

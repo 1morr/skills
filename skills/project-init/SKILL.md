@@ -54,7 +54,7 @@ argument-hint: "[專案一句話]"
 ## 5. 閘門
 
 1. `git config core.hooksPath .githooks`。
-2. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
+2. 專案已經有檢查指令（lint、test）：加進 `docs/development.md`〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就留給 M0 的第一張票，roadmap〈M0 骨架〉已經寫了。
 
 完成條件：下面四條都親自跑過、結果如括號所寫。
 

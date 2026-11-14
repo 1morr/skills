@@ -46,9 +46,9 @@ SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的
 
 只做使用者選「現在套」的：
 
-- 照抄檔：覆蓋，再把第 1 步列的專案自己的規則加回去。
+- 照抄檔：覆蓋，再把第 1 步列的專案自己的規則加回去。動到 `.githooks/` 就跑 `git config core.hooksPath .githooks`。
 - 搬移（路線圖、事實）：搬完逐行比對，來源刪掉的每一行都在目的地找得到，把比對結果貼給使用者。
 - 指令檔：只改列出來的那幾段。
 - 還沒套的項目會讓新的 `check_docs.py` 紅：那幾條檢查在專案的副本裡先關掉，旁邊註明由哪張票打開。
 
-完成條件：專案自己的全部檢查通過；每個「開成票」的項目都有票，被關掉的檢查都對得到一張票；commit `docs: sync agent workflow with project-init`，push 前先問。
+完成條件：專案自己的全部檢查通過；套了 `.githooks/` 的，`git config core.hooksPath` 印 `.githooks`；每個「開成票」的項目都有票，被關掉的檢查都對得到一張票；commit `docs: sync agent workflow with project-init`，push 前先問。
