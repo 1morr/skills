@@ -40,9 +40,9 @@ sub, sup { line-height: 0; }
 .howto ul { margin: .3rem 0; padding-left: 1.2em; }
 .howto li { margin: .2rem 0; }
 /* 題號格：考卷封面那排格子。做對的實心黑，答錯的紅色虛線框，對過範本答案的後面寫「已評」 */
-/* 每格一樣寬：題號粗體在前，題名接在後面、放不下就截斷（完整題名在 title）；手機寬只留題號 */
+/* 每格一樣寬：題號粗體在前，題名接在後面、放不下就換行；手機寬只留題號 */
 nav.jump { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); margin: 1.25rem 0 .5rem; padding: 1px 0 0 1px; font-size: .88rem; line-height: 1.45; }
-nav.jump a { text-decoration: none; border: 1px solid var(--ink); margin: -1px 0 0 -1px; padding: .3rem .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav.jump a { text-decoration: none; border: 1px solid var(--ink); margin: -1px 0 0 -1px; padding: .3rem .7rem; }
 nav.jump a b { margin-right: .7em; }
 @media (max-width: 560px) {
   nav.jump { grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr)); }

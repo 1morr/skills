@@ -220,7 +220,8 @@ h2:target { animation: none; }
 /* 爪標：書口那排小方塊。現在這節實心，上次讀到的那節右上角有紅色摺角 */
 .tabs { z-index: 3; display: flex; background: var(--paper); font: 700 .74rem/1 var(--sans); font-variant-numeric: tabular-nums; }
 .tabs a { flex: 1 1 0; display: grid; place-items: center; position: relative; color: var(--ink); text-decoration: none; }
-.tabs a:hover { background: var(--ink); color: var(--paper); }
+/* 實心黑留給「現在這節」：滑過只畫底線 */
+.tabs a:hover { background: none; color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; }
 .tabs a[aria-current="true"] { background: var(--ink); color: var(--paper); }
 .tabs a.mark::after { content: ""; position: absolute; top: 0; right: 0; border: 6px solid var(--red); border-left-color: transparent; border-bottom-color: transparent; }
 /* 窄螢幕：兩欄上下接著，爪標躺在畫面底下，兩欄的節排成一列 */
