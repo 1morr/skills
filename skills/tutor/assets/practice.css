@@ -13,7 +13,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #141414; --ink: #ededed; --mute: #a8a8a8; --hair: #474747;
-    --red: #ff7566; --red-wash: #3b1b18; --hl: #6a5800; --hl-ink: #ffffff; --img-filter: brightness(.9);
+    --red: #ff7566; --red-wash: #3b1b18; --hl: #e6c84a; --hl-ink: #111111; --img-filter: brightness(.9);
   }
 }
 * { box-sizing: border-box; }
@@ -23,7 +23,7 @@ body { margin: 0; background: var(--paper); color: var(--ink); font: 16.5px/1.75
 ::selection { background: var(--hl); color: var(--hl-ink); }
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 a { color: var(--ink); text-underline-offset: .22em; text-decoration-thickness: 1px; }
-a:hover { background: var(--hl); color: var(--hl-ink); }
+a:hover { background: var(--ink); color: var(--paper); }
 button { border-radius: 0; }
 main { max-width: 50rem; margin: 0 auto; padding: 0 1.25rem 7rem; }
 /* 卷頭：像考卷的封面，一條粗黑線壓在科目名稱下面 */
@@ -33,12 +33,23 @@ i, var { font-family: var(--serif); font-size: 1.06em; }
 sub, sup { line-height: 0; }
 .howto { border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); padding: .45rem 0; font-size: .94rem; }
 .howto > summary, .howto > b { cursor: pointer; font-weight: 700; }
+.howto > summary { display: flow-root; list-style: none; }
+.howto > summary::-webkit-details-marker { display: none; }
+.howto > summary::after { content: "打開"; float: right; font-weight: 400; color: var(--mute); }
+.howto[open] > summary::after { content: "收起"; }
 .howto ul { margin: .3rem 0; padding-left: 1.2em; }
 .howto li { margin: .2rem 0; }
 /* 題號格：考卷封面那排格子。做對的實心黑，答錯的紅色虛線框，對過範本答案的後面寫「已評」 */
-nav.jump { display: flex; flex-wrap: wrap; margin: 1.25rem 0 .5rem; padding: 1px 0 0 1px; font-size: .88rem; line-height: 1.45; }
-nav.jump a { text-decoration: none; border: 1px solid var(--ink); margin: -1px 0 0 -1px; padding: .3rem .7rem; }
-nav.jump a.drill { min-width: 5.6em; text-align: center; }
+/* 每格一樣寬：題號粗體在前，題名接在後面、放不下就截斷（完整題名在 title）；手機寬只留題號 */
+nav.jump { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); margin: 1.25rem 0 .5rem; padding: 1px 0 0 1px; font-size: .88rem; line-height: 1.45; }
+nav.jump a { text-decoration: none; border: 1px solid var(--ink); margin: -1px 0 0 -1px; padding: .3rem .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav.jump a b { margin-right: .7em; }
+@media (max-width: 560px) {
+  nav.jump { grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr)); }
+  nav.jump a { text-align: center; padding: .3rem .2rem; }
+  nav.jump a b { margin: 0; }
+  nav.jump a span { display: none; }
+}
 nav.jump a.ok { background: var(--ink); color: var(--paper); }
 nav.jump a.no { color: var(--red); border: 1.5px dashed var(--red); position: relative; z-index: 1; font-weight: 700; }
 nav.jump a.graded::after { content: "　已評"; font-weight: 400; }
@@ -52,7 +63,7 @@ h2.part + p.part-lead + section.q, h2.part + section.q { border-top: 0; margin-t
 section.q.drill { padding: .8rem 0 .4rem; margin: 0; border-top: 1px solid var(--hair); }
 section.q.drill p { margin: .35rem 0; }
 section.q h2 { font-size: 1.25rem; line-height: 1.45; margin: 0; }
-section.q.drill h2 { font-size: 1rem; color: var(--red); }
+section.q.drill h2 { font-size: 1rem; }
 .ref { font-size: .86rem; color: var(--mute); margin: .2rem 0 0; }
 .en { margin: .9rem 0 .4rem; font-family: var(--serif); font-size: 1.06rem; line-height: 1.65; }
 .en ol { margin: .4rem 0 0; padding-left: 1.6em; list-style: lower-alpha; }
@@ -101,8 +112,8 @@ details.model > summary { cursor: pointer; font-weight: 700; padding: .5rem .9re
 details.model > summary::-webkit-details-marker { display: none; }
 details.model > summary::after { content: "打開"; float: right; margin-left: 1rem; font-weight: 400; font-size: .86rem; color: var(--mute); }
 details.model[open] > summary::after { content: "收起"; }
-details.model > summary:hover { background: var(--hl); color: var(--hl-ink); }
-details.model > summary:hover::after { color: var(--hl-ink); }
+details.model > summary:hover { background: var(--ink); color: var(--paper); }
+details.model > summary:hover::after { color: var(--paper); }
 details.model[open] > summary { border-bottom: 1px solid var(--ink); }
 details.model > :not(summary) { margin-left: .9rem; margin-right: .9rem; }
 details.model .sheet { background: #fff; color: #111; border: 1px solid var(--ink); padding: .8rem 1.1rem; margin-top: .9rem; font: 16px/1.65 var(--serif); overflow-x: auto; }
@@ -110,11 +121,11 @@ details.model .sheet p { margin: .35rem 0; }
 .rubric { list-style: none; padding: 0; margin: 1rem 0 0; border-top: 1.5px solid var(--ink); }
 .rubric li { margin: 0; border-bottom: 1px solid var(--hair); }
 .rubric label { cursor: pointer; display: block; padding: .35rem .2rem; }
-.rubric label:hover { background: var(--hl); color: var(--hl-ink); }
+.rubric label:hover { background: var(--ink); color: var(--paper); }
 .rubric input { accent-color: var(--ink); width: 1.05em; height: 1.05em; margin: 0 .6em 0 0; vertical-align: -.12em; }
 .rubric label:has(:checked) { font-weight: 700; }
 .rubric .marks { color: var(--mute); font-size: .86rem; font-weight: 400; white-space: nowrap; }
-.rubric label:hover .marks { color: var(--hl-ink); }
+.rubric label:hover .marks { color: var(--paper); }
 details.model .score { font-weight: 800; margin: .7rem 0 1rem; text-align: right; }
 
 /* 模擬卷：頂端的計時列；開始前看不到題目，交卷前不對答案、看不到範本答案 */
@@ -142,13 +153,13 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   font: inherit; font-size: .86rem; line-height: 1.5; border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
   padding: .12rem .6rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
 }
-.tools button:hover { background: var(--hl); color: var(--hl-ink); }
+.tools button:hover { background: var(--ink); color: var(--paper); }
 .tools button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .tools .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 2.5px var(--ink); }
 .tools .sep { width: 1px; height: 1.3rem; background: var(--ink); margin: 0 .25rem; }
 .tools .danger.armed { background: var(--red); color: var(--paper); border-color: var(--red); }
 .tools .send { background: var(--ink); color: var(--paper); font-weight: 700; }
-.tools .send:hover { background: var(--hl); color: var(--hl-ink); }
+.tools .send:hover { background: var(--ink); color: var(--paper); }
 .tools .status { margin-left: auto; color: var(--mute); font-size: .8rem; }
 .board {
   position: relative; touch-action: none; background-color: var(--board);
@@ -170,7 +181,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   font: inherit; font-weight: 700; background: var(--ink); color: var(--paper); border: 1.5px solid var(--paper);
   padding: .5rem 1.2rem; cursor: pointer; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .45);
 }
-#panel-btn:hover { background: var(--hl); color: var(--hl-ink); }
+#panel-btn:hover { background: var(--ink); color: var(--paper); }
 #panel {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); z-index: 20;
   background: var(--paper); border-left: 1px solid var(--ink); box-shadow: -10px 0 28px -14px rgba(0, 0, 0, .35);
@@ -183,7 +194,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
 }
 #panel header { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .55rem .9rem; border-bottom: 1.5px solid var(--ink); }
 #panel header button { font: inherit; font-size: .88rem; color: var(--ink); border: 1.5px solid var(--ink); background: var(--paper); padding: .12rem .75rem; cursor: pointer; }
-#panel header button:hover { background: var(--hl); color: var(--hl-ink); }
+#panel header button:hover { background: var(--ink); color: var(--paper); }
 #panel header button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 #panel header .close { margin-left: auto; }
 #panel .body { overflow: auto; padding: .7rem .9rem 2rem; }

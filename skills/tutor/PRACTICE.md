@@ -35,7 +35,7 @@ tutor 做材料的分支：導讀頁照 GUIDE.md 做好之後做這兩樣。讀�
   <p class="fill" data-answer="9" data-why="df = n − 1 = 10 − 1。">df =</p>
 </section>
 <section class="q" data-id="acf-seasonal" data-type="acf-read plot-describe" data-differs="有季節性沒有趨勢，Eg 1 有趨勢" data-h="1300">
-  <h2>練習 1</h2>
+  <h2>練習 1　防曬乳銷量</h2>   題號、全形空格、題名：題號格顯示題號，手機寬只留題號
   <p class="ref">對照 Eg 1、Assignment 4 第 1 題（導讀頁 §16、§20）</p>
   <div class="en">英文題目，寫法照測驗</div><div class="zh">中文翻譯</div>
   <figure data-tr="none"><img src="assets/p1-acf.png"><figcaption>gen.py 畫的 ACF，樣式照 Minitab</figcaption></figure>

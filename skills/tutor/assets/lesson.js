@@ -188,7 +188,8 @@ function here() {
     let current = null;
     pane.querySelectorAll("h2").forEach((h) => { if (h.getBoundingClientRect().top <= line) current = h; });
     const label = bar.querySelector(".here");
-    if (label) label.textContent = current ? current.textContent.trim() : "目錄";
+    const top = pane.classList.contains("course") ? document.title : (pane.querySelector(".cheat") ? "速查卡" : "目錄");
+    if (label) label.textContent = current ? current.textContent.trim() : top;
     const name = pane.classList.contains("course") ? "course" : "problems";
     if (current && current.id) at[name] = current.id;
   });

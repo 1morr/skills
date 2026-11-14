@@ -15,7 +15,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #141414; --ink: #ededed; --mute: #a8a8a8; --hair: #474747;
-    --red: #ff7566; --red-wash: #3b1b18; --hl: #6a5800; --hl-ink: #ffffff;
+    --red: #ff7566; --red-wash: #3b1b18; --hl: #e6c84a; --hl-ink: #111111;
     --sheet-bg: #f4f4f2; --sheet-fg: #111111; --img-filter: brightness(.9);
   }
 }
@@ -47,7 +47,7 @@ ul, ol { padding-left: 1.5rem; }
 li { margin: .25rem 0; }
 li::marker { color: var(--mute); font-variant-numeric: tabular-nums; }
 a { color: var(--ink); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; }
-a:hover { background: var(--hl); color: var(--hl-ink); }
+a:hover { background: var(--ink); color: var(--paper); }
 .lead { font-size: 1.02rem; }
 /* 變數（Y、X₁、b）照教科書排成襯線斜體 */
 i, var { font-family: var(--serif); font-size: 1.06em; }
@@ -58,7 +58,7 @@ code { font: .9em/1 ui-monospace, "SF Mono", Consolas, monospace; border: 1px so
 figure { margin: 1.2rem 0; }
 figure img {
   display: block; max-width: 100%; max-height: 60vh; width: auto; height: auto;
-  border: 1px solid var(--ink); background: #fff; filter: var(--img-filter);
+  border: 1px solid var(--hair); background: #fff; filter: var(--img-filter);
 }
 figcaption { font-size: .82rem; line-height: 1.55; color: var(--mute); margin-top: .35rem; }
 figure.zoom img { max-height: none; }
@@ -80,6 +80,9 @@ figure.show-en:has(img.zh) figcaption::before { content: "原文，點圖看中�
 .def::before, .summary::before, .why::before, .trap::before, .sheet::before, div.tr::before {
   display: block; font: 700 .84rem/1.5 var(--sans); margin-bottom: .1rem;
 }
+/* 定義、為什麼、常見錯誤的標籤和第一行內文排在同一行：標題上面不再疊一行小標 */
+.def::before, .why::before, .trap::before { float: left; font-size: 1em; line-height: inherit; margin: .3rem .7em 0 0; }
+.def > :first-child, .why > :first-child, .trap > :first-child { margin-top: .3rem; }
 .def::before { content: "定義"; }
 .def dfn { font-style: normal; font-weight: 700; color: var(--red); font-size: 1.06em; }
 .def p { margin: .3rem 0; }
@@ -177,8 +180,8 @@ details:not(.answer):not(.check) > summary { font-size: .92rem; padding: .35rem 
 /* 題目欄的做法和答案、課件欄的自測：先自己做，做完再打開 */
 details.answer, details.check { border: 1.5px solid var(--ink); }
 details.answer > summary, details.check > summary { padding: .5rem .9rem; }
-details.answer > summary:hover, details.check > summary:hover { background: var(--hl); color: var(--hl-ink); }
-details.answer > summary:hover::after, details.check > summary:hover::after { color: var(--hl-ink); }
+details.answer > summary:hover, details.check > summary:hover { background: var(--ink); color: var(--paper); }
+details.answer > summary:hover::after, details.check > summary:hover::after { color: var(--paper); }
 details.answer > summary::after, details.check > summary::after { content: "先自己做，再打開"; }
 details.answer[open] > summary::after, details.check[open] > summary::after { content: "收起"; }
 details.answer[open] > summary, details.check[open] > summary { border-bottom: 1px solid var(--ink); }
@@ -217,7 +220,7 @@ h2:target { animation: none; }
 /* 爪標：書口那排小方塊。現在這節實心，上次讀到的那節右上角有紅色摺角 */
 .tabs { z-index: 3; display: flex; background: var(--paper); font: 700 .74rem/1 var(--sans); font-variant-numeric: tabular-nums; }
 .tabs a { flex: 1 1 0; display: grid; place-items: center; position: relative; color: var(--ink); text-decoration: none; }
-.tabs a:hover { background: var(--hl); color: var(--hl-ink); }
+.tabs a:hover { background: var(--ink); color: var(--paper); }
 .tabs a[aria-current="true"] { background: var(--ink); color: var(--paper); }
 .tabs a.mark::after { content: ""; position: absolute; top: 0; right: 0; border: 6px solid var(--red); border-left-color: transparent; border-bottom-color: transparent; }
 /* 窄螢幕：兩欄上下接著，爪標躺在畫面底下，兩欄的節排成一列 */

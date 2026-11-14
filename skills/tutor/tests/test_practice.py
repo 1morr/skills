@@ -445,6 +445,13 @@ class Build(Case):
         nav = re.search(r'<nav class="jump".*?</nav>', out, re.S).group(0)
         self.assertEqual(re.findall(r'href="#q-([^"]+)"', nav), IDS)
 
+    def test_nav_cell_splits_number_from_name(self):
+        # 題號格每格一樣寬：題號和題名分開包，手機寬才能只留題號；完整題名留在 title
+        src = '<section class="q" data-id="a"><h2>練習 1\u3000防曬乳 &amp; <i>S</i></h2></section><section class="q drill" data-id="b"><h2>基本功 2</h2></section>'
+        nav = practice.nav(src)
+        self.assertIn('title="練習 1\u3000防曬乳 &amp; S"><b>練習 1</b><span>防曬乳 &amp; S</span></a>', nav)
+        self.assertIn('class="drill" title="基本功 2"><b>基本功 2</b></a>', nav)
+
     def test_images_inlined_zh_first(self):
         out = self.page()
         img = re.search(r"<img [^>]*>", out).group(0)

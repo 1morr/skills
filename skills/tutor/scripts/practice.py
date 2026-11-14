@@ -416,7 +416,10 @@ def nav(inner: str) -> str:
         h2 = re.search(r"<h2\b[^>]*>(.*?)</h2>", inner[m.end():], re.S | re.I)
         title = re.sub(r"<[^>]+>", "", h2.group(1)).strip() if h2 else a["data-id"]
         cls = ' class="drill"' if "drill" in a["class"].split() else ""
-        links.append(f'<a href="#{html.escape(a.get("id") or "q-" + a["data-id"])}"{cls}>{title}</a>')
+        head, _, rest = title.partition("\u3000")  # 「練習 1　防曬乳銷量」：題號一格、題名接在後面
+        name = f'<span>{rest.strip()}</span>' if rest.strip() else ""
+        links.append(f'<a href="#{html.escape(a.get("id") or "q-" + a["data-id"])}"{cls} title="{html.escape(html.unescape(title), quote=True)}">'
+                     f'<b>{head.strip()}</b>{name}</a>')
     return f'<nav class="jump" aria-label="跳到題目">{"".join(links)}</nav>\n'
 
 
