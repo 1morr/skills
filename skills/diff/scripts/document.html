@@ -3,7 +3,8 @@
        python fill.py page-src.html -o <輸出.html> --json diff=diff.json
      整份文件、改動標記、計數、工具列（並排／合併、只看改動、上一處／下一處）都由最底下的 script 從 diff.json 畫出來，不用手寫。
      額外的段落裡照 LOOK.md〈渲染圖對照〉寫的滑桿和點圖放大，這份 script 也會接上。
-     原文件是無襯線的（簡報、海報）：<body> 改成 <body class="sans">。 -->
+     原文件是無襯線的（簡報、海報）：<body> 改成 <body class="sans">。
+     改動主要在圖上時，把額外的段落移到 <div class="colhead"> 前面。 -->
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
