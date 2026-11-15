@@ -100,7 +100,7 @@ argument-hint: "要審的成品"
    - 總 diff 的路徑、合併 commit（或還沒合併、在等使用者）、留下的分支
    - 每一輪審查 session 的 session id，可以用 `claude --resume` 回看
 
-完成條件：總 diff 頁首的改動數等於 `diff.json` 的 `counts.groups`；合併 commit 在 `BASE_BR` 上，或最後報告寫明還在等使用者；`git worktree list` 沒有這一場的審查 worktree。
+完成條件：總 diff 過了 DOCUMENT.md〈檢查〉的完成條件；合併 commit 在 `BASE_BR` 上，或最後報告寫明還在等使用者；`git worktree list` 沒有這一場的審查 worktree。
 
 ## Ledger
 

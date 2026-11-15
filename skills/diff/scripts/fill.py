@@ -1,4 +1,4 @@
-"""把資料、本機檔案和共用樣式填進手寫的頁面，產出單一 HTML 檔。
+"""把資料、本機檔案和共用樣式填進原始頁（文件頁是 document.html 的副本，程式頁是手寫的），產出單一 HTML 檔。
 
 用法：
   python fill.py <page-src.html> -o <page.html> [--json 名稱=檔案.json ...] [--text 名稱=檔案 ...]

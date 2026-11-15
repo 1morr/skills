@@ -1,4 +1,4 @@
-"""比對同一份文件的兩個版本，輸出逐段、逐字的改動資料（JSON）。頁面由呼叫的人自己寫，見 DOCUMENT.md。
+"""比對同一份文件的兩個版本，輸出逐段、逐字的改動資料（JSON）。同資料夾的 document.html 把它畫成頁面，見 DOCUMENT.md；改了輸出的格式，document.html 和它的測試跟著改。
 
 用法：
   python diff.py <前版> <後版> [-o diff.json] [--notes notes.json] [--before-label 起點] [--after-label 最終版]

@@ -1,5 +1,5 @@
 /* diff 頁的樣式；fill.py 把它接在 pages/scripts/tokens.css 後面內嵌進 <head>。
-   每個 class 用在哪寫在 skills/diff 的 LOOK.md：這裡加了或改了 class，那張表跟著改。
+   文件頁的 class 由同資料夾的 document.html 使用；其餘的 class 用在哪寫在 skills/diff 的 LOOK.md，這裡加了或改了，那張表跟著改。
    顏色和字體只從 tokens.css 的變數取。寬的東西（表格、程式碼、輸出）各自橫向捲動或換行，頁面不出現水平捲軸。 */
 * { box-sizing: border-box; }
 html { text-autospace: normal; -webkit-text-size-adjust: 100%; background: var(--paper); scrollbar-color: var(--rule) var(--paper); }
