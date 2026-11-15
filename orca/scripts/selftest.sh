@@ -120,9 +120,11 @@ for want in "標題" "Conventional" "Status 不是 done" "沒勾" "docs/progress
 done
 git reset -q --soft HEAD~1; git commit -qm "feat: add a thing"
 printf '# 01\n**Status:** done\n- [x] works\n' > issues/01-x.md; echo c >> docs/progress.md; git commit -qam "docs: close ticket 01"
+git commit -q --allow-empty -m "Merge branch 'main' into a-ticket-branch-whose-name-pushes-the-subject-past-72-chars"
 echo dirty >> "$R/docs/progress.md"
 out=$(mt); ok "dirty main dir blocks merge" $? 1
 echo "$out" | grep -q "主目錄有未提交"; ok "dirty main dir reported" $? 0
+echo "$out" | grep -q "標題"; ok "git's own merge subject may exceed 72" $? 1
 git -C "$R" checkout -q -- docs/progress.md; touch "$R/untracked.tmp"
 out=$(mt); ok "ready ticket merges (untracked file in main is fine)" $? 0
 ok "merge commit made" "$(git -C "$R" log -1 --format=%s)" "merge: ticket 01 x"

@@ -13,8 +13,10 @@ commits=$(git -C "$R" log --format='%h %s' "$B..$BR")
 CC='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: [^A-Z[:space:]]'
 while read -r h s; do
   [ -z "$h" ] && continue
+  # git 自己寫的合併標題帶著分支名，長度不由人定
+  [[ "$s" == Merge\ * ]] && continue
   [ ${#s} -gt 72 ] && bad+=("$h 標題 ${#s} 字元 > 72：$s")
-  [[ "$s" =~ $CC || "$s" == Merge\ * ]] || bad+=("$h 不是 Conventional Commits 小寫開頭：$s")
+  [[ "$s" =~ $CC ]] || bad+=("$h 不是 Conventional Commits 小寫開頭：$s")
 done <<< "$commits"
 TF="$W/$T"
 if [ -f "$TF" ]; then
