@@ -1,0 +1,126 @@
+<!doctype html>
+<!-- 文件頁的原始頁：複製成 page-src.html，填 {{…}} 和下面標了「額外的段落」的位置，再用 fill.py 把 diff.json 填進來：
+       python fill.py page-src.html -o <輸出.html> --json diff=diff.json
+     整份文件、改動標記、計數都由最底下的 script 從 diff.json 畫出來，不用手寫。
+     原文件是無襯線的（簡報、海報）：<body> 改成 <body class="sans">。 -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{標題}}</title>
+</head>
+<body>
+<main class="wide" data-view="merged">
+<h1>{{標題}}</h1>
+<p class="meta" id="meta"></p>
+<p class="lede">{{結論：一句話說改了幾處、最要看的是哪幾處}}</p>
+<div id="doc"></div>
+<!-- 額外的段落：不在文字裡的改動（版面、顏色、圖）、中途加過又刪掉的內容、兩版的渲染圖並排。有就各寫一個 <h2> 和內容，
+     渲染圖的排法照 LOOK.md〈渲染圖對照〉；沒有就留空。 -->
+</main>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(() => {
+  // 畫面上的字都在這裡；讀者不讀中文時改這一段
+  const T = {
+    changes: n => `${n} 處改動`, cells: n => `表格改了 ${n} 格`,
+    delRun: '以下整段刪除', insRun: '以下整段新增', colAdd: '新欄', colDel: '已刪欄',
+  };
+  const D = JSON.parse(document.getElementById('data').textContent).diff;
+  const main = document.querySelector('main'), doc = document.getElementById('doc');
+  const el = (tag, cls, ...kids) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    e.append(...kids.flat());
+    return e;
+  };
+
+  // side：'b' 只畫前版、'a' 只畫後版、'm' 兩邊畫在一起
+  const marks = (ops, side) => ops
+    .filter(([op]) => op === '=' || side === 'm' || op === (side === 'b' ? '-' : '+'))
+    .map(([op, text]) => op === '=' ? text : el(op === '-' ? 'del' : 'ins', '', text));
+
+  const plainTable = rows => el('div', 'tablewrap', el('table', '', rows.map(r => el('tr', '', r.map(c => el('td', '', c))))));
+  const body = (kind, value) => kind === 'p' ? el('p', '', value) : plainTable(value);
+
+  // 數字、日期這類短格子整格替換：逐字比會把 1,204 → 1,240 拆成看不懂的碎片
+  const short = c => {
+    const n = Math.max(c.before.length, c.after.length);
+    return n <= 8 || (n <= 24 && /\d/.test(c.before + c.after));
+  };
+  function cellMarks(c, side) {
+    if (!short(c)) return marks(c.ops, side);
+    const out = [];
+    if (side !== 'a' && c.before) out.push(el('del', '', c.before));
+    if (side === 'm' && c.before && c.after) out.push(' ');
+    if (side !== 'b' && c.after) out.push(el('ins', '', c.after));
+    return out;
+  }
+
+  function table(b, side) {
+    const cols = b.columns
+      .map(([cb, ca], i) => ({ i, kind: cb === null ? 'add' : ca === null ? 'del' : '' }))
+      .filter(c => side === 'm' || c.kind !== (side === 'b' ? 'add' : 'del'));
+    const rows = b.rows.filter(r => side === 'm' || r.status !== (side === 'b' ? 'added' : 'removed'));
+    const marked = rows.some(r => r.status === 'added' || r.status === 'removed');
+    const t = el('table');
+    rows.forEach((r, n) => {
+      const tr = el('tr', r.status === 'added' ? 'row-add' : r.status === 'removed' ? 'row-del' : '');
+      if (marked) tr.append(el('td', 'mark', r.status === 'added' ? '+' : r.status === 'removed' ? '−' : ''));
+      for (const col of cols) {
+        const c = r.cells[col.i] || { text: '' }, td = el('td', col.kind && `col-${col.kind}`);
+        if (n === 0 && col.kind) td.append(el('span', 'tag', col.kind === 'add' ? T.colAdd : T.colDel));
+        if ('text' in c) td.append(c.text);
+        else if (r.status === 'added' || col.kind === 'add') td.append(c.after);
+        else if (r.status === 'removed' || col.kind === 'del') td.append(c.before);
+        else { td.classList.add('cell-chg'); td.append(...cellMarks(c, side)); }
+        tr.append(td);
+      }
+      t.append(tr);
+    });
+    return el('div', 'chg', el('div', 'tablewrap', t));
+  }
+
+  // 一組改動裡某一邊的內容；連續的整段刪除收進同一塊，整段新增收進另一塊
+  function column(blocks, side) {
+    const out = [];
+    let run = null;
+    const into = (kind, node) => {
+      if (!run || run.kind !== kind) {
+        run = { kind, box: el('div', `run run-${kind}`, el('span', 'sr', kind === 'del' ? T.delRun : T.insRun)) };
+        out.push(run.box);
+      }
+      run.box.append(node);
+    };
+    for (const b of blocks) {
+      if (b.status === 'changed') {
+        run = null;
+        out.push(b.kind === 'p' ? el('p', 'chg', marks(b.ops, side)) : table(b, side));
+      } else if (b.status === 'removed' && side !== 'a') into('del', body(b.kind, b.before));
+      else if (b.status === 'added' && side !== 'b') into('ins', body(b.kind, b.after));
+    }
+    return out;
+  }
+
+  // 連續的改動合成一「處」，和 diff.py 的 counts.groups 同一個算法
+  const entries = [];
+  for (const b of D.blocks) {
+    const last = entries[entries.length - 1];
+    if (b.status !== 'same' && last && !last.same) last.blocks.push(b);
+    else entries.push({ same: b.status === 'same', blocks: [b] });
+  }
+
+  function render() {
+    doc.replaceChildren(...entries.map(e => e.same
+      ? el('div', 'row same', body(e.blocks[0].kind, e.blocks[0].kind === 'p' ? e.blocks[0].text : e.blocks[0].rows))
+      : el('div', 'row g', el('div', '', column(e.blocks, 'm')))));
+  }
+
+  if (/\.pdf$/i.test(D.after.path)) main.classList.add('pdf');
+  const counts = [T.changes(D.counts.groups)].concat(D.counts.table_cells ? [T.cells(D.counts.table_cells)] : []);
+  document.getElementById('meta').textContent = [`${D.before.label} → ${D.after.label}`, ...counts].join(' · ');
+  render();
+})();
+</script>
+</body>
+</html>

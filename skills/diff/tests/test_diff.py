@@ -11,6 +11,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "..", "scripts", "diff.py")
 FILL = os.path.join(HERE, "..", "scripts", "fill.py")
+DOCUMENT = os.path.join(HERE, "..", "scripts", "document.html")
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 import diff as d  # noqa: E402
 import fill  # noqa: E402
@@ -196,6 +197,46 @@ class Fill(unittest.TestCase):
         tokens = set(re.findall(r"--([a-z0-9-]+)\s*:", open(str(fill.STYLES[0]), encoding="utf-8").read()))
         used = set(re.findall(r"var\(--([a-z0-9-]+)", css))
         self.assertEqual(used - tokens - {"at", "bar-h"}, set())
+
+
+class DocumentPage(unittest.TestCase):
+    """出貨的文件頁 document.html 把 diff.json 畫成整頁。用本機的 Chrome 或 Edge 跑頁面的 JS，找不到就跳過。"""
+
+    BEFORE = (p("Nothing changes here.", "The second paragraph has a typo.", "Nor here.")
+              + [("table", [["項目", "金額"], ["甲", "1,204"], ["乙", "30"]])] + p("結尾。"))
+    AFTER = (p("Nothing changes here.", "The second paragraph had a typo.", "Nor here.")
+             + [("table", [["項目", "金額"], ["甲", "1,240"], ["乙", "30"]])] + p("結尾。", "新加的一段。"))
+
+    def draw(self, before, after, notes=None, prepare="", width=1440):
+        """回傳 (畫出來的文件那一段 HTML, 頁首那一行計數, counts)。"""
+        blocks, counts, _ = d.diff(before, after, notes)
+        data = {"before": {"label": "一稿", "path": "a.docx"}, "after": {"label": "二稿", "path": "b.docx"},
+                "counts": counts, "blocks": blocks}
+        with open(DOCUMENT, encoding="utf-8") as f:
+            tpl = f.read()
+        with tempfile.TemporaryDirectory() as tmp:
+            page = os.path.join(tmp, "page.html")
+            with open(page, "w", encoding="utf-8") as f:
+                f.write(fill.with_styles(fill.fill(tpl, {"diff": data}, tmp)))
+            dom = fill.overflow.render(fill.Path(page), width, prepare)
+        if dom is None:
+            self.skipTest("找不到 Chrome 或 Edge")
+        doc = dom[dom.index('<div id="doc">'):dom.index('<script type="application/json"')]
+        return doc, re.search(r'id="meta">([^<]*)<', dom).group(1), counts
+
+    def test_draws_every_change_and_counts_them(self):
+        doc, meta, counts = self.draw(self.BEFORE, self.AFTER)
+        self.assertEqual(counts["groups"], 3)
+        self.assertEqual(doc.count('class="row g'), counts["groups"])
+        self.assertEqual(doc.count('class="cell-chg"'), counts["table_cells"])
+        self.assertEqual(meta, "一稿 → 二稿 · 3 處改動 · 表格改了 1 格")
+        self.assertRegex(doc, r"<del>[^<]*has[^<]*</del>")
+        self.assertRegex(doc, r"<ins>[^<]*had[^<]*</ins>")
+        self.assertRegex(doc, r'class="run run-ins">.*新加的一段。')
+
+    def test_short_cell_is_replaced_whole(self):
+        doc, _, _ = self.draw(self.BEFORE, self.AFTER, prepare="document.querySelector('[data-view=merged]:not(main)')?.click();")
+        self.assertIn("<del>1,204</del> <ins>1,240</ins>", doc[doc.index("<table"):doc.index("</table>")])
 
 
 class Docx(unittest.TestCase):
