@@ -599,10 +599,6 @@ class NoOpeningForUserTest(Fixture):
         self.clean(check_no_opening_for_user)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class OrcaKeysTest(Fixture):
     def setUp(self):
         super().setUp()
@@ -684,3 +680,7 @@ class ManifestDescriptionsTest(Fixture):
         for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
             sub(self.root, rel, "diff：對照頁；notes：記筆記。", "notes：記筆記；diff：對照頁。")
         self.clean(check_manifest_descriptions)
+
+
+if __name__ == "__main__":
+    unittest.main()
