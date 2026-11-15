@@ -29,9 +29,9 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 
 - `unknown`：讀畫面判斷。額度用完見〈額度〉；API 錯誤或被中斷就叫它接著做。
 - `stalled`：多半是它停了背景工作卻沒留紀錄，或行程卡死。讀畫面，叫它說明在等什麼、接著做完。
-- `done-bg`：多半是殘留的背景程序（曾有子代理留下的 `find /` 跑了 7 小時）。叫子 session 查清楚、收掉，確認 `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
-- `no-response`：讀畫面，停在輸入框就是字被吞了，補送一次。
-- `heads-up`：照 COORDINATOR.md〈Heads up〉。同一則不會再叫醒你。
+- `done-bg`：叫子 session 查清楚還掛著什麼、收掉，確認 `git status` 乾淨再驗收：收尾刪 worktree 會丟掉背景程序還沒 commit 的改動。
+- `no-response`：讀畫面，停在輸入框就補送一次。
+- `heads-up`：照 COORDINATOR.md〈Heads up〉。
 - 背景等待的通知是 `failed` 或 `stopped`：先讀輸出。常見原因有下面兩種：
   - session 被關掉或重開過：重新掛等待。
   - Orca 自動更新，`runtime_unavailable` 或 `orca` 指令找不到：背景迴圈等到 `orca terminal list --json` 能用，再讀子終端。它通常活著。

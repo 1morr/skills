@@ -30,7 +30,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 
 1. **開 session**：每張票一個自己的 worktree 與分支，主目錄留給你。開之前過兩道上限（有給才查）：
    - 同時上限：running 的票到上限就等。
-   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md〈額度〉。
+   - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（只填數字，例如 `80`；沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md〈額度〉。
 
    `BASE=<主分支> bash <O>/scripts/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`。
 

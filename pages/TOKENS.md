@@ -9,7 +9,7 @@ diff、explain、checkpoint 的頁面共用這組 token 和字體，讀者換一
 - 底與線：`--paper` 頁面、`--panel` 襯底、`--rule` 線。
 - 字：`--ink` 內文、`--ink-2` 次要。
 - 三組狀態色，各有 `-bg` 底、`-ink` 字、`-bar` 邊條：`--del-*` 刪除或沒過，`--ins-*` 新增或通過，`--note-*` 說明或但書。
-- `--accent` 用在可以操作的東西上（選中的切換、焦點環、連結、滑桿），和「進行中」這個狀態。`::selection`、`caret-color`、`accent-color`、`scrollbar-color` 和 `:focus-visible` 也從這組取色。
+- `--accent` 用在可以操作的東西上（選中的切換、焦點環、連結、滑桿），和「進行中」這個狀態。`::selection` 和 `:focus-visible` 也從這組取色；diff 頁另外設了 `caret-color`、`accent-color`、`scrollbar-color`。
 
 ## 字體
 
