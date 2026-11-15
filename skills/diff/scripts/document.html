@@ -1,7 +1,8 @@
 <!doctype html>
-<!-- 文件頁的原始頁：複製成 page-src.html，填 {{…}} 和下面標了「額外的段落」的位置，再用 fill.py 把 diff.json 填進來：
+<!-- 文件頁的原始頁：複製成 page-src.html，填雙大括號標出的標題和結論，以及下面標了「額外的段落」的位置，再用 fill.py 把 diff.json 填進來：
        python fill.py page-src.html -o <輸出.html> --json diff=diff.json
-     整份文件、改動標記、計數都由最底下的 script 從 diff.json 畫出來，不用手寫。
+     整份文件、改動標記、計數、工具列（並排／合併、只看改動、上一處／下一處）都由最底下的 script 從 diff.json 畫出來，不用手寫。
+     額外的段落裡照 LOOK.md〈渲染圖對照〉寫的滑桿和點圖放大，這份 script 也會接上。
      原文件是無襯線的（簡報、海報）：<body> 改成 <body class="sans">。 -->
 <html lang="zh-Hant">
 <head>
@@ -10,24 +11,38 @@
 <title>{{標題}}</title>
 </head>
 <body>
-<main class="wide" data-view="merged">
+<div class="toolbar">
+  <div class="seg" role="group"><button type="button" data-view="side"></button><button type="button" data-view="merged"></button></div>
+  <label class="switch"><input type="checkbox" id="only"><span></span></label>
+  <div class="nav"><button type="button" data-go="-1"></button><span class="at"></span><button type="button" data-go="1"></button></div>
+</div>
+<main class="wide" data-view="side">
 <h1>{{標題}}</h1>
 <p class="meta" id="meta"></p>
 <p class="lede">{{結論：一句話說改了幾處、最要看的是哪幾處}}</p>
+<div class="colhead"><div></div><div></div></div>
 <div id="doc"></div>
 <!-- 額外的段落：不在文字裡的改動（版面、顏色、圖）、中途加過又刪掉的內容、兩版的渲染圖並排。有就各寫一個 <h2> 和內容，
      渲染圖的排法照 LOOK.md〈渲染圖對照〉；沒有就留空。 -->
 </main>
+<div class="pill"><button type="button" data-go="-1"></button><span class="at"></span><button type="button" data-go="1"></button></div>
+<dialog class="zoom"></dialog>
 <script type="application/json" id="data">__DATA__</script>
 <script>
 (() => {
   // 畫面上的字都在這裡；讀者不讀中文時改這一段
   const T = {
-    changes: n => `${n} 處改動`, cells: n => `表格改了 ${n} 格`,
+    side: '並排', merged: '合併', only: '只看改動', prev: '上一處', next: '下一處',
+    at: (n, all) => `第 ${n} / ${all} 處`, none: '沒有改動', before: '前', after: '後',
+    gap: n => `⋯ ${n} 段沒有改動`, changes: n => `${n} 處改動`, cells: n => `表格改了 ${n} 格`,
     delRun: '以下整段刪除', insRun: '以下整段新增', colAdd: '新欄', colDel: '已刪欄',
+    guess: '推斷', // notes.json 的 tag 寫這個詞，標籤就畫成虛線框
   };
   const D = JSON.parse(document.getElementById('data').textContent).diff;
   const main = document.querySelector('main'), doc = document.getElementById('doc');
+  const bar = document.querySelector('.toolbar'), only = document.getElementById('only'), zoom = document.querySelector('dialog.zoom');
+  // view：side 並排、merged 合併；cur：目前選中第幾處；open：只看改動時讀者展開過的那幾段（記開頭那一段的編號）
+  const S = { view: 'side', only: false, cur: 0, open: new Set() };
   const el = (tag, cls, ...kids) => {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -110,12 +125,112 @@
     else entries.push({ same: b.status === 'same', blocks: [b] });
   }
 
-  function render() {
-    doc.replaceChildren(...entries.map(e => e.same
-      ? el('div', 'row same', body(e.blocks[0].kind, e.blocks[0].kind === 'p' ? e.blocks[0].text : e.blocks[0].rows))
-      : el('div', 'row g', el('div', '', column(e.blocks, 'm')))));
+  // 一列：沒改的一段，或一處改動（並排時前版、後版各一欄，說明接在後面，落在後版那一欄）
+  function row(e, k) {
+    const first = e.blocks[0];
+    let r;
+    if (e.same) r = el('div', 'row same', body(first.kind, first.kind === 'p' ? first.text : first.rows));
+    else {
+      const sides = S.view === 'merged'
+        ? [el('div', '', column(e.blocks, 'm'))]
+        : [['b', T.before, D.before.label], ['a', T.after, D.after.label]].map(([side, word, label]) => {
+          const content = column(e.blocks, side);
+          return el('div', '', content.length ? el('div', 'side-label', `${word} · ${label}`) : [], content);
+        });
+      const notes = e.blocks.flatMap(b => b.notes || []).map(n =>
+        el('div', 'note', n.tag ? el('span', n.tag === T.guess ? 'tag guess' : 'tag', n.tag) : [], n.note));
+      r = el('div', 'row g', sides, notes);
+    }
+    r.dataset.k = k;
+    return r;
   }
 
+  function render() {
+    main.dataset.view = S.view;
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === S.view));
+    const near = i => [i - 1, i + 1].some(j => entries[j] && !entries[j].same); // 每處改動的前後各留一段當上下文
+    const out = [];
+    for (let i = 0; i < entries.length; i++) {
+      if (!(S.only && entries[i].same && !near(i))) { out.push(row(entries[i], i)); continue; }
+      let end = i;
+      while (end < entries.length && entries[end].same && !near(end)) end++;
+      if (S.open.has(i)) for (let k = i; k < end; k++) out.push(row(entries[k], k));
+      else {
+        const gap = el('button', 'gap', T.gap(end - i));
+        gap.type = 'button';
+        gap.dataset.k = i;
+        gap.dataset.n = end - i;
+        out.push(gap);
+      }
+      i = end - 1;
+    }
+    doc.replaceChildren(...out);
+    mark();
+  }
+
+  // ---- 上一處／下一處
+  const changes = () => [...doc.querySelectorAll('.row.g')];
+  function mark() {
+    const all = changes();
+    all.forEach((r, i) => r.classList.toggle('cur', i === S.cur));
+    document.querySelectorAll('.at').forEach(s => { s.textContent = all.length ? T.at(S.cur + 1, all.length) : T.none; });
+    document.querySelectorAll('[data-go]').forEach(b => { b.disabled = !all.length; });
+  }
+  function go(step) {
+    const all = changes();
+    if (!all.length) return;
+    S.cur = Math.min(all.length - 1, Math.max(0, S.cur + step));
+    mark();
+    // 48：留給貼在工具列下面的兩版標籤
+    const top = all[S.cur].getBoundingClientRect().top + scrollY - bar.offsetHeight - 48;
+    scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+
+  // ---- 切換不跳位：重畫前記下讀者正在看的那一列在畫面上的位置，重畫後捲回去
+  function keepPlace(change, pin) {
+    const seen = r => { const q = r.getBoundingClientRect(); return q.bottom > bar.offsetHeight && q.top < innerHeight; };
+    const rows = [...doc.children], cur = doc.querySelector('.cur');
+    const a = pin || (cur && seen(cur) && cur) || rows.find(r => r.matches('.g') && seen(r)) || rows.find(seen);
+    const k = a && +a.dataset.k, top = a && a.getBoundingClientRect().top;
+    change();
+    if (!a) return;
+    // 那一段現在是自己一列，或收在某個 .gap 裡
+    const b = doc.querySelector(`.row[data-k="${k}"]`)
+      || [...doc.querySelectorAll('.gap')].find(g => +g.dataset.k <= k && k < +g.dataset.k + +g.dataset.n);
+    if (b) scrollBy(0, b.getBoundingClientRect().top - top);
+  }
+
+  document.addEventListener('click', e => {
+    const view = e.target.closest('.seg button'), gap = e.target.closest('.gap'), step = e.target.closest('[data-go]');
+    const img = e.target.closest('.shots img, .shot img, .slider img');
+    if (e.target.closest('dialog.zoom')) zoom.close();
+    else if (view) keepPlace(() => { S.view = view.dataset.view; render(); });
+    else if (gap) keepPlace(() => { S.open.add(+gap.dataset.k); render(); }, gap);
+    else if (step) go(+step.dataset.go);
+    else if (img) { zoom.replaceChildren(img.cloneNode()); zoom.showModal(); }
+  });
+  only.addEventListener('change', () => keepPlace(() => { S.only = only.checked; render(); }));
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.('textarea, select, [contenteditable], input:not([type=checkbox], [type=range])')) return;
+    if (e.key === 'j') go(1);
+    if (e.key === 'k') go(-1);
+  });
+  document.addEventListener('input', e => {
+    if (e.target.matches('.slider input[type=range]')) e.target.closest('.slider').querySelector('.stack').style.setProperty('--at', e.target.value + '%');
+  });
+  const setBar = () => document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+  addEventListener('resize', setBar);
+  setBar();
+
+  const label = (sel, text) => document.querySelectorAll(sel).forEach(e => { e.textContent = text; });
+  label('.seg [data-view=side]', T.side);
+  label('.seg [data-view=merged]', T.merged);
+  label('.switch span', T.only);
+  label('[data-go="-1"]', T.prev);
+  label('[data-go="1"]', T.next);
+  label('.colhead > :first-child', D.before.label);
+  label('.colhead > :last-child', D.after.label);
   if (/\.pdf$/i.test(D.after.path)) main.classList.add('pdf');
   const counts = [T.changes(D.counts.groups)].concat(D.counts.table_cells ? [T.cells(D.counts.table_cells)] : []);
   document.getElementById('meta').textContent = [`${D.before.label} → ${D.after.label}`, ...counts].join(' · ');

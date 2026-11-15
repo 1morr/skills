@@ -206,37 +206,92 @@ class DocumentPage(unittest.TestCase):
               + [("table", [["項目", "金額"], ["甲", "1,204"], ["乙", "30"]])] + p("結尾。"))
     AFTER = (p("Nothing changes here.", "The second paragraph had a typo.", "Nor here.")
              + [("table", [["項目", "金額"], ["甲", "1,240"], ["乙", "30"]])] + p("結尾。", "新加的一段。"))
+    MERGED = "document.querySelector('.seg [data-view=merged]').click();"
 
-    def draw(self, before, after, notes=None, prepare="", width=1440):
-        """回傳 (畫出來的文件那一段 HTML, 頁首那一行計數, counts)。"""
+    def write(self, tmp, before, after, notes=None):
         blocks, counts, _ = d.diff(before, after, notes)
         data = {"before": {"label": "一稿", "path": "a.docx"}, "after": {"label": "二稿", "path": "b.docx"},
                 "counts": counts, "blocks": blocks}
         with open(DOCUMENT, encoding="utf-8") as f:
             tpl = f.read()
+        page = os.path.join(tmp, "page.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(fill.with_styles(fill.fill(tpl, {"diff": data}, tmp)))
+        return fill.Path(page), counts
+
+    def draw(self, before, after, notes=None, prepare="", width=1440):
+        """回傳 (畫出來的文件那一段 HTML，含後面的上一處／下一處；頁首那一行計數；counts)。prepare 是畫完之後先跑的 JS。"""
         with tempfile.TemporaryDirectory() as tmp:
-            page = os.path.join(tmp, "page.html")
-            with open(page, "w", encoding="utf-8") as f:
-                f.write(fill.with_styles(fill.fill(tpl, {"diff": data}, tmp)))
-            dom = fill.overflow.render(fill.Path(page), width, prepare)
+            page, counts = self.write(tmp, before, after, notes)
+            dom = fill.overflow.render(page, width, prepare)
         if dom is None:
             self.skipTest("找不到 Chrome 或 Edge")
         doc = dom[dom.index('<div id="doc">'):dom.index('<script type="application/json"')]
         return doc, re.search(r'id="meta">([^<]*)<', dom).group(1), counts
 
-    def test_draws_every_change_and_counts_them(self):
+    def test_side_by_side_draws_each_version_in_its_own_column(self):
         doc, meta, counts = self.draw(self.BEFORE, self.AFTER)
         self.assertEqual(counts["groups"], 3)
         self.assertEqual(doc.count('class="row g'), counts["groups"])
-        self.assertEqual(doc.count('class="cell-chg"'), counts["table_cells"])
         self.assertEqual(meta, "一稿 → 二稿 · 3 處改動 · 表格改了 1 格")
-        self.assertRegex(doc, r"<del>[^<]*has[^<]*</del>")
-        self.assertRegex(doc, r"<ins>[^<]*had[^<]*</ins>")
-        self.assertRegex(doc, r'class="run run-ins">.*新加的一段。')
+        # 前版那一欄只有刪掉的字，後版那一欄只有加上的字
+        self.assertRegex(doc, r'<p class="chg">[^<]*<del>[^<]*has[^<]*</del>[^<]*</p>')
+        self.assertRegex(doc, r'<p class="chg">[^<]*<ins>[^<]*had[^<]*</ins>[^<]*</p>')
+        self.assertEqual(doc.count('class="cell-chg"'), 2 * counts["table_cells"])
+        # 整段新增只畫在後版；前版那一欄是空的，連標籤都不放
+        self.assertRegex(doc, r'<div></div><div><div class="side-label">後 · 二稿</div><div class="run run-ins">')
+        self.assertIn('<div class="row g cur" data-k="1">', doc)
+        self.assertIn("第 1 / 3 處", doc)
 
-    def test_short_cell_is_replaced_whole(self):
-        doc, _, _ = self.draw(self.BEFORE, self.AFTER, prepare="document.querySelector('[data-view=merged]:not(main)')?.click();")
-        self.assertIn("<del>1,204</del> <ins>1,240</ins>", doc[doc.index("<table"):doc.index("</table>")])
+    def test_merged_view_marks_both_versions_in_one_paragraph(self):
+        doc, _, counts = self.draw(self.BEFORE, self.AFTER, prepare=self.MERGED)
+        self.assertRegex(doc, r'<p class="chg">[^<]*<del>[^<]*has[^<]*</del>[^<]*<ins>[^<]*had[^<]*</ins>')
+        self.assertEqual(doc.count('class="cell-chg"'), counts["table_cells"])
+        self.assertNotIn("side-label", doc)
+        # 短格子整格替換，不拆成「1,」加上改掉的三位數
+        self.assertIn("<del>1,204</del> <ins>1,240</ins>", doc)
+
+    def test_changes_only_folds_unchanged_runs_and_a_fold_reopens(self):
+        same = ["a1", "a2", "a3", "a4"], ["b1", "b2", "b3"]
+        before, after = p(*same[0], "old words here", *same[1]), p(*same[0], "new words here", *same[1])
+        doc, _, _ = self.draw(before, after, prepare="document.getElementById('only').click();")
+        # 改動的前後各留一段（a4、b1），其餘收起來
+        self.assertEqual(re.findall(r'class="gap"[^>]*>([^<]*)<', doc), ["⋯ 3 段沒有改動", "⋯ 2 段沒有改動"])
+        self.assertNotIn("<p>a1</p>", doc)
+        self.assertIn("<p>a4</p>", doc)
+        self.assertIn("<p>b1</p>", doc)
+        doc, _, _ = self.draw(before, after, prepare="document.getElementById('only').click(); document.querySelector('.gap').click();")
+        self.assertEqual(re.findall(r'class="gap"[^>]*>([^<]*)<', doc), ["⋯ 2 段沒有改動"])
+        self.assertIn("<p>a1</p>", doc)
+
+    def test_notes_sit_under_their_change_and_next_moves_the_cursor(self):
+        notes = [{"match": "had a typo", "note": "審查第 2 輪指出", "tag": "必須修"}, {"match": "新加的一段", "note": "補上結論", "tag": "推斷"}]
+        doc, _, _ = self.draw(self.BEFORE, self.AFTER, notes, prepare="document.querySelector('[data-go=\"1\"]').click();")
+        self.assertIn('<div class="note"><span class="tag">必須修</span>審查第 2 輪指出</div>', doc)
+        self.assertIn('<div class="note"><span class="tag guess">推斷</span>補上結論</div>', doc)
+        self.assertIn('<div class="row g cur" data-k="3">', doc)
+        self.assertNotIn('<div class="row g cur" data-k="1">', doc)
+        self.assertIn("第 2 / 3 處", doc)
+
+    def test_added_column_and_row_are_marked_and_left_out_of_the_old_version(self):
+        before = p("表一") + [("table", [["項目", "金額"], ["甲", "10"]])]
+        after = p("表一") + [("table", [["項目", "單位", "金額"], ["甲", "元", "10"], ["乙", "元", "20"]])]
+        doc, _, _ = self.draw(before, after)
+        old, new = re.findall(r"<table>.*?</table>", doc)
+        self.assertNotIn("單位", old)
+        self.assertNotIn("乙", old)
+        self.assertIn('<td class="col-add"><span class="tag">新欄</span>單位</td>', new)
+        self.assertRegex(new, r'<tr class="row-add"><td class="mark">\+</td><td>乙</td>')
+
+    def test_page_does_not_overflow_with_a_wide_table(self):
+        wide = [[f"欄位{i}" for i in range(14)], [f"一段比較長的內容 {i}" for i in range(14)]]
+        changed = [wide[0], [c + "改" for c in wide[1]]]
+        with tempfile.TemporaryDirectory() as tmp:
+            page, _ = self.write(tmp, p("x " * 80) + [("table", wide)], p("y " * 80) + [("table", changed)])
+            found = fill.overflow.measure(page)
+        if found is None:
+            self.skipTest("找不到 Chrome 或 Edge")
+        self.assertEqual(found, [])
 
 
 class Docx(unittest.TestCase):
