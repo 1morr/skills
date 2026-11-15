@@ -91,6 +91,6 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 ## 回報
 
 - 每張票一段：做了什麼、commit、驗收結果、代答了哪些題、要使用者看的決定、Heads up（每條一句：說什麼、修了還是為什麼不修）。
-- 隊列做完或卡住時一張總表：票、狀態、commit、session id、代答、沒處理的發現。專案有 `scripts/next_step.py` 時，最後跑 `python3 scripts/next_step.py`，把輸出原樣貼上：等使用者決定的事和下一條指令以它為準。
+- 隊列做完或卡住時一張總表：票、狀態、commit、session id、代答、沒處理的發現。專案有 `scripts/next_step.py` 時，最後跑 `python3 scripts/next_step.py`：等使用者決定的事和下一條指令以它為準，由你來講。等使用者決定的每一題照 COORDINATOR.md〈回報〉，寫背景一句、選項、你的建議、他回答之後你會接著跑哪幾張；下一條指令照它印的放進 code block。它叫使用者開新 session 做的票還在你的隊列裡時，說明這張由你接著跑。
 
 完成條件：隊列的每張票在總表裡不是 done 就是 blocked，沒有 running；blocked 的每張都寫了需要使用者做什麼。

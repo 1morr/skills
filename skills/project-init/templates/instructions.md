@@ -57,7 +57,7 @@
 
 1. 不是做票的 session 在 progress.md 加一列，「下一步」寫下一個 session 要下的完整指令：里程碑做完是 `/1morr:checkpoint <剛做完的里程碑>`（它結束時寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`），拆完票是第一張票的 `/implement <票路徑>`。
 2. 要使用者先決定才能繼續：做票的 session 在票的 `## Comments` 加一行 `等使用者：<要決定什麼>`，票留著不改 `done`；其他 session 把它寫進 progress.md 的「下一步」。使用者回答後，接手的 session 在那一行下面記 `決定：<一句>（使用者定）`，那一題就結了。
-3. commit 之後跑 `python3 scripts/next_step.py`，把輸出原樣貼給使用者。協調者開的 session 只回報做完了，下一步由協調者報。
+3. commit 之後跑 `python3 scripts/next_step.py`，照它的結果告訴使用者下一步：等使用者決定的每一題用你的話講（寫法照〈使用者確認〉），下一條指令照它印的放進 code block；它說的和你剛做的對不上時，說明差在哪。協調者開的 session 只回報做完了，下一步由協調者報。
 
 ## 事實與查證
 
