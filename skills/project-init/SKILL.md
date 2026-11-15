@@ -30,6 +30,7 @@ argument-hint: "[專案一句話]"
 - 專案外（上層目錄）的擋路檔不動。問使用者要在專案根目錄放一個只有 `@AGENTS.md` 一行的 `CLAUDE.md`，還是自己把 `~/.claude/settings.json` 的 `pluginConfigs` → `cc-plugin-agents-md@builtin` → `options.instructionFiles` 設成 `claude-md-and-agents-md`。
 - repo 公開還是私有。
 - 有沒有 UI。
+- 要不要用 `visual-explainer` 把架構草稿、里程碑的計劃、票對程式碼的審查、方案比較做成一頁，讓他在頁上作答。skill 清單裡沒有它時，附上安裝指令：`/plugin marketplace add nicobailon/visual-explainer`、`/plugin install visual-explainer@visual-explainer-marketplace`。
 
 完成條件：上面每一項不是探查已經知道，就是有使用者的回答。
 

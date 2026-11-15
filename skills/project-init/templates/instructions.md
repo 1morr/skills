@@ -89,6 +89,16 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 做對比版：每一版在自己的 worktree 做，只讀 brief 與設計系統，別的版本的設計稿留到使用者比較時才打開。
 - UI 改動實跑驗證，附截圖或讀回的畫面文字。
 
+<!-- 只在使用者選了用 visual-explainer 時保留這一段 -->
+## 視覺化
+
+這個專案用 `visual-explainer` 把圖和要使用者選的事做成一頁。這個 session 的 skill 清單裡沒有它時，照文字流程做，並在回報裡說一聲。
+
+- 用在四處：寫架構時的架構草稿（`visual-explainer:generate-web-diagram`）；里程碑開工、要改的程式碼已經存在時的計劃（`visual-explainer:generate-visual-plan`）；票寫好後拿 spec 對一次程式碼（`visual-explainer:plan-review`）；訪談或設計中要畫出來才看得懂的二選一（`visual-explainer:compare`）。
+- 頁面的文字用使用者對話的語言；不帶 `--open`，在對話給完整路徑。
+- 頁面只給使用者看和作答，留在 repo 外面。使用者貼回的回覆照〈使用者確認〉處理：定案寫回 brief、spec、票，並記一條決定。
+- 做完之後的驗收照驗收票，不回頭更新頁面。
+
 ## Skills
 
 - 需求與設計訪談：`/grill-with-docs`（邊問邊寫 `GLOSSARY.md` 與 ADR，照〈使用者確認〉先給草稿），結論寫回 brief；收尾的「下一步」是 `/grill-with-docs 照 docs/agents/milestone.md 寫架構與 roadmap`。
