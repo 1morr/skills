@@ -18,7 +18,7 @@
 
 ## 同步
 
-新增、改名、刪除 skill，或改了它的叫用方式：同輪改 `README.md` 的表格（連結文字等於資料夾名），以及 `.claude-plugin/plugin.json`、`marketplace.json` 的 description（每個 skill 一段，寫成 `<名稱>：<SKILL.md 的 description 第一句>`，用 `；` 分開）。
+新增、改名、刪除 skill，或改了它的叫用方式：同輪改 `README.md` 的表格（連結文字等於資料夾名）。
 
 project-init 的範本改動要搬使用者專案裡的資料時：同一個 commit 在 `skills/project-init/SYNC.md`〈差異清單〉加一條搬法，使用者的 repo 都同步過就刪掉它。
 

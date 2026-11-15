@@ -25,7 +25,6 @@ DOC_DIRS = ("skills", "orca", "pages")
 
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 SHORT_PATH = re.compile(r"<([A-Z]+)>/([A-Za-z0-9_./-]+)")
-MANIFEST_NAME = re.compile(r"(?:^|；)\s*([a-z][a-z0-9-]*)：")
 README_ROW = re.compile(r"^\|\s*\[([^\]]+)\]\(skills/([^/]+)/SKILL\.md\)", re.M)
 
 
@@ -67,21 +66,14 @@ def check_names(root: Path) -> list:
 
 
 def check_listed(root: Path) -> list:
-    """每個 skill 都在 README 的表格和兩份 manifest 的 description 裡，而且那三處沒有多出來的名字。"""
+    """每個 skill 都在 README 的表格裡，表格沒有多出來的名字，連結文字等於資料夾名。"""
     want = set(skills(root))
     out = []
     rows = README_ROW.findall(read(root / "README.md"))
     listed = {folder for _, folder in rows}
     out += [f"README 表格裡 [{label}] 連到 skills/{folder}/：名字要一樣" for label, folder in rows if label != folder]
-    manifests = {
-        ".claude-plugin/plugin.json": json.loads(read(root / ".claude-plugin/plugin.json"))["description"],
-        ".claude-plugin/marketplace.json": json.loads(read(root / ".claude-plugin/marketplace.json"))["plugins"][0]["description"],
-    }
-    places = {"README.md 的表格": listed}
-    places.update({f"{k} 的 description": set(MANIFEST_NAME.findall(v)) for k, v in manifests.items()})
-    for where, got in places.items():
-        out += [f"{where}少了 {n}" for n in sorted(want - got)]
-        out += [f"{where}多了 {n}：skills/ 裡沒有這個 skill" for n in sorted(got - want)]
+    out += [f"README.md 的表格少了 {n}" for n in sorted(want - listed)]
+    out += [f"README.md 的表格多了 {n}：skills/ 裡沒有這個 skill" for n in sorted(listed - want)]
     return out
 
 
@@ -257,31 +249,9 @@ def check_section_refs(root: Path) -> list:
     return out
 
 
-def first_sentence(description: str) -> str:
-    return description.strip().strip('"').split("。")[0]
-
-
-def check_manifest_descriptions(root: Path) -> list:
-    """兩份 manifest 的 description 裡，每個 skill 那一段（`<名稱>：…`，用 `；` 分開）等於它 SKILL.md 的 description 第一句（到第一個「。」為止），所以 description 裡不能有 `；`。"""
-    out = []
-    want = {n: first_sentence(frontmatter(read(root / "skills" / n / "SKILL.md")).get("description", "")) for n in skills(root)}
-    out += [f"skills/{n}/SKILL.md 的 description 第一句有「；」：manifest 用它分段" for n, d in want.items() if "；" in d]
-    manifests = {
-        ".claude-plugin/plugin.json": json.loads(read(root / ".claude-plugin/plugin.json"))["description"],
-        ".claude-plugin/marketplace.json": json.loads(read(root / ".claude-plugin/marketplace.json"))["plugins"][0]["description"],
-    }
-    for where, text in manifests.items():
-        for part in text.rstrip("。").split("；"):
-            name, sep, got = part.strip().partition("：")
-            if sep and name in want and got != want[name]:
-                out.append(f"{where} 的 {name}：寫「{got}」，SKILL.md 的 description 是「{want[name]}」")
-    return out
-
-
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
           check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs,
-          check_manifest_descriptions)
+          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs)
 
 
 class RepoTest(unittest.TestCase):
@@ -329,7 +299,7 @@ class Fixture(unittest.TestCase):
         write(r, "tests/test_repo_rules.py", "")
         write(r, "README.md", "| Skill | 做什麼 |\n|---|---|\n| [diff](skills/diff/SKILL.md) | 對照 |\n| [notes](skills/notes/SKILL.md) | 筆記 |\n\n"
               "```\npython -m unittest discover -s skills/diff/tests\nbash orca/scripts/selftest.sh\npython -m unittest discover -s tests\n```\n")
-        desc = "diff：對照頁；notes：記筆記。"
+        desc = "示範用的 skills。"
         write(r, ".claude-plugin/plugin.json", json.dumps({"name": "x", "description": desc}, ensure_ascii=False))
         write(r, ".claude-plugin/marketplace.json", json.dumps({"plugins": [{"name": "x", "description": desc}]}, ensure_ascii=False))
         write(r, ".github/workflows/test.yml", "steps:\n  - run: python -m unittest discover -s skills/diff/tests -v\n"
@@ -367,20 +337,8 @@ class ListedTest(Fixture):
         sub(self.root, "README.md", "| [notes](skills/notes/SKILL.md) | 筆記 |\n", "")
         self.red(check_listed)
 
-    def test_missing_from_each_manifest(self):
-        for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
-            with self.subTest(rel):
-                original = read(self.root / rel)
-                sub(self.root, rel, "；notes：記筆記", "")
-                self.red(check_listed)
-                write(self.root, rel, original)
-
     def test_listed_skill_that_does_not_exist(self):
         sub(self.root, "README.md", "| [notes]", "| [gone](skills/gone/SKILL.md) | 沒了 |\n| [notes]")
-        self.red(check_listed)
-
-    def test_manifest_names_a_removed_skill(self):
-        sub(self.root, ".claude-plugin/plugin.json", "diff：", "gone：沒了；diff：")
         self.red(check_listed)
 
     def test_readme_label_differs_from_folder(self):
@@ -389,7 +347,7 @@ class ListedTest(Fixture):
 
     def test_wording_and_order_do_not_matter(self):
         sub(self.root, "README.md", "| 筆記 |", "| 換一種說法：可以有冒號 |")
-        sub(self.root, ".claude-plugin/plugin.json", "diff：對照頁；notes：記筆記。", "notes：改寫過的說明；diff：也改寫了。")
+        sub(self.root, ".claude-plugin/plugin.json", "示範用的 skills。", "只提到 diff 的一句話。")
         self.clean(check_listed)
 
 
@@ -547,12 +505,12 @@ class ShellPortableTest(Fixture):
 
 class ManifestsMatchTest(Fixture):
     def test_one_manifest_reworded(self):
-        sub(self.root, ".claude-plugin/plugin.json", "記筆記", "寫筆記")
+        sub(self.root, ".claude-plugin/plugin.json", "示範用", "展示用")
         self.red(check_manifests_match)
 
     def test_both_reworded_and_other_keys_do_not_matter(self):
         for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
-            sub(self.root, rel, "記筆記", "寫筆記")
+            sub(self.root, rel, "示範用", "展示用")
         sub(self.root, ".claude-plugin/plugin.json", '"name": "x"', '"name": "another"')
         self.clean(check_manifests_match)
 
@@ -658,28 +616,6 @@ class SectionRefsTest(Fixture):
         sub(self.root, "skills/notes/SKILL.md", "先讀", "回「照你的判斷」，見〈下面那一節〉和專案的 development.md〈全部檢查〉。先讀")
         write(self.root, "skills/notes/templates/instructions.md", "照 README.md〈使用者專案才有的節〉。\n")
         self.clean(check_section_refs)
-
-
-class ManifestDescriptionsTest(Fixture):
-    def test_description_changed_without_the_manifests(self):
-        sub(self.root, "skills/notes/SKILL.md", "description: 記筆記", "description: 寫會議紀錄")
-        self.red(check_manifest_descriptions)
-
-    def test_one_manifest_reworded(self):
-        sub(self.root, ".claude-plugin/marketplace.json", "notes：記筆記", "notes：記筆記和待辦")
-        self.red(check_manifest_descriptions)
-
-    def test_separator_inside_a_description(self):
-        for rel in ("skills/notes/SKILL.md", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
-            sub(self.root, rel, "記筆記", "記筆記；也記待辦")
-        self.red(check_manifest_descriptions)
-
-    def test_readme_trigger_sentence_and_order_do_not_matter(self):
-        sub(self.root, "README.md", "| 筆記 |", "| 長一點的說明，給人看的 |")
-        sub(self.root, "skills/diff/SKILL.md", "使用者要 diff 頁時用。", "要前後對照時用。")
-        for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
-            sub(self.root, rel, "diff：對照頁；notes：記筆記。", "notes：記筆記；diff：對照頁。")
-        self.clean(check_manifest_descriptions)
 
 
 if __name__ == "__main__":
