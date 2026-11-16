@@ -1,5 +1,5 @@
 /* tutor 導讀頁的樣式；build.py 會把它內嵌進每一頁。
-   一本只有一條捲軸的課本：左邊固定的目錄、中間一欄正文，圖都排在正文裡；對照欄從右邊打開。
+   一本只有一條捲軸的課本：左邊固定的目錄；正文一欄，在右邊的空間裡置中，圖都排在正文裡；對照欄從右邊打開。
    白紙黑字，一個藍色管結構，三支螢光筆各管一件事：
    藍＝§ 編號、連結、新名詞、目錄上現在那一段；黃＝算出來的答案和要帶走的話；粉紅＝容易錯；綠＝讀過。
    整塊上色的只有「這頁重點」。正紅留給課件截圖上老師的紅框，介面不用。
@@ -26,7 +26,7 @@
   /* 數學和英文原文用襯線體；中文字落到後面的黑體，不會變成細明體 */
   --serif: "STIX Two Text", Cambria, "Times New Roman", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", serif;
   --math: "STIX Two Math", "Cambria Math", "Latin Modern Math", var(--serif);
-  --rail: 17.5rem; --pad: 3.5rem; --col: 42.5rem; --gap: 2.5rem; --head: 2.75rem;
+  --rail: 17.5rem; --pad: 3.5rem; --col: 42.5rem; --head: 2.75rem;
   --peek: clamp(22rem, calc(100vw - var(--rail) - var(--pad) - var(--col) - 1rem), 32rem);
   --ease: cubic-bezier(.16, 1, .3, 1);
 }
@@ -137,8 +137,15 @@ main { min-width: 0; }
 .btn:hover, .btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .btn[hidden] { display: none; }
 
-/* ── 正文欄 ── */
-.page { max-width: calc(var(--col) + var(--pad) + var(--gap)); padding: 0 var(--gap) 8rem var(--pad); }
+/* ── 正文欄：在目錄右邊的空間裡置中；對照欄打開時往左讓位，剛好不被蓋住 ── */
+.page {
+  --mid: calc((100% - var(--col) - 2 * var(--pad)) / 2);
+  max-width: calc(var(--col) + 2 * var(--pad)); padding: 0 var(--pad) 8rem;
+  margin-left: max(0px, var(--mid)); transition: margin-left .28s var(--ease);
+}
+@media (min-width: 1180px) {  /* 更窄的畫面對照欄本來就蓋在正文上，不挪 */
+  body.peeking .page { margin-left: max(0px, min(var(--mid), calc(100% - var(--peek) - 1rem - var(--pad) - var(--col)))); }
+}
 .page section > *, .page section > section > * { max-width: var(--col); }
 .page section > section { max-width: none; }
 h1 { font-size: 2rem; line-height: 1.3; font-weight: 700; margin: 2.5rem 0 .75rem; text-wrap: balance; }
@@ -300,7 +307,7 @@ details.check > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
 .uses::before { content: "這題用到"; padding-bottom: .3rem; border-bottom: 1px solid var(--ink); margin-bottom: 0; }
 .uses li { margin: 0; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
 
-/* ── 對照欄：§ 連結、速查卡、名詞表、查表都在這裡打開；疊在右邊，正文不重排 ── */
+/* ── 對照欄：§ 連結、速查卡、名詞表、查表都在這裡打開；疊在右邊，正文往左讓位、不重排 ── */
 .peek {
   position: fixed; top: 0; right: 0; bottom: 0; width: var(--peek); z-index: 20; background: var(--paper);
   border-left: 1px solid var(--ink); display: flex; flex-direction: column; box-shadow: -1rem 0 2.5rem -1.25rem oklch(0.2 0.02 265 / .3);
@@ -349,15 +356,14 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
   body.split .peek-body .defs { grid-template-columns: 1fr 1fr; gap: 0 1.75rem; }
   body.split main { margin-right: 50vw; }
   body.split .head { padding-left: 2.5rem; }
-  body.split .page { padding: 0 2.5rem 8rem; }
+  body.split .page { padding: 0 2.5rem 8rem; margin-left: 0; }
 }
 @media (min-width: 1180px) and (max-width: 1359px) {
-  :root { --rail: 15.5rem; --pad: 2.5rem; --gap: 2rem; --peek: 19.5rem; }
+  :root { --rail: 15.5rem; --pad: 2.5rem; --peek: 19.5rem; }
 }
 /* ── 平板橫放：目錄留著 ── */
 @media (max-width: 1179px) {
   :root { --rail: 15rem; --pad: 2.5rem; --peek: min(26rem, 100vw); }
-  .page { padding-right: 2rem; }
 }
 /* ── 平板直放、手機：目錄收進頁眉的按鈕 ── */
 @media (max-width: 899px) {
@@ -395,7 +401,7 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
 @media print {
   body { display: block; background: #fff; color: #000; }
   .rail, .head, .peek, .scrim, .cheat-tools, figcaption button { display: none !important; }
-  .page { max-width: none; padding: 0; }
+  .page { max-width: none; padding: 0; margin: 0; }
   figure img { filter: none; }
   /* 列印速查卡：只印那張卡 */
   body.print-cheat .page section > :not(.cheat), body.print-cheat section.course { display: none; }
