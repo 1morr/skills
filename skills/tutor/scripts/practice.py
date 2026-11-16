@@ -20,6 +20,7 @@
     版面照 LaTeX exam class 的慣例：封面有「題目／滿分／得分」表（滿分是那題給分點的總和），每題後面留作答頁，答案另外印。
     組好之後用同一個瀏覽器印兩份 PDF，放在頁面旁邊，路徑印在 stdout：
         <頁面檔名>.pdf          考卷：封面、題目、作答頁，查表面板的表接在卷末；不印翻譯和答案
+                                查表面板只放考場會發的東西；沒有就不寫面板
         <頁面檔名>-answers.pdf  答案：每題的範本答案和給分點
     找不到瀏覽器只提醒：打開頁面按「列印考卷」「列印答案」各存一份。
     讀者做完在頁面上按「我在紙上做完了」，才對填答格、才看得到範本答案。
@@ -421,8 +422,9 @@ def finish_sections(inner: str) -> str:
     return "".join(out)
 
 
-def cover(inner: str, minutes: str) -> str:
-    """模擬卷的封面：建議時間、滿分、「題目／滿分／得分」表（得分留給讀者在紙上填）和作答規則。"""
+def cover(inner: str, minutes: str, tables: bool) -> str:
+    """模擬卷的封面：建議時間、滿分、「題目／滿分／得分」表（得分留給讀者在紙上填）和作答規則。
+    tables：卷末有沒有附表（查表面板）；沒附就不提。"""
     qs = questions(inner)
     total = sum(q["marks"] for q in qs)
     facts = ([f"建議時間 {html.escape(minutes)} 分鐘"] if minutes else []) + [f"滿分 {total} 分"]
@@ -430,7 +432,7 @@ def cover(inner: str, minutes: str) -> str:
     return (f'<div class="cover">\n<p class="facts">{"　".join(facts)}</p>\n'
             f'<table><thead><tr><th>題目</th><th>滿分</th><th>得分</th></tr></thead>\n<tbody>{rows}'
             f'<tr class="total"><td>合計</td><td>{total}</td><td></td></tr></tbody></table>\n'
-            "<ul>\n<li>照考試做：不看導讀頁、不看筆記，只用卷末附的表。</li>\n"
+            f"<ul>\n<li>照考試做：不看導讀頁、不看筆記{'，只用卷末附的表' if tables else ''}。</li>\n"
             "<li>寫在題目下面的空白和後面的作答頁，每一步都寫出來；最後的數字再填到題目裡的底線上。</li>\n</ul>\n</div>\n")
 
 
@@ -559,7 +561,7 @@ def build(src: str, base: Path) -> str:
     lead = "" if has_lead or mock else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
     title = html.escape(a["data-title"])
     mode = ' data-mode="mock"' if mock else ""
-    howto = HOWTO_MOCK + MOCK_BAR + cover(inner, (a.get("data-minutes") or "").strip()) if mock else HOWTO
+    howto = HOWTO_MOCK + MOCK_BAR + cover(inner, (a.get("data-minutes") or "").strip(), bool(panel_html)) if mock else HOWTO
     page = (f'<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
             f"{THEME}<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"

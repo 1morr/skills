@@ -287,6 +287,12 @@ class MockRule(Case):
         self.assertIn("<tr><td>練習 1</td><td>3</td><td></td></tr><tr><td>練習 2</td><td>6</td><td></td></tr>", cover)
         self.assertIn('<tr class="total"><td>合計</td><td>9</td><td></td></tr>', cover)
 
+    def test_cover_mentions_the_tables_only_when_some_are_attached(self):
+        self.assertIn("只用卷末附的表", self.mock_page())
+        bare = practice.build(src(MQ, MOCK_BODY).replace(PANEL, ""), self.dir).split("</style>")[1].split("<script>")[0]
+        self.assertIn("照考試做", bare)
+        self.assertNotIn("卷末", bare)
+
     def test_cover_without_minutes_gives_no_time(self):
         cover = re.search(r'<div class="cover">.*?</div>', self.mock_page(body=BODY + ' data-mode="mock"'), re.S).group(0)
         self.assertNotIn("建議時間", cover)
