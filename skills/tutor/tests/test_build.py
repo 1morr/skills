@@ -978,14 +978,14 @@ class PanelRule(unittest.TestCase):
 
 
 class WarningRule(unittest.TestCase):
-    """整頁太長只提醒、不擋產出。"""
+    """攤開的圖太多只提醒、不擋產出；正文多長都不提醒。"""
     FIGS = ZH_FIG * (build.FIGURE_WARN + 1)
 
-    def test_long_prose_warns_but_passes(self):
+    def test_long_prose_does_not_warn(self):
         n = build.PER_SECTION - 100
-        src = page("".join(f"<h2>{i}</h2>{prose(n)}" for i in range(build.PROSE_WARN // n + 1)))
+        src = page("".join(f"<h2>{i}</h2>{prose(n)}" for i in range(10)))
         self.assertTrue(ok(src), build.lint(src))
-        self.assertTrue(any("正文" in w for w in build.warnings(src)))
+        self.assertEqual(build.warnings(src), [])
 
     def test_many_open_figures_warn(self):
         self.assertTrue(any("圖" in w for w in build.warnings(page("<h2>一</h2>" + self.FIGS))))

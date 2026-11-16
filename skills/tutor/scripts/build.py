@@ -32,8 +32,9 @@ JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
 
 # 原始檔的兩部：講義導讀在前，例題和作業在後；組好的頁把它們接成一條捲軸
 PANES = ("course", "problems")
-# 每個 h2 段落的字數上限，單位見 text_units。整頁不設上限：課件導讀要教完宣告的每一頁，由頁數覆蓋把關
-PER_SECTION = 2000
+# 每個 h2 段落的字數上限，單位見 text_units：一頁講義講到這麼長，就該拆成兩段。
+# 整頁不設上限、也不提醒：講解要細，趕時間的讀者用「只看重點」和速查卡
+PER_SECTION = 4000
 # 一句話的字數上限：讀者是零基礎，一句一件事
 MAX_SENTENCE = 50
 # 估閱讀時間：一分鐘讀幾個字（單位見 text_units）。教材要邊讀邊算，比一般閱讀慢
@@ -67,8 +68,7 @@ DEF_SLOTS = {name for slots in DEF_KINDS.values() for name in slots}
 LABELS = {"trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
           "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "yes": ("是：", "是:"), "no": ("不是：", "不是:"),
           **{name: (label,) for slots in DEF_KINDS.values() for name, label in slots.items() if name not in ("yes", "no")}}
-# 整頁太長的提醒（不擋產出）：正文字數，和沒有摺起來的圖的張數
-PROSE_WARN = 15000
+# 提醒（不擋產出）：沒有摺起來的圖的張數
 FIGURE_WARN = 60
 
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
@@ -512,14 +512,11 @@ def lint(src: str) -> list:
 
 
 def warnings(src: str) -> list:
-    """不擋產出的提醒：整頁太長時讀者抓不到重點。"""
+    """不擋產出的提醒：攤開的圖太多時，讀者找不到正文。"""
     p = Lint()
     p.feed(src)
     p.close()
     out = []
-    units = sum(sec["units"] for sec in p.sections)
-    if units > PROSE_WARN:
-        out.append(f"正文有 {units} 字（提醒門檻 {PROSE_WARN}）：刪掉重複講的段落，把只有少數人要看的推導收進 <details>")
     if p.shown_figures > FIGURE_WARN:
         out.append(f"沒摺起來的圖有 {p.shown_figures} 張（提醒門檻 {FIGURE_WARN}）：整張統計表放查表面板，"
                    "題目裡只留圈出那一格的小截圖")
