@@ -18,7 +18,7 @@ argument-hint: "[repo 路徑…] [static]"
 - **預設**：用 Bash 的 `run_in_background` 跑 `python3 <S>/dashboard.py --serve <repo>…`。它印出的第一行是網址。埠被佔用（`Address already in use`）就加 `--port 0` 重跑，讓系統挑一個。
 - **參數有 `static`**：`python3 <S>/dashboard.py <repo>… -o <scratchpad>/dashboard.html`，照 `<P>/HANDOFF.md` 交付。它不會自動更新。
 
-伺服器只綁 `127.0.0.1`。使用者說要從手機或別台機器看時才加 `--host 0.0.0.0`，並先告訴他：同一個網路上的人都看得到這些決策和進度。
+伺服器只綁 `127.0.0.1`。使用者說要從手機或別台機器看時才加 `--host 0.0.0.0`，並先告訴他：同一個網路上的人都看得到這些決策和進度。這時它印的網址是 `http://0.0.0.0:<埠>/`，給使用者的那一條把 `0.0.0.0` 換成這台機器的區網 IP。
 
 完成條件：預設模式下 `curl -s <網址>data.json` 回的 JSON 裡有里程碑；`static` 時 `<P>/HANDOFF.md` 的完成條件成立。
 
