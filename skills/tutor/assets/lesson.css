@@ -196,7 +196,7 @@ h4 { font-size: 1.0625rem; margin: 1.75rem 0 .4rem; }
 
 /* 有名字的區塊：名字由樣式加上，內文直接寫內容 */
 .summary::before, .tr::before, .sheet::before, .uses::before { display: block; font-weight: 700; margin-bottom: .3rem; }
-.trap::before, .test::before, .def .yes::before, .def .no::before { font-weight: 700; margin-right: .7em; }
+.trap::before, .def :is(.test, .yes, .no, .how, .big, .small, .io, .when, .without)::before { font-weight: 700; margin-right: .7em; }
 .why, .trap { margin: 1.25rem 0; }
 .trap::before { content: "常見錯誤"; }
 .trap > :first-child { display: inline; }
@@ -215,10 +215,17 @@ section.course .summary::before, .peek-body.course .summary::before { content: "
 .def { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule-2); padding: .7rem 0 .8rem; margin: 1.5rem 0; }
 .def > p { margin: .3rem 0; }
 dfn { font-style: normal; font-weight: 700; font-size: 1.125rem; }
-.def .test, .def .yes, .def .no { font-size: .9375rem; line-height: 1.7; }
-.test::before { content: "怎樣才算"; }
+.def :is(.test, .yes, .no, .how, .big, .small, .io, .when, .without) { font-size: .9375rem; line-height: 1.7; }
+/* 三種定義框各三格：要分辨的東西、一個量、一個方法（名字和 build.py 的 DEF_KINDS 一樣） */
+.def .test::before { content: "怎樣才算"; }
 .def .yes::before { content: "是"; color: var(--green-ink); }
 .def .no::before { content: "不是"; color: var(--pink-ink); }
+.def .how::before { content: "怎麼算"; }
+.def .big::before { content: "大代表"; }
+.def .small::before { content: "小代表"; }
+.def .io::before { content: "做什麼"; }
+.def .when::before { content: "什麼時候用"; }
+.def .without::before { content: "不用會怎樣"; }
 .defs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.75rem; margin: 1.5rem 0; }
 .defs .def { margin: 0; }
 
@@ -338,7 +345,7 @@ body.peeking .peek { transform: none; visibility: visible; transition: transform
 #panel { display: none; }
 /* 只看重點：每段只留標題、重點、定義；lesson.js 替其餘的區塊加上 .dg */
 .dg { display: none !important; }
-body.digest .def .test, body.digest .def .yes, body.digest .def .no { display: none; }
+body.digest .def :is(.test, .yes, .no, .how, .big, .small, .io, .when, .without) { display: none; }
 body.digest h2 { margin-top: 2.5rem; }
 .digest-note { display: none; }
 body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375rem; }

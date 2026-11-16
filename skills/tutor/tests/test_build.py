@@ -461,7 +461,7 @@ class CalcRule(unittest.TestCase):
 
 
 class DefRule(unittest.TestCase):
-    """術語寫成 .def：一個 <dfn>，加上「怎樣才算」的 .test。"""
+    """術語寫成 .def：一個 <dfn>，加上這一種術語必填的那一格（data-kind 沒寫就是要分辨的東西，必填「怎樣才算」）。"""
 
     def body(self, d):
         return page(f'<h2>一</h2>{EG}{d}')
@@ -474,6 +474,32 @@ class DefRule(unittest.TestCase):
 
     def test_def_with_empty_test_fails(self):
         self.assertFalse(ok(self.body('<div class="def"><p><dfn>趨勢</dfn>：長期方向</p><p class="test"> </p></div>')))
+
+    def test_kind_needs_its_own_slot(self):
+        cases = [('<div class="def" data-kind="quantity"><p><dfn>季節指數</dfn>：比一般季高多少</p><p class="test">加起來 400</p></div>', "怎麼算"),
+                 ('<div class="def" data-kind="method"><p><dfn>比率移動平均法</dfn>：和附近一年比</p><p class="io">進去 Y，出來 S</p></div>',
+                  "什麼時候用"),
+                 ('<div class="def" data-kind="class"><p><dfn>趨勢</dfn>：長期方向</p><p class="how">後半減前半</p></div>', "怎樣才算")]
+        for d, label in cases:
+            with self.subTest(d=d[:50]):
+                self.assertTrue(has(self.body(d), f"的「{label}」"), build.lint(self.body(d)))
+
+    def test_unknown_kind_fails(self):
+        d = '<div class="def" data-kind="number"><p><dfn>季節指數</dfn>：比一般季高多少</p><p class="test">加起來 400</p></div>'
+        self.assertTrue(has(self.body(d), 'data-kind="number" 看不懂'))
+
+    def test_other_kinds_pass_without_yes_and_no(self):
+        variants = [
+            '<div class="def" data-kind="quantity"><p><dfn>季節指數</dfn>：比一般季高多少</p>'
+            '<p class="how">7 ÷ 10 × 100 = 70</p><p class="big">高於 100 是旺季</p><p class="small">低於 100 是淡季</p></div>',
+            '<DIV DATA-KIND="quantity" CLASS="def x"><p><dfn>移動平均</dfn></p><ul class="how"><li>(8 + 12 + 10 + 10) ÷ 4</li></ul></DIV>',
+            '<div class="def" data-kind="method"><p><dfn>比率移動平均法</dfn>：和附近一年比</p><p class="io">進去 Y，出來 S</p>'
+            '<p class="when">資料有趨勢</p><p class="without">年尾的季被墊高</p></div>',
+            '<div data-kind=" method " class="def"><p><dfn>分解</dfn></p><div class="when"><p>要預測的時候</p></div></div>',
+        ]
+        for d in variants:
+            with self.subTest(d=d[:50]):
+                self.assertTrue(ok(self.body(d)), build.lint(self.body(d)))
 
     def test_two_terms_in_one_def_fails(self):
         self.assertFalse(ok(self.body('<div class="def"><p><dfn>趨勢</dfn>、<dfn>季節</dfn></p>'
@@ -904,6 +930,7 @@ class LabelRule(unittest.TestCase):
                  prob('<h2>一</h2><ul class="uses"><li>這題用到 §1 的 F</li></ul>'),
                  prob('<h2>一</h2><UL CLASS="x uses">\n  <li><b>這題用到</b>：§1</li></UL>'),
                  page(f"<h2>一</h2>{EG}" + self.DEF.format("怎樣才算：前後平均不同")),
+                 page(f'<h2>一</h2>{EG}<div class="def" data-kind="quantity"><p><dfn>指數</dfn></p><p class="how">怎麼算：7 ÷ 10</p></div>'),
                  page(f'<h2>一</h2><div class="yes"><p>是：2, 4, 6 往上</p></div>'),
                  page(f'<h2>一</h2><div class="yes"><p>是:2, 4, 6 往上</p></div>'),
                  page(f'<h2>一</h2><div class="no"><p>不是：2, 6, 4 忽高忽低</p></div>'),

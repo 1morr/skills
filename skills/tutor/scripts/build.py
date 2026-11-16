@@ -58,10 +58,15 @@ FROM_KINDS = {"table", "count", "convention", "rule", "constant"}
 # 這兩種在材料或算式上看得到，要連到同一段裡圈出它的 figure 或算出它的 .calc
 LINKED_FROM = {"table", "count"}
 
+# 定義框的三種（data-kind）：要分辨的東西、一個量、一個方法。每種三格 {class: 頁面上的名字}，必填的那一格排第一
+DEF_KINDS = {"class": {"test": "怎樣才算", "yes": "是", "no": "不是"},
+             "quantity": {"how": "怎麼算", "big": "大代表", "small": "小代表"},
+             "method": {"when": "什麼時候用", "io": "做什麼", "without": "不用會怎樣"}}
+DEF_SLOTS = {name for slots in DEF_KINDS.values() for name in slots}
 # 這些框的標籤由樣式加上；內文開頭再寫一次就重複了
 LABELS = {"trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
-          "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "test": ("怎樣才算",), "yes": ("是：", "是:"),
-          "no": ("不是：", "不是:")}
+          "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "yes": ("是：", "是:"), "no": ("不是：", "不是:"),
+          **{name: (label,) for slots in DEF_KINDS.values() for name, label in slots.items() if name not in ("yes", "no")}}
 # 整頁太長的提醒（不擋產出）：正文字數，和沒有摺起來的圖的張數
 PROSE_WARN = 15000
 FIGURE_WARN = 60
@@ -105,7 +110,7 @@ class Lint(HTMLParser):
         self.prev = [set()]  # prev[d]：stack 第 d 層裡最後一個結束的子元素的 class
         self.sections = []  # 每個 h2 段落，欄位見 handle_starttag
         self.row = None  # 正在讀的「數字從哪來」表格列
-        self.defs = []  # 開著的 .def：{"dfn": 個數, "test": 文字}
+        self.defs = []  # 開著的 .def：{"dfn": 個數, "kind": data-kind, "slots": {格子的 class: 文字}}
         self.calcs = []  # 開著的 .calc：{"formula": 文字, "subst": 文字}
         self.refs = []  # 內文提到的 §N、§N.M
         self.heading = None  # 正在讀的 h2 標題
@@ -213,7 +218,12 @@ class Lint(HTMLParser):
             else:
                 self.problems.append('<dfn> 不在 class="def" 的定義框裡：術語要有「是什麼、怎樣才算、例子」')
         if "def" in cls:
-            self.defs.append({"dfn": 0, "test": "", "term": "", "example": self.example})
+            kind = (a.get("data-kind") or "class").strip()
+            if kind not in DEF_KINDS:
+                self.problems.append(f'定義框的 data-kind="{kind}" 看不懂：只能是 {"、".join(DEF_KINDS)}'
+                                     "（要分辨的東西、一個量、一個方法）")
+                kind = "class"
+            self.defs.append({"dfn": 0, "kind": kind, "slots": {}, "term": "", "example": self.example})
         if "calc" in cls:
             self.calcs.append({"formula": "", "subst": "", "ans": False})
         if tag == "h2":
@@ -309,8 +319,12 @@ class Lint(HTMLParser):
             d = self.defs.pop()
             if d["dfn"] != 1:
                 self.problems.append(f'定義框裡有 {d["dfn"]} 個 <dfn>：一個 class="def" 只定義一個術語')
-            if not d["test"].strip():
-                self.problems.append('定義框沒有 class="test" 的「怎樣才算」：要寫讀者能拿來檢查的判斷標準')
+            need, label = next(iter(DEF_KINDS[d["kind"]].items()))
+            if not d["slots"].get(need, "").strip():
+                self.problems.append(f'定義框「{d["term"].strip()[:20]}」（data-kind="{d["kind"]}"）沒有 class="{need}" 的「{label}」：'
+                                     + {"class": "要寫讀者能拿來檢查的判斷標準",
+                                        "quantity": "用小整數算一次給讀者看",
+                                        "method": "寫出遇到什麼情況要用它"}[d["kind"]])
             if not d["example"]:
                 self.problems.append(f'定義框「{d["term"].strip()[:20]}」前面沒有先舉例：新概念先用生活情境和小整數在原地算一次或畫一次，'
                                      "再說「這叫做○○」（這個 h2/h3 塊裡，定義框之前的正文要有數字）")
@@ -393,8 +407,10 @@ class Lint(HTMLParser):
                 fig["caption"] += data
         if self.heading is not None:
             self.heading += data
-        if self.defs and self.inside_class("test"):
-            self.defs[-1]["test"] += data
+        if self.defs:
+            for name in DEF_SLOTS:
+                if self.inside_class(name):
+                    self.defs[-1]["slots"][name] = self.defs[-1]["slots"].get(name, "") + data
         if self.defs and self.inside("dfn"):
             self.defs[-1]["term"] += data
         if self.calcs:
