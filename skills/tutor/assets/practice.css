@@ -223,7 +223,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
 }
 
 /* ── 模擬卷印在 A4：考卷是封面、題目、作答頁，查表面板的表接在卷末；不印翻譯和答案。
-   每題從新的一頁開始，後面接整頁的作答頁（.space，一個一頁）；題目那一頁剩下的空白也可以寫。
+   每題從新的一頁開始，後面接一張整頁的作答頁（.space）；題目那一頁剩下的空白也可以寫。
    body.print-key 是答案：題目下面印範本答案和給分點，不印作答頁和卷末的表 ── */
 @page {
   size: A4; margin: 16mm 15mm 18mm;

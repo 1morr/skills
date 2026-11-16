@@ -15,8 +15,7 @@
     data-minutes  建議作答時間（分鐘），印在封面；可以不寫
     data-guide    可以列好幾份導讀頁，用 ; 分開（跨 topic 的累積卷）
     只有完整題目：不放基本功、不寫對照的 §、不用 data-differs。只列一份導讀頁時，它的每個題型至少一題。
-    每題從新的一頁開始，後面接整頁的作答頁（題目那一頁剩下的空白也可以寫）。
-    section 的 data-h 是要寫多長（px，96 px = 1 吋）：每一頁 A4（約 990）一張作答頁，四捨五入、至少一張；預設 900。
+    每題從新的一頁開始，後面接一張整頁的作答頁（題目那一頁剩下的空白也可以寫）；模擬卷不看 data-h。
     版面照 LaTeX exam class 的慣例：封面有「題目／滿分／得分」表（滿分是那題給分點的總和），每題後面留作答頁，答案另外印。
     組好之後用同一個瀏覽器印兩份 PDF，放在頁面旁邊，路徑印在 stdout：
         <頁面檔名>.pdf          考卷：封面、題目、作答頁，查表面板的表接在卷末；不印翻譯和答案
@@ -73,8 +72,6 @@ MODES = ("practice", "mock")
 ORIGINAL = "老師原題"
 # 完整題目的畫布預設高度（畫布座標）；寫不下時讀者按「加長」。基本功只填一格，寫了 data-h 才有畫布
 PAD_H = 900
-# 模擬卷印在 A4：一頁能寫的高度（px）。data-h 除以它、四捨五入就是作答頁的張數
-PAPER_PAGE = 990
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
@@ -372,7 +369,7 @@ def q_tags(inner: str):
 def add_pads(inner: str, paper: bool = False) -> str:
     """每題完整題目加一張畫布，排在範本答案前面（沒有範本答案就排在最後）：先寫，往下才是答案。data-h 可以在 section 上覆寫預設高度。
     基本功只填一格，不加畫布（要打草稿的那一題在 section 寫 data-h）。
-    paper（模擬卷）：同一個位置改放紙上的作答頁 .space（一個一頁），只在列印時出現。"""
+    paper（模擬卷）：同一個位置改放一張紙上的作答頁 .space，只在列印時出現；不夠寫的人自己加紙。"""
     out, pos = [], 0
     low = inner.lower()
     for m, a in q_tags(inner):
@@ -385,8 +382,8 @@ def add_pads(inner: str, paper: bool = False) -> str:
         if model is not None:
             end = m.end() + model
         qid = html.escape(a["data-id"])
-        if paper:  # 整頁的作答頁；題目那一頁剩下的空白也可以寫
-            box = f'<div class="space" data-id="{qid}"></div>\n' * max(1, round(height / PAPER_PAGE))
+        if paper:  # 一張整頁的作答頁；題目那一頁剩下的空白也可以寫
+            box = f'<div class="space" data-id="{qid}"></div>\n'
         else:
             box = f'<div class="pad" data-id="{qid}" data-h="{height}"></div>\n'
         out += [inner[pos:end], box]
@@ -433,7 +430,7 @@ def cover(inner: str, minutes: str, tables: bool) -> str:
             f'<table><thead><tr><th>題目</th><th>滿分</th><th>得分</th></tr></thead>\n<tbody>{rows}'
             f'<tr class="total"><td>合計</td><td>{total}</td><td></td></tr></tbody></table>\n'
             f"<ul>\n<li>照考試做：不看導讀頁、不看筆記{'，只用卷末附的表' if tables else ''}。</li>\n"
-            "<li>寫在題目下面的空白和後面的作答頁，每一步都寫出來；最後的數字再填到題目裡的底線上。</li>\n</ul>\n</div>\n")
+            "<li>寫在題目下面的空白和後面的作答頁，每一步都寫出來，不夠寫就自己加紙；最後的數字再填到題目裡的底線上。</li>\n</ul>\n</div>\n")
 
 
 def finish_models(inner: str) -> str:
