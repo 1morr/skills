@@ -256,9 +256,10 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body[data-mode="mock"] .space { display: block; position: relative; height: 250mm; border: 1px solid #999; break-before: page; break-inside: avoid; }
   body[data-mode="mock"] .space::before { content: attr(data-id) " 作答頁"; position: absolute; top: 1.5mm; left: 2mm; font: 8pt var(--mono); color: #777; }
   body[data-mode="mock"]:not(.print-key) :is(details.model, .zh) { display: none !important; }
-  body[data-mode="mock"] #panel { display: block !important; position: static; width: auto; border: 0; box-shadow: none; background: none; }
+  /* 卷末的表從新的一頁開始，一頁放得下幾張就放幾張 */
+  body[data-mode="mock"] #panel { display: block !important; position: static; width: auto; border: 0; box-shadow: none; background: none; break-before: page; }
   body[data-mode="mock"] #panel .body { overflow: visible; padding: 0; }
-  body[data-mode="mock"] #panel figure { display: block !important; break-before: page; }
+  body[data-mode="mock"] #panel figure { display: block !important; break-inside: avoid; margin-bottom: 8mm; }
   body[data-mode="mock"] #panel figure::before { content: attr(data-name); display: block; margin-bottom: 3mm; font-weight: 700; }
   body[data-mode="mock"] #panel img { width: auto; max-width: 100%; max-height: 235mm; cursor: auto; }
   body.print-key h1::after { content: "：答案"; }
