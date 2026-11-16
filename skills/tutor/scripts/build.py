@@ -178,7 +178,7 @@ class Lint(HTMLParser):
             what = ", ".join(sorted(cls & ANSWER_ONLY))
             self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
         if tag == "figure":
-            self.shown_figures += not self.inside("details") and "src" not in cls
+            self.shown_figures += not self.inside("details")
             if self.inside_class("panel") and not (a.get("data-tab") or "").strip():
                 self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
             self.figures.append({"caption": "", "in_caption": False, "page": "page" in cls, "id": a.get("id") or "",
@@ -559,7 +559,7 @@ NUMBERED_H2 = re.compile(r'<h2([^>]*)><span class="num">§(\d+)</span> (.*?)</h2
 ID_ATTR = re.compile(r"""\bid\s*=\s*["']?([^"'\s>]+)""")
 DOT = '<span class="dot">·</span>'
 ICONS = {"check": '<path d="M3 8.5l3.2 3.2L13 4.5"/>', "x": '<path d="M4 4l8 8M12 4l-8 8"/>',
-         "chev": '<path d="M6 3.5L10.5 8 6 12.5"/>', "list": '<path d="M2.5 4h11M2.5 8h11M2.5 12h7"/>'}
+         "list": '<path d="M2.5 4h11M2.5 8h11M2.5 12h7"/>'}
 
 
 def icon(name: str) -> str:
@@ -615,21 +615,6 @@ def add_meta(src: str, anchors: dict) -> str:
                 f'<p class="meta">{DOT.join(bits)}</p>']
         pos = m.end()
     return "".join(out) + src[pos:]
-
-
-SRC_FIG = re.compile(rf"<figure\b({has_class('src')})>(.*?)</figure\s*>", re.I | re.S)
-
-
-def mark_sources(src: str) -> str:
-    """figure.src（只當佐證的講義原文）加上一列可以按的標題，圖和圖說包進 .fig-body：
-    寬螢幕它縮在右邊留白，窄螢幕只剩這一列，按了才在正文展開。"""
-    def repl(m):
-        cap = re.search(r"<figcaption[^>]*>(.*?)</figcaption\s*>", m.group(2), re.I | re.S)
-        return (f'<figure{m.group(1)}><button type="button" class="fig-open" aria-expanded="false">{icon("chev")}'
-                f'<b>講義原文</b><span>{plain(cap.group(1)) if cap else ""}</span></button>'
-                f'<div class="fig-body">{m.group(2)}</div></figure>')
-
-    return SRC_FIG.sub(repl, src)
 
 
 def add_cheat(src: str) -> str:
@@ -851,7 +836,7 @@ def inject_assets(src: str) -> str:
 def build(src: str, base: Path) -> str:
     src, anchors = number_headings(src)
     src = add_meta(link_refs(add_panel(src), anchors), anchors)
-    src = add_terms(add_cheat(mark_sources(src)), anchors)
+    src = add_terms(add_cheat(src), anchors)
     src = add_shell(add_parts(src))
     return inject_assets(inline_images(split_bilingual(src), base))
 

@@ -912,22 +912,6 @@ class WarningRule(unittest.TestCase):
     def test_folded_figures_do_not_count(self):
         self.assertEqual(build.warnings(page(f"<h2>一</h2><details><summary>圖</summary>{self.FIGS}</details>")), [])
 
-    def test_source_figures_do_not_count(self):
-        n = build.FIGURE_WARN + 1
-        for cls in ("src", "wide src"):
-            with self.subTest(cls=cls):
-                figs = ZH_FIG.replace("<figure>", f'<figure class="{cls}">') * n
-                self.assertEqual(build.warnings(page("<h2>一</h2>" + figs)), [])
-        for cls in ("srcset", "wide"):  # class 不是整個字等於 src 的照算
-            with self.subTest(cls=cls):
-                figs = ZH_FIG.replace("<figure>", f'<figure class="{cls}">') * n
-                self.assertTrue(any("圖" in w for w in build.warnings(page("<h2>一</h2>" + figs))))
-
-    def test_source_figures_next_to_open_ones_leave_the_count_alone(self):
-        src_figs = ZH_FIG.replace("<figure>", '<figure class="src">') * build.FIGURE_WARN
-        self.assertEqual(build.warnings(page("<h2>一</h2>" + src_figs + ZH_FIG)), [])
-        self.assertTrue(build.warnings(page("<h2>一</h2>" + src_figs + ZH_FIG * (build.FIGURE_WARN + 1))))
-
     def test_ordinary_page_has_no_warning(self):
         self.assertEqual(build.warnings(page()), [])
 
@@ -1169,9 +1153,7 @@ class MetaStep(unittest.TestCase):
         self.assertIn("用到這頁的題目", meta_of(build.add_meta(build.link_refs(src, anchors), anchors), "s1"))
 
     def test_class_names_match_whole_words(self):
-        """class 要整個字相符：x-src 不是 src，cheat-x 不是 cheat。"""
-        fig = '<figure class="x-src"><img src="a.png"><figcaption>p.1</figcaption></figure>'
-        self.assertEqual(build.mark_sources(fig), fig)
+        """class 要整個字相符：cheat-x 不是 cheat。"""
         card = '<div class="cheat-x">卡</div>'
         self.assertEqual(build.add_cheat(card), card)
 
@@ -1201,44 +1183,6 @@ class MetaStep(unittest.TestCase):
     def test_section_nobody_links_to_has_only_minutes(self):
         out = self.run_meta("<h2>甲</h2><p>見 §1</p>", "<h2>例</h2><p>沒有連結</p>")
         self.assertRegex(meta_of(out, "s1"), r"^約 \d+ 分鐘$")
-
-
-class SourceStep(unittest.TestCase):
-    """mark_sources：figure.src 加一列可以按的標題，原本的內容包進 .fig-body。"""
-    INNER = '<img src="a.png"><figcaption>Classnote Topic 3 p.4</figcaption>'
-
-    def test_src_figure_gets_an_opener_and_a_body(self):
-        out = build.mark_sources(f'<figure class="src">{self.INNER}</figure>')
-        self.assertTrue(out.startswith('<figure class="src"><button type="button" class="fig-open"'), out)
-        self.assertEqual(out.count("fig-open"), 1)
-        button = re.search(r"<button.*?</button>", out, re.S).group(0)
-        self.assertIn("Classnote Topic 3 p.4", button)
-        self.assertTrue(out.endswith(f'<div class="fig-body">{self.INNER}</div></figure>'), out)
-
-    def test_caption_markup_is_flattened_in_the_opener(self):
-        out = build.mark_sources('<figure class="src"><img src="a.png"><figcaption><b>講義</b> p.4</figcaption></figure>')
-        button = re.search(r"<button.*?</button>", out, re.S).group(0)
-        self.assertIn("講義 p.4", button)
-        self.assertNotIn("<b>講義</b>", button)
-
-    def test_formatting_variants_still_wrap(self):
-        for tag in ('<FIGURE\n  CLASS=\'wide src\' id="f1">', '<figure id="f1" class="src wide">'):
-            with self.subTest(tag=tag):
-                out = build.mark_sources(f"{tag}\n{self.INNER}\n</FIGURE>")
-                self.assertEqual(out.count('class="fig-open"'), 1)
-                self.assertIn(f'<div class="fig-body">\n{self.INNER}\n</div>', out)
-                self.assertRegex(out, r"(?i)^<figure[^>]*><button")
-
-    def test_src_figure_without_caption_still_wraps(self):
-        out = build.mark_sources('<figure class="src"><img src="a.png"></figure>')
-        self.assertIn('<div class="fig-body"><img src="a.png"></div>', out)
-        self.assertEqual(out.count('class="fig-open"'), 1)
-
-    def test_other_figures_stay_as_they_are(self):
-        for tag in ("<figure>", '<figure class="page">', '<figure class="srcset">', '<figure data-src="x">'):
-            with self.subTest(tag=tag):
-                src = f"{tag}{self.INNER}</figure>"
-                self.assertEqual(build.mark_sources(src), src)
 
 
 class CheatStep(unittest.TestCase):

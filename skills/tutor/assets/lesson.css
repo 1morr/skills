@@ -1,5 +1,5 @@
 /* tutor 導讀頁的樣式；build.py 會把它內嵌進每一頁。
-   一本只有一條捲軸的課本：左邊固定的目錄、中間一欄正文、右邊留白放講義原文的小圖。
+   一本只有一條捲軸的課本：左邊固定的目錄、中間一欄正文，圖都排在正文裡；對照欄從右邊打開。
    白紙黑字，一個藍色管結構，三支螢光筆各管一件事：
    藍＝§ 編號、連結、新名詞、目錄上現在那一段；黃＝算出來的答案和要帶走的話；粉紅＝容易錯；綠＝讀過。
    整塊上色的只有「這頁重點」。正紅留給課件截圖上老師的紅框，介面不用。
@@ -26,7 +26,7 @@
   /* 數學和英文原文用襯線體；中文字落到後面的黑體，不會變成細明體 */
   --serif: "STIX Two Text", Cambria, "Times New Roman", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", serif;
   --math: "STIX Two Math", "Cambria Math", "Latin Modern Math", var(--serif);
-  --rail: 17.5rem; --pad: 3.5rem; --col: 42.5rem; --gap: 2.5rem; --margin: 16.5rem; --head: 2.75rem;
+  --rail: 17.5rem; --pad: 3.5rem; --col: 42.5rem; --gap: 2.5rem; --head: 2.75rem;
   --peek: clamp(22rem, calc(100vw - var(--rail) - var(--pad) - var(--col) - 1rem), 32rem);
   --ease: cubic-bezier(.16, 1, .3, 1);
 }
@@ -138,7 +138,7 @@ main { min-width: 0; }
 .btn[hidden] { display: none; }
 
 /* ── 正文欄 ── */
-.page { max-width: calc(var(--col) + var(--pad) + var(--gap) + var(--margin)); padding: 0 calc(var(--gap) + var(--margin)) 8rem var(--pad); }
+.page { max-width: calc(var(--col) + var(--pad) + var(--gap)); padding: 0 var(--gap) 8rem var(--pad); }
 .page section > *, .page section > section > * { max-width: var(--col); }
 .page section > section { max-width: none; }
 h1 { font-size: 2rem; line-height: 1.3; font-weight: 700; margin: 2.5rem 0 .75rem; text-wrap: balance; }
@@ -258,22 +258,14 @@ caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom:
 .terms a.ref { justify-self: start; white-space: normal; }
 .terms .where { color: var(--ink-2); font-size: .875rem; font-variant-numeric: tabular-nums; }
 
-/* 圖。正文裡的圖是講解會指著說的；figure.src 是只當佐證的講義原文：
-   寬螢幕放在右邊留白，窄螢幕收成一行，按一下搬進正文放大。
-   翻譯過的圖預設顯示原文（考試用原文），按圖說的「看中文」才換成翻譯 */
+/* 圖。翻譯過的圖預設顯示原文（考試用原文），按圖說的「看中文」才換成翻譯 */
 figure { margin: 1.5rem 0; }
 figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--rule-2); background: #fff; filter: var(--img-filter); }
 figure img.zh, figure.show-zh img.en { display: none; }
 figure.show-zh img.zh { display: block; }
 figcaption { font-size: .8125rem; line-height: 1.5; color: var(--ink-2); margin-top: .4rem; display: flex; flex-wrap: wrap; gap: .1rem .75rem; align-items: baseline; }
-figcaption button, .fig-open { border: 0; background: none; padding: 0; cursor: pointer; }
+figcaption button { border: 0; background: none; padding: 0; cursor: pointer; }
 figcaption button { color: var(--blue); font-size: .8125rem; text-decoration: underline; text-underline-offset: .2em; }
-.fig-open { display: none; width: 100%; text-align: left; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-size: .875rem; color: var(--ink-2); }
-.fig-open b { color: var(--ink); font-weight: 600; flex: none; }
-.fig-open .i { transition: transform .2s var(--ease); }
-figure.src.open .fig-open .i { transform: rotate(90deg); }
-figure.src img { cursor: zoom-in; }
-figure.src.open img { cursor: zoom-out; }
 
 /* 摺疊。自測和做法：先自己做，再打開；只有摘要那一列是框，打開的內容直接排在下面 */
 details { margin: 1.25rem 0; }
@@ -329,8 +321,6 @@ body.peeking .peek { transform: none; visibility: visible; transition: transform
 .peek-body { overflow-y: auto; overscroll-behavior: contain; padding: .25rem 1.25rem 3rem; font-size: 1rem; scrollbar-width: thin; }
 .peek-body h2, .peek-body .meta, .peek-body .cheat-tools { display: none; }
 .peek-body .defs { grid-template-columns: 1fr; gap: 1rem; }
-.peek-body figure.src .fig-open { display: flex; }
-.peek-body figure.src:not(.open) .fig-body { display: none; }
 .peek-body .hit { animation: stroke 1.6s var(--ease) both; }
 .peek-body .tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; }
 .scrim { display: none; }
@@ -342,12 +332,8 @@ body.digest h2 { margin-top: 2.5rem; }
 .digest-note { display: none; }
 body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375rem; }
 
-/* ── 寬螢幕：講義原文放進右邊留白 ── */
+/* ── 寬螢幕 ── */
 @media (min-width: 1180px) {
-  .page figure.src:not(.open) { float: right; clear: right; width: var(--margin); max-width: none; margin: .3rem calc(-1 * (var(--margin) + var(--gap))) 1rem 0; }
-  .page figure.src:not(.open) img { width: 100%; }
-  .page figure.src:not(.open) figcaption .cap { flex-basis: 100%; }
-  .page details figure.src:not(.open), .page .why figure.src:not(.open), .page .sheet figure.src:not(.open) { float: none; width: auto; margin: 1.5rem 0; }
   /* 並排：左半邊是正在做的題目，右半邊是講義那一整段；目錄收進頁眉的按鈕 */
   .peek-acts .split { display: inline-block; }
   body.split { display: block; }
@@ -364,19 +350,14 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
   body.split main { margin-right: 50vw; }
   body.split .head { padding-left: 2.5rem; }
   body.split .page { padding: 0 2.5rem 8rem; }
-  body.split .page figure.src:not(.open) { float: none; width: auto; margin: 1.5rem 0; }
-  body.split .page figure.src .fig-open { display: flex; }
-  body.split .page figure.src:not(.open) .fig-body { display: none; }
 }
 @media (min-width: 1180px) and (max-width: 1359px) {
-  :root { --rail: 15.5rem; --pad: 2.5rem; --gap: 2rem; --margin: 13.5rem; --peek: 19.5rem; }
+  :root { --rail: 15.5rem; --pad: 2.5rem; --gap: 2rem; --peek: 19.5rem; }
 }
-/* ── 平板橫放：目錄留著，講義原文收成一行 ── */
+/* ── 平板橫放：目錄留著 ── */
 @media (max-width: 1179px) {
   :root { --rail: 15rem; --pad: 2.5rem; --peek: min(26rem, 100vw); }
   .page { padding-right: 2rem; }
-  figure.src .fig-open { display: flex; }
-  figure.src:not(.open) .fig-body { display: none; }
 }
 /* ── 平板直放、手機：目錄收進頁眉的按鈕 ── */
 @media (max-width: 899px) {
@@ -413,10 +394,8 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
 }
 @media print {
   body { display: block; background: #fff; color: #000; }
-  .rail, .head, .peek, .scrim, .cheat-tools, figcaption button, .fig-open { display: none !important; }
+  .rail, .head, .peek, .scrim, .cheat-tools, figcaption button { display: none !important; }
   .page { max-width: none; padding: 0; }
-  figure.src:not(.open) { float: none; width: auto; margin: 1rem 0; }
-  figure.src .fig-body { display: block !important; }
   figure img { filter: none; }
   /* 列印速查卡：只印那張卡 */
   body.print-cheat .page section > :not(.cheat), body.print-cheat section.course { display: none; }

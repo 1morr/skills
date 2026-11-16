@@ -305,29 +305,19 @@ document.addEventListener("click", (e) => {
   }
   const fig = e.target.closest("figure");
   if (!fig) return;
-  if (e.target.closest("button.lang")) { fig.classList.toggle("show-zh"); paintLang(fig); return; }
-  if (fig.classList.contains("src") && e.target.closest(".fig-open, img, button.zoom")) {
-    const open = fig.classList.toggle("open");
-    $(".fig-open", fig)?.setAttribute("aria-expanded", String(open));
-    const z = $("button.zoom", fig);
-    if (z) z.textContent = open ? "收回" : "放大";
-  }
+  if (e.target.closest("button.lang")) { fig.classList.toggle("show-zh"); paintLang(fig); }
 });
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closePeek(); document.body.classList.remove("nav-open"); }
 });
 
-// 圖說上的按鈕：翻譯過的圖加「看中文」，講義原文的小圖加「放大」
+// 圖說上的按鈕：翻譯過的圖加「看中文」
 $$("figure").forEach((f) => {
   const cap = $("figcaption", f);
-  if (!cap) return;
-  const add = (cls, text) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = cls; b.textContent = text;
-    cap.append(b);
-  };
-  if ($("img.zh", f)) add("lang", "看中文");
-  if (f.classList.contains("src")) add("zoom", "放大");
+  if (!cap || !$("img.zh", f)) return;
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "lang"; b.textContent = "看中文";
+  cap.append(b);
 });
 // 上次讀到哪
 if (!location.hash && store.last && $(".resume")) {
