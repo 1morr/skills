@@ -121,6 +121,7 @@ class Lint(HTMLParser):
         self.type_slugs = []  # 題型表每一列的 data-type
         self.boxes = []  # 開著的有標籤的框：{"depth", "labels", "first"}
         self.shown_figures = 0  # 沒有摺在 <details> 裡的圖
+        self.checks = []  # 講義那部開著的自測：{"ask": summary 的字, "refs": 答案裡的 § 個數}
         self.whys = []  # 開著的 .why：{"state": start|q|done|bad, "q": 開頭那個 <b> 裡的字}
 
     def skipping(self) -> bool:
@@ -165,6 +166,8 @@ class Lint(HTMLParser):
             self.whys[-1]["state"] = "q"
         if "why" in cls:
             self.whys.append({"state": "start", "q": ""})
+        if tag == "details" and "check" in cls and self.pane() == "course":
+            self.checks.append({"ask": "", "refs": 0, "depth": len(self.stack)})
         for key in ("src", "href", "data-zh"):
             if tag in ("img", "script", "link", "source") and a.get(key) and REMOTE.match(a[key]):
                 self.problems.append(f"外部資源 <{tag} {key}={a[key]!r}>：頁面要能離線打開，請改成本機檔案")
@@ -318,6 +321,11 @@ class Lint(HTMLParser):
             if w["state"] != "done" or not w["q"].strip().endswith(("？", "?")):
                 self.problems.append("「為什麼」框沒有先寫出它在回答的問題：開頭寫成 <b>讀者會問的那一句？</b>（問號結尾），"
                                      "接著才是答案；一個框只答一個問題")
+        if tag == "details" and self.checks and self.checks[-1]["depth"] == len(self.stack):
+            c = self.checks.pop()
+            if not c["refs"]:
+                self.problems.append(f"自測「{' '.join(c['ask'].split())[:20]}」的答案沒有指回講義的 §：答案要教會答不出來的人，"
+                                     "寫出線索、對到這頁的哪一條規則，最後一行「還不會：回 §N.M」")
         if "calc" in cls and self.calcs:
             c = self.calcs.pop()
             what = " ".join((c["formula"] + c["subst"]).split())[:30]
@@ -396,6 +404,11 @@ class Lint(HTMLParser):
                 self.calcs[-1]["subst"] += data
         found = SECTION_REF.findall(data)
         self.refs += found
+        if self.checks:
+            if self.inside("summary"):
+                self.checks[-1]["ask"] += data
+            else:
+                self.checks[-1]["refs"] += len(found)
         if self.sections:
             self.sections[-1]["refs"] += found
             if self.inside_class("uses"):

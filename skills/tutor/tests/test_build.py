@@ -25,7 +25,7 @@ PNG = base64.b64decode(
 TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p></div>'
 FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 ZH_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
-CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
+CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE。還不會：回 §1</p></details>'
 # 課件欄第一段是 §1，題目欄每題的「這題用到」連到它
 USES = '<ul class="uses"><li>F 是訊號除以雜訊，見 §1</li></ul>'
 # 「為什麼」是選用的；寫了就先寫出它在回答的問題
@@ -196,11 +196,11 @@ class LengthRule(unittest.TestCase):
         self.assertTrue(ok(page(f"<h2>一</h2><p>{half}</p><h2>二</h2><p>{half}</p>")))
 
     def test_no_whole_page_limit(self):
-        body = "".join(f"<h2>{i}</h2><p>{prose(self.per - 20)}</p>" for i in range(30))
+        body = "".join(f"<h2>{i}</h2><p>{prose(self.per - 40)}</p>" for i in range(30))
         self.assertTrue(ok(page(body)), build.lint(page(body))[:2])
 
     def test_english_counts_words_not_letters(self):
-        words = prose(self.per - 20, "regression")
+        words = prose(self.per - 40, "regression")
         self.assertTrue(ok(page(f"<h2>一</h2><p>{words}</p>")))
 
     def test_sheet_table_figure_not_counted(self):
@@ -573,12 +573,41 @@ class CourseSectionRule(unittest.TestCase):
             f'<SECTION CLASS="x summary"><p>重點</p></SECTION><h3>甲</h3><p>內容</p>{CHECK}{CHECK}\n<!-- 註解 -->\n',
             f"<h2>一</h2>{SUMMARY}<h3>甲</h3>{CHECK}<h3>乙</h3><p>內容</p>"
             '<DETAILS open CLASS="wide check"><summary>算 r</summary><div class="calc"><p class="formula">r = 1 / 2</p>'
-            '<p class="subst">= <span class="ans">0.5</span></p></div></DETAILS>',
+            '<p class="subst">= <span class="ans">0.5</span></p></div><p>還不會：回 §1.1</p></DETAILS>',
         ]
         for course in variants:
             with self.subTest(course=course[:40]):
                 src = self.raw(course)
                 self.assertTrue(ok(src), build.lint(src))
+
+
+class CheckAnswerRule(unittest.TestCase):
+    """講義那部的自測，答案要指回講義的 §；題目那部補完用的自測不用。"""
+    NO_REF = "的答案沒有指回講義的 §"
+
+    def raw(self, course):
+        return page(course, f"<h2>例</h2><p>題目</p>{SUMMARY}{RECAP}", close=False)
+
+    def test_answer_without_section_fails(self):
+        cases = ['<details class="check"><summary>三件事各是哪個成分？</summary><p>(1) 季節 S：每年同一個月重複。</p></details>',
+                 # § 寫在問題裡不算：答不出來的人打開答案才要知道回哪裡
+                 '<details class="check"><summary>§1 的三件事各是哪個成分？</summary><p>季節。</p></details>']
+        for check in cases:
+            with self.subTest(check=check[:60]):
+                self.assertTrue(has(self.raw(f"<h2>一</h2>{SUMMARY}<p>內容</p>{check}"), self.NO_REF))
+
+    def test_answer_pointing_back_passes(self):
+        cases = ['<details class="check"><summary>哪個成分？</summary><p>季節 S。線索是「每年 7 月」。</p><p>還不會：回 §1</p></details>',
+                 '<DETAILS CLASS="x check" open><summary>哪個成分？</summary><ul><li>季節 S（§1 的「怎樣才算」）</li></ul></DETAILS>']
+        for check in cases:
+            with self.subTest(check=check[:60]):
+                src = self.raw(f"<h2>一</h2>{SUMMARY}<p>內容</p>{check}")
+                self.assertTrue(ok(src), build.lint(src))
+
+    def test_completion_check_in_problems_needs_no_section(self):
+        check = '<details class="check"><summary>這一步代入後是多少？</summary><p>0.5</p></details>'
+        src = prob(f"<h2>一</h2><p>題目</p>{check}")
+        self.assertTrue(ok(src), build.lint(src))
 
 
 class PageFoldRule(unittest.TestCase):
