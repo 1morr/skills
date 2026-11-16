@@ -837,7 +837,7 @@ CLASS_ATTR = re.compile(r"""(\sclass\s*=\s*["'])""", re.I)
 
 
 def split_bilingual(src: str) -> str:
-    """<img src="原圖" data-zh="翻譯圖"> 拆成兩張：原圖（class en，預設顯示）和翻譯圖（class zh，按「看中文」才顯示）。"""
+    """<img src="原圖" data-zh="翻譯圖"> 拆成兩張：原圖（class en，預設顯示）和翻譯圖（class zh，點圖才顯示）。"""
     def with_class(tag, name):
         if CLASS_ATTR.search(tag):
             return CLASS_ATTR.sub(lambda m: m.group(1) + name + " ", tag, count=1)

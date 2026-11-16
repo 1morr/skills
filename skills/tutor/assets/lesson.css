@@ -276,9 +276,10 @@ caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom:
 .terms a.ref { justify-self: start; white-space: normal; }
 .terms .where { color: var(--ink-2); font-size: .875rem; font-variant-numeric: tabular-nums; }
 
-/* 圖。翻譯過的圖預設顯示原文（考試用原文），按圖說的「看中文」才換成翻譯 */
+/* 圖。翻譯過的圖預設顯示原文（考試用原文），點圖才換成翻譯 */
 figure { margin: 1.5rem 0; }
 figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--rule-2); background: #fff; filter: var(--img-filter); }
+figure img.en, figure img.zh { cursor: pointer; }
 figure img.zh, figure.show-zh img.en { display: none; }
 figure.show-zh img.zh { display: block; }
 figcaption { font-size: .8125rem; line-height: 1.5; color: var(--ink-2); margin-top: .4rem; display: flex; flex-wrap: wrap; gap: .1rem .75rem; align-items: baseline; }

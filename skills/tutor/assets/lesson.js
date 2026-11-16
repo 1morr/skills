@@ -2,7 +2,7 @@
 // 目錄和頁眉跟著捲動顯示現在在哪；一路讀下來的段落打勾，記在瀏覽器。
 // 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。
 // 「並排」把對照欄變成右半邊，顯示那一整段。跨段跳轉走瀏覽器的上一頁。
-// 翻譯過的圖預設顯示原文，圖說上的「看中文」切換；講義原文的小圖按一下搬進正文放大。
+// 翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的「點圖看中文」是提示，也是鍵盤按得到的按鈕。
 // 「只看重點」每段只留標題、重點、定義。深淺色由讀者切換，和練習頁共用 tutor-theme。
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -233,7 +233,7 @@ function setDigest(on) {
 }
 function paintLang(f) {
   const b = $("button.lang", f);
-  if (b) b.textContent = f.classList.contains("show-zh") ? "看原文" : "看中文";
+  if (b) b.textContent = f.classList.contains("show-zh") ? "點圖看原文" : "點圖看中文";
 }
 function setLang(zh) {
   $$("figure").forEach((f) => { if ($("img.zh", f)) { f.classList.toggle("show-zh", zh); paintLang(f); } });
@@ -305,18 +305,18 @@ document.addEventListener("click", (e) => {
   }
   const fig = e.target.closest("figure");
   if (!fig) return;
-  if (e.target.closest("button.lang")) { fig.classList.toggle("show-zh"); paintLang(fig); }
+  if ($("img.zh", fig) && e.target.closest("button.lang, img")) { fig.classList.toggle("show-zh"); paintLang(fig); }
 });
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closePeek(); document.body.classList.remove("nav-open"); }
 });
 
-// 圖說上的按鈕：翻譯過的圖加「看中文」
+// 圖說上的按鈕：翻譯過的圖加「點圖看中文」
 $$("figure").forEach((f) => {
   const cap = $("figcaption", f);
   if (!cap || !$("img.zh", f)) return;
   const b = document.createElement("button");
-  b.type = "button"; b.className = "lang"; b.textContent = "看中文";
+  b.type = "button"; b.className = "lang"; b.textContent = "點圖看中文";
   cap.append(b);
 });
 // 上次讀到哪
