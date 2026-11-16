@@ -26,11 +26,11 @@ TR = '<div class="tr"><p>判定係數 R² = 解釋了的變異 ÷ 總變異</p><
 FIG = TR + '<figure><img src="a.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 ZH_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classnote Topic 3 p.4</figcaption></figure>'
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE。還不會：回 §1</p></details>'
-# 課件欄第一段是 §1，題目欄每題的「這題用到」連到它
+# 講義那部第一段是 §1，題目那部每題的「這題用到」連到它
 USES = '<ul class="uses"><li>F 是訊號除以雜訊，見 §1</li></ul>'
 # 「為什麼」是選用的；寫了就先寫出它在回答的問題
 WHY = '<div class="why"><p><b>F 為什麼是除法？</b>F 是訊號除以雜訊</p></div>'
-# 題目欄開頭的題型表：看到什麼 → 用什麼 → 示範題。題目欄第一段的 § 由 page() 算
+# 題目那部開頭的題型表：看到什麼 → 用什麼 → 示範題。題目那部第一段的 § 由 page() 算
 TYPES = '<div class="cheat"><table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr data-type="f-test"><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table></div>'
 # 定義框前面先用小數字舉例
 EG = '<p>先用 2, 4, 6 算一次：平均是 4。</p>'
@@ -47,13 +47,13 @@ PROBLEMS = "<h2>例</h2><p>題目</p>"
 
 
 def ans(inner, summary=True):
-    """題目欄的做法和答案，收在 details.answer 裡，最後是這題記住。"""
+    """題目那部的做法和答案，收在 details.answer 裡，最後是這題記住。"""
     return f'<details class="answer"><summary>做法和答案</summary>{inner}{SUMMARY if summary else ""}</details>'
 
 
 def close_sections(body, recap):
-    """讓其他規則的測試只管自己那條：課件欄每個 h2 底下補「這頁重點」、結尾補自測；
-    題目欄每個 h2 段落結尾補總結，最後接 recap。"""
+    """讓其他規則的測試只管自己那條：講義那部每個 h2 底下補「這頁重點」、結尾補自測；
+    題目那部每個 h2 段落結尾補總結，最後接 recap。"""
     starts = [m.start() for m in re.finditer(r"<h2[\s>]", body, re.I)]
     tail = SUMMARY if recap else CHECK
     for pos in reversed(starts[1:]):
@@ -66,7 +66,7 @@ def close_sections(body, recap):
 
 def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close=True, head="", tail="",
          types=None, kind=""):
-    """整頁 HTML：左欄課件、右欄題目。預設在課件欄開頭放一張整頁圖滿足頁數覆蓋，題目欄開頭放題型表，並補上總結。"""
+    """整頁 HTML：左欄課件、右欄題目。預設在講義那部開頭放一張整頁圖滿足頁數覆蓋，題目那部開頭放題型表，並補上總結。"""
     if close:
         course = close_sections(course, recap=False)
         problems = close_sections(problems, recap=True)
@@ -79,12 +79,12 @@ def page(course=COURSE, problems=PROBLEMS, pages="Cover p.1", cover=COVER, close
 
 
 def prob(body, **kw):
-    """只寫題目欄，課件欄用預設的一段。"""
+    """只寫題目那部，講義那部用預設的一段。"""
     return page(problems=body, **kw)
 
 
 def prob_raw(problems, course=COURSE):
-    """題目欄照寫、不補總結（測試自己決定每段怎麼結尾）；課件欄補好總結。"""
+    """題目那部照寫、不補總結（測試自己決定每段怎麼結尾）；講義那部補好總結。"""
     return page(close_sections(course, recap=False), problems, close=False,
                 types=TYPES.replace("{n}", str(len(re.findall(r"<h2[\s>]", course, re.I)) + 1)))
 
@@ -100,7 +100,7 @@ def has(src, needle):
 
 def numbered(course, problems):
     """兩部各寫自己的 h2，照 build 的順序編號、連好 §：回傳 (HTML, anchors)。"""
-    # 題型表（types）寫一段字：真的頁題目欄的第一個 h2 前面一定有它
+    # 題型表（types）寫一段字：真的頁題目那部的第一個 h2 前面一定有它
     src, anchors = build.number_headings(page(course, problems, close=False, types="<p>題型表</p>"))
     return build.link_refs(src, anchors), anchors
 
@@ -127,7 +127,7 @@ def prose(n, word="字"):
 
 
 class PaneRule(unittest.TestCase):
-    """左欄課件、右欄題目：body 底下只有這兩欄，兩欄都要有，課件欄在前。"""
+    """左欄課件、右欄題目：body 底下只有這兩欄，兩欄都要有，講義那部在前。"""
 
     def test_content_outside_panes_fails(self):
         self.assertFalse(ok(page(head="<h1>Topic 4</h1>")))
@@ -219,7 +219,7 @@ class LengthRule(unittest.TestCase):
 
 
 class MethodRule(unittest.TestCase):
-    """題目欄有 .calc 或 .sheet 的段落要有 .uses（寫出連到課件欄的 §）和 .origin；課件欄不用；.why 選用。"""
+    """題目那部有 .calc 或 .sheet 的段落要有 .uses（寫出連到講義那部的 §）和 .origin；講義那部不用；.why 選用。"""
     NO_USES = '沒有 <ul class="uses">'
     NO_REF = "沒有連到講義"
     SHEET = '<div class="sheet">F = 29.74</div>'
@@ -239,7 +239,7 @@ class MethodRule(unittest.TestCase):
         self.assertFalse(has(src, self.NO_USES))
 
     def test_uses_linking_to_problem_section_fails(self):
-        # 課件欄只有 §1，這一題是 §2
+        # 講義那部只有 §1，這一題是 §2
         src = prob('<h2>一</h2><ul class="uses"><li>同 §2</li></ul>' + ans(ORIGIN + CALC))
         self.assertTrue(has(src, self.NO_REF))
 
@@ -283,7 +283,7 @@ class MethodRule(unittest.TestCase):
 
 
 class AnswerFoldRule(unittest.TestCase):
-    """題目欄的算式、答案紙、數字從哪來、常見錯誤都收進 details.answer；課件欄不用。"""
+    """題目那部的算式、答案紙、數字從哪來、常見錯誤都收進 details.answer；講義那部不用。"""
 
     BLOCKS = {
         "origin": ORIGIN,
@@ -401,7 +401,7 @@ class OriginRule(unittest.TestCase):
 
 
 class OriginFirstRule(unittest.TestCase):
-    """題目欄先列「數字從哪來」，再代公式：讀者算到那一步時已經知道每個數字的來源。"""
+    """題目那部先列「數字從哪來」，再代公式：讀者算到那一步時已經知道每個數字的來源。"""
 
     def test_calc_before_origin_fails(self):
         self.assertFalse(ok(prob(f"<h2>一</h2>{USES}" + ans(CALC + ORIGIN))))
@@ -516,11 +516,11 @@ class DefRule(unittest.TestCase):
                 self.assertTrue(ok(self.body(d)), build.lint(self.body(d)))
 
 
-GOOD = f"<h2>一</h2>{SUMMARY}<p>內容</p>{CHECK}"  # 課件欄合格的一段：開頭重點、結尾自測
+GOOD = f"<h2>一</h2>{SUMMARY}<p>內容</p>{CHECK}"  # 講義那部合格的一段：開頭重點、結尾自測
 
 
 class SummaryRule(unittest.TestCase):
-    """題目欄每個 h2 段落以 .summary 結尾（可以是 details.answer 的最後一塊）；最後一段是 h2.recap。"""
+    """題目那部每個 h2 段落以 .summary 結尾（可以是 details.answer 的最後一塊）；最後一段是 h2.recap。"""
 
     def raw(self, problems, course=GOOD):
         return page(course, problems, close=False)  # 兩欄都照寫，不補總結
@@ -565,7 +565,7 @@ class SummaryRule(unittest.TestCase):
 
 
 class CourseSectionRule(unittest.TestCase):
-    """課件欄每個 h2：開頭（第一個 h3 之前）放「這頁重點」，最後一塊是摺起來的自測。"""
+    """講義那部每個 h2：開頭（第一個 h3 之前）放「這頁重點」，最後一塊是摺起來的自測。"""
     P = f"<h2>例</h2>{SUMMARY}{RECAP}"
 
     def raw(self, course):
@@ -800,7 +800,7 @@ class PrereqRule(unittest.TestCase):
 
 
 class TypesTableRule(unittest.TestCase):
-    """題目欄開頭要有題型表，每種題型連到示範題。"""
+    """題目那部開頭要有題型表，每種題型連到示範題。"""
 
     def test_missing_table_fails(self):
         self.assertFalse(ok(page(types="")))
@@ -998,7 +998,7 @@ class WarningRule(unittest.TestCase):
 
 
 class KindRule(unittest.TestCase):
-    """data-problems="text"：文科題目欄不用「數字從哪來」；calc（預設）照舊。"""
+    """data-problems="text"：文科題目那部不用「數字從哪來」；calc（預設）照舊。"""
     SHEET = '<div class="sheet"><p>Answer: the Treaty of 1842.</p></div>'
 
     def test_unknown_kind_fails(self):
@@ -1092,7 +1092,7 @@ class Output(unittest.TestCase):
         self.assertEqual(order, sorted(order))
 
     def test_head_buttons_only_for_what_exists(self):
-        plain = self.built()  # 預設的題目欄有速查卡，沒有名詞和查表
+        plain = self.built()  # 預設的題目那部有速查卡，沒有名詞和查表
         head, rail = self.head_of(plain), self.rail_of(plain)
         for where in (head, rail):
             self.assertIn('data-act="cheat"', where)

@@ -41,7 +41,7 @@ MAX_SENTENCE = 50
 UNITS_PER_MIN = 80
 # 速查卡的公式行裡，<mspace> 寬到幾 em 就算是把兩條公式接在同一行（標籤和公式之間的小空隙不算）
 JOIN_GAP_EM = 1
-# 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
+# 題目那部的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
 KINDS = ("calc", "text")
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
@@ -49,9 +49,9 @@ VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
 # 這些元素裡的字不算散文：圖、表、公式、程式碼、答案紙樣本、課件譯文（長短由截圖決定）
 SKIP_TAGS = {"figure", "table", "pre", "code", "style", "script", "svg", "math", "title"}
 SKIP_CLASSES = {"sheet", "tr"}
-# 題目欄裡有這些 class 的段落在教一題怎麼做，就要講為什麼、交代不明顯的數字從哪來
+# 題目那部裡有這些 class 的段落在教一題怎麼做，就要講為什麼、交代不明顯的數字從哪來
 METHOD_CLASSES = {"calc", "sheet"}
-# 題目欄裡會洩漏做法或答案的區塊，要收進 <details class="answer">，先自己做再打開
+# 題目那部裡會洩漏做法或答案的區塊，要收進 <details class="answer">，先自己做再打開
 ANSWER_ONLY = {"calc", "sheet", "origin", "trap"}
 # 「數字從哪來」表只列不明顯的數字：查表、要數的（n、df）、慣例、經驗法則、公式裡的常數。
 # 題目直接給的、上面算出來的不列，算式就在旁邊
@@ -120,8 +120,8 @@ class Lint(HTMLParser):
         self.sentence = ""  # 正在讀的一句散文
         self.in_heading = 0  # 在 h2/h3 裡（標題的頁碼不算「先舉例」）
         self.example = False  # 這個 h2/h3 塊裡，定義框之前有沒有用數字舉過例
-        self.types = None  # 題目欄開頭的題型表提到的 §；None 表示沒有這張表
-        self.problems_h2 = False  # 題目欄已經有 h2 了（題型表要在它前面）
+        self.types = None  # 題目那部開頭的題型表提到的 §；None 表示沒有這張表
+        self.problems_h2 = False  # 題目那部已經有 h2 了（題型表要在它前面）
         self.type_row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
         self.type_slugs = []  # 題型表每一列的 data-type
         self.boxes = []  # 開著的有標籤的框：{"depth", "labels", "first"}
@@ -162,7 +162,7 @@ class Lint(HTMLParser):
         if self.stack and self.stack[-1][0] == "body" and not (
                 tag in ("script", "style") or (tag == "section" and cls & set(PANES)) or (tag == "aside" and "panel" in cls)):
             self.problems.append(f'<body> 底下只能放 <section class="course">、<section class="problems"> 和查表面板 '
-                                 f'<aside class="panel">（現在有 <{tag}>）：標題和範圍表放進課件欄的開頭')
+                                 f'<aside class="panel">（現在有 <{tag}>）：標題和範圍表放進講義那部的開頭')
         for name in cls & set(LABELS):
             self.boxes.append({"depth": len(self.stack), "labels": LABELS[name], "first": True})
         if "ans" in cls and self.calcs:
@@ -191,11 +191,11 @@ class Lint(HTMLParser):
         if tag == "table" and "types" in cls and self.pane() == "problems" and not self.problems_h2:
             self.types = []
             if not self.inside_class("cheat"):
-                self.problems.append('題型表要放在速查卡 <div class="cheat"> 裡：題目欄開頭一張可以單獨列印的卡，'
+                self.problems.append('題型表要放在速查卡 <div class="cheat"> 裡：題目那部開頭一張可以單獨列印的卡，'
                                      "題型表、要背的公式、判斷規則都在上面")
         if cls & ANSWER_ONLY and self.pane() == "problems" and not self.in_answer():
             what = ", ".join(sorted(cls & ANSWER_ONLY))
-            self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
+            self.problems.append(f'題目那部的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
         if tag == "mspace" and self.inside_class("cheat") and self.inside_class("formula"):
             gap = re.fullmatch(r"\s*(\d*\.?\d+)\s*em\s*", a.get("width") or "")
             if gap and float(gap.group(1)) >= JOIN_GAP_EM:
@@ -241,9 +241,9 @@ class Lint(HTMLParser):
             sec["why"] |= "why" in cls
             sec["uses"] |= "uses" in cls
             if "summary" in cls and not sec["h3"]:
-                sec["keys"] = True  # 課件欄：重點放在這一頁的開頭，第一個 h3 之前
+                sec["keys"] = True  # 講義那部：重點放在這一頁的開頭，第一個 h3 之前
             if "calc" in cls and not sec["origin"]:
-                sec["calc_first"] = True  # 題目欄要先列出要用的數字從哪來，再代公式
+                sec["calc_first"] = True  # 題目那部要先列出要用的數字從哪來，再代公式
             sec["origin"] |= "origin" in cls
             if tag == "h3":
                 sec["h3"] += 1
@@ -457,7 +457,7 @@ def lint(src: str) -> list:
     course = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "course"}
     problem_secs = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "problems"}
     if p.types is None:
-        problems.append('題目欄開頭（第一個 h2 之前）要有 <table class="types"> 題型表：看到什麼題目 → 用哪條公式、哪張表 → '
+        problems.append('題目那部開頭（第一個 h2 之前）要有 <table class="types"> 題型表：看到什麼題目 → 用哪條公式、哪張表 → '
                         "示範題 §N，趕時間的人從這裡起步")
     elif not any(r.split(".")[0] in problem_secs for r in p.types):
         problems.append("題型表沒有連到任何一題：每種題型寫出示範題的 §N")
@@ -524,15 +524,15 @@ def warnings(src: str) -> list:
 
 
 def panes(sections) -> list:
-    """每個 h2 都在課件欄或題目欄裡，兩欄都要有，課件欄在前。"""
+    """每個 h2 都在講義那部或題目那部裡，兩部都要有，講義那部在前。"""
     problems, seen = [], []
     for sec in sections:
         if sec["pane"] is None:
             problems.append(f'§「{sec["title"][:30]}」不在 <section class="course"> 或 <section class="problems"> 裡')
         elif sec["pane"] == "course" and "problems" in seen:
-            problems.append(f"§「{sec['title'][:30]}」在課件欄，卻排在題目欄後面：課件欄在前")
+            problems.append(f"§「{sec['title'][:30]}」在講義那部，卻排在題目那部後面：講義那部在前")
         seen.append(sec["pane"])
-    for name, label in (("course", "課件欄"), ("problems", "題目欄")):
+    for name, label in (("course", "講義那部"), ("problems", "題目那部")):
         if name not in seen:
             problems.append(f'頁面沒有{label}：要有 <section class="{name}">，裡面至少一個 <h2>')
     return problems
