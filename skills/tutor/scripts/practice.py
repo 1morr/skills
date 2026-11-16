@@ -38,6 +38,12 @@
     </details>
     data-marks    這個給分點幾分（正整數），配分照老師的評分方式
 
+提示和逐步詳解（練習頁的完整題目；模擬卷不放）：排在範本答案前面，讀者卡住時一次看一個，用到第幾個會進「複製填答結果」。
+    <ol class="hints"><li>這是哪個題型、做法在導讀頁 §16</li><li>第一步怎麼列</li></ol>
+    <details class="steps">讀者的語言寫的逐步詳解，每一步寫為什麼；提示全部看完才出現</details>
+    每題至少一個提示。某個題型第一次出現的那一題（老師原題不算）要有兩個以上的提示和逐步詳解。
+    提示和詳解裡的 §N 會連到導讀頁。
+
 讀圖題：導讀頁題型表那一列寫了 data-reads="figure" 的題型，題目裡要有 <figure> 或 <pre class="mtb">（軟體輸出）。
 
 只用標準函式庫，CI 才能直接跑測試。
@@ -75,9 +81,14 @@ PAD_H = 900
 # 題目代號是畫布存檔的鍵：照順序編的號（q1、練習 2）插題或改順序後，舊的筆跡會跑到別題
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
-# 題目本身只放題目和填答格；做法和答案只能放在讀者寫完才打開的 details.model 裡
+# 題目本身只放題目和填答格；做法和答案只能放在讀者自己打開的地方：逐步詳解 details.steps、範本答案 details.model
 ANSWER_CLASSES = {"answer", "calc", "sheet", "origin", "trap", "summary"}
 MODEL_SUMMARY = "寫完了再打開：範本答案和給分點"
+STEPS_SUMMARY = "提示看完還是不會：逐步詳解"
+# 某個題型第一次出現的那一題至少幾個提示：這時讀者還不會，要有東西扶著做；之後的題只要一個
+FIRST_HINTS = 2
+# 這些 class 裡的 §N 連到導讀頁
+LINKED = {"ref", "hints", "steps"}
 SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
 PLACEHOLDER = re.compile(r"\{\{|\}\}")
@@ -116,7 +127,7 @@ class Lint(HTMLParser):
                 self.problems.append("題目裡又有題目（section.q 不能巢狀）")
             self.qs.append({"id": a.get("data-id") or "", "drill": "drill" in cls, "differs": (a.get("data-differs") or "").strip(),
                             "title": "", "refs": [], "fills": 0, "types": (a.get("data-type") or "").split(),
-                            "model": 0, "marks": 0, "shows": False})
+                            "model": 0, "marks": 0, "shows": False, "hints": 0, "steps": 0, "links": []})
             if a.get("data-h") is not None and not a["data-h"].strip().isdigit():
                 self.problems.append(f"data-h={a['data-h']!r} 要是整數：畫布的高度（畫布座標）")
         elif self.qs and self.inside("q"):
@@ -124,6 +135,12 @@ class Lint(HTMLParser):
             name = q["id"] or q["title"]
             if tag == "details" and "model" in cls and not q["drill"] and not self.inside("model"):
                 q["model"] += 1
+            elif tag == "details" and "steps" in cls and not q["drill"] and not self.inside("steps"):
+                q["steps"] += 1
+            elif tag == "ol" and "hints" in cls and not q["drill"]:
+                pass
+            elif self.inside("steps"):
+                pass
             elif self.inside("model"):
                 if tag == "li" and self.inside("rubric"):
                     marks = (a.get("data-marks") or "").strip()
@@ -133,10 +150,12 @@ class Lint(HTMLParser):
                         self.problems.append(f"題目 {name!r} 的給分點沒有 data-marks：每個 <li> 寫這一點幾分（正整數）")
             elif tag == "details" or cls & ANSWER_CLASSES:
                 what = f'<{tag} class="{" ".join(sorted(cls))}">' if cls else f"<{tag}>"
-                self.problems.append(f"題目 {name!r} 裡有 {what}：做法和答案放進 <details class=\"model\">，讀者寫完才打開；"
-                                     "要馬上對的單一答案用 .fill 填答格")
+                self.problems.append(f"題目 {name!r} 裡有 {what}：做法和答案放進 <details class=\"model\">，讀者寫完才打開"
+                                     "（逐步的講解放 <details class=\"steps\">）；要馬上對的單一答案用 .fill 填答格")
             if (tag == "figure" or (tag == "pre" and "mtb" in cls)) and not self.inside("model"):
                 q["shows"] = True
+            if tag == "li" and self.stack and "hints" in self.stack[-1][1]:
+                q["hints"] += 1
             if tag == "h2":
                 self.heading = ""
             if "pad" in cls:
@@ -206,6 +225,8 @@ class Lint(HTMLParser):
                 fig["caption"] += data
         if self.qs and self.inside("ref"):
             self.qs[-1]["refs"] += SECTION_REF.findall(data)
+        elif self.qs and (self.inside("hints") or self.inside("steps")):
+            self.qs[-1]["links"] += SECTION_REF.findall(data)  # 提示和詳解裡的 § 也會連到導讀頁，但不算「對照」
 
 
 def guide_anchors(path: Path) -> set:
@@ -259,6 +280,8 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
         if mock:
             if q["drill"]:
                 problems.append(f"模擬卷不放基本功（「{name}」）：只放完整題目，照考試的樣子")
+            if q["hints"] or q["steps"]:
+                problems.append(f"模擬卷的題目「{name}」不放提示和逐步詳解：考試沒有提示，卡住的題型回練習頁練")
             if q["refs"]:
                 problems.append(f"模擬卷的題目「{name}」不寫對照的 §：考試沒有提示，對照留到做完後的範本答案")
         if not q["drill"] and not mock:
@@ -276,6 +299,8 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
 
     drills = [q for q in p.qs if q["drill"]]
     full = [q for q in p.qs if not q["drill"]]
+    if not mock:
+        problems += hint_rules(full)
     if mock:
         if not full:
             problems.append('模擬卷沒有題目（section class="q"）')
@@ -290,7 +315,7 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     guides = [g.strip() for g in (body.get("data-guide") or "").split(";") if g.strip()]
     if len(guides) > 1 and not mock:
         problems.append("練習頁的 data-guide 只能寫一份導讀頁；跨 topic 的題目放模擬卷（data-mode=\"mock\"）")
-    refs = {r for q in p.qs for r in q["refs"]}
+    refs = {r for q in p.qs for r in q["refs"] + q["links"]}
     missing = [g for g in guides if not (out_dir / g).is_file()]
     for g in missing:
         problems.append(f"找不到導讀頁 {out_dir / g}：data-guide 相對於產出的練習頁；先用 build.py 組好導讀頁")
@@ -317,6 +342,25 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
             lost = [i for i in ids if i and i not in text]
             if lost:
                 problems.append(f"答案檔沒有這幾題：{'、'.join(lost)}。每題的答案標題寫上題目代號，批改時才對得上")
+    return problems
+
+
+def hint_rules(full: list) -> list:
+    """練習頁的完整題目都有提示；某個題型第一次出現的那一題（老師原題不算）有 FIRST_HINTS 個以上的提示和逐步詳解。"""
+    problems, seen = [], set()
+    for q in full:
+        name = q["title"] or q["id"]
+        original = q["differs"].startswith(ORIGINAL)
+        new = [] if original else [t for t in q["types"] if t not in seen]
+        if not q["hints"]:
+            problems.append(f'題目「{name}」沒有提示：加 <ol class="hints">，第一個 <li> 寫這是哪個題型、做法在導讀頁哪個 §，'
+                            "讀者卡住時先看它再自己做")
+        elif new and (q["hints"] < FIRST_HINTS or q["steps"] != 1):
+            problems.append(f'題目「{name}」是題型 {"、".join(new)} 第一次出現的題目，要有 {FIRST_HINTS} 個以上的提示和一個 '
+                            f'<details class="steps"> 逐步詳解（現在 {q["hints"]} 個提示、{q["steps"]} 個詳解）：'
+                            "這時讀者還不會，要有東西扶著做")
+        if not original:
+            seen.update(q["types"])
     return problems
 
 
@@ -367,7 +411,7 @@ def q_tags(inner: str):
 
 
 def add_pads(inner: str, paper: bool = False) -> str:
-    """每題完整題目加一張畫布，排在範本答案前面（沒有範本答案就排在最後）：先寫，往下才是答案。data-h 可以在 section 上覆寫預設高度。
+    """每題完整題目加一張畫布，排在提示、逐步詳解、範本答案前面（都沒有就排在最後）：先寫，往下才是提示和答案。data-h 可以在 section 上覆寫預設高度。
     基本功只填一格，不加畫布（要打草稿的那一題在 section 寫 data-h）。
     paper（模擬卷）：同一個位置改放一張紙上的作答頁 .space，只在列印時出現；不夠寫的人自己加紙。"""
     out, pos = [], 0
@@ -377,8 +421,8 @@ def add_pads(inner: str, paper: bool = False) -> str:
             continue
         height = int(a.get("data-h") or PAD_H)
         end = low.index("</section>", m.end())
-        model = next((d.start() for d in re.finditer(r"<details\b[^>]*>", inner[m.end():end], re.I)
-                      if "model" in (tag_attrs(d.group(0)).get("class") or "").split()), None)
+        model = next((d.start() for d in re.finditer(r"<(?:details|ol)\b[^>]*>", inner[m.end():end], re.I)
+                      if {"model", "steps", "hints"} & set((tag_attrs(d.group(0)).get("class") or "").split())), None)
         if model is not None:
             end = m.end() + model
         qid = html.escape(a["data-id"])
@@ -434,25 +478,26 @@ def cover(inner: str, minutes: str, tables: bool) -> str:
 
 
 def finish_models(inner: str) -> str:
-    """details.model 補上摘要，預設收起來。"""
+    """details.model 和 details.steps 補上摘要，預設收起來。"""
     def repl(m):
-        a = tag_attrs(m.group(0))
-        if "model" not in (a.get("class") or "").split():
+        cls = (tag_attrs(m.group(0)).get("class") or "").split()
+        summary = MODEL_SUMMARY if "model" in cls else STEPS_SUMMARY if "steps" in cls else None
+        if summary is None:
             return m.group(0)
         tag = re.sub(r"\sopen(\s*=\s*(\"[^\"]*\"|'[^']*'))?", "", m.group(0), flags=re.I)
-        return f"{tag}<summary>{MODEL_SUMMARY}</summary>"
+        return f"{tag}<summary>{summary}</summary>"
     return re.sub(r"<details\b[^>]*>", repl, inner, flags=re.I)
 
 
 def link_refs(inner: str, guide: str) -> str:
-    """.ref 裡的 §N 連到導讀頁那一段，開新分頁，練習頁上寫到一半的東西不會跑掉。"""
+    """.ref、提示、逐步詳解裡的 §N 連到導讀頁那一段，開新分頁，練習頁上寫到一半的東西不會跑掉。"""
     def repl(m):
-        if "ref" not in (tag_attrs(m.group(1)).get("class") or "").split():
+        if not LINKED & set((tag_attrs(m.group(1)).get("class") or "").split()):
             return m.group(0)
         body = SECTION_REF.sub(
             lambda r: f'<a href="{html.escape(guide)}#{anchor(r.group(1))}" target="_blank">{r.group(0)}</a>', m.group(3))
         return m.group(1) + body + m.group(4)
-    return re.sub(r"(<(p|div|span)\b[^>]*>)(.*?)(</\2>)", repl, inner, flags=re.S | re.I)
+    return re.sub(r"(<(p|div|span|ol|details)\b[^>]*>)(.*?)(</\2>)", repl, inner, flags=re.S | re.I)
 
 
 def nav(inner: str) -> str:
@@ -512,7 +557,7 @@ HOWTO = """<details class="howto">
 <summary>怎麼用這頁</summary>
 <ul>
 <li>先做最上面的「基本功」：每題只考一個判斷，填好按「對答案」馬上知道對錯；錯兩次會公布答案和原因。考前想再練，按「再做一次」。再做下面的整題。</li>
-<li>每題標了對照導讀頁的哪一段，點 § 會在新分頁打開；卡住時去看那題例題的做法。</li>
+<li>每題標了對照導讀頁的哪一段，點 § 會在新分頁打開。卡住時按畫布下面的「看提示」，一次看一個；提示看完還是不會，再打開「逐步詳解」照著做一遍。同一個題型的第二題提示比較少，試著自己做。</li>
 <li>畫布：滑鼠按住拖曳就是寫字，觸控筆、手指也可以。按「文字」再點畫布任何地方就能打字；點已經打的字可以改，按 Esc 或點別處收起來。</li>
 <li>工具列還有換顏色、橡皮擦、復原（Ctrl+Z）、加長、清空（要連按兩下）。寫的東西自動存在這台電腦的瀏覽器裡，關掉再開還在。基本功沒有畫布，直接填。</li>
 <li>整題寫完才打開下面的「範本答案和給分點」，照老師的給分點一點一點勾，就知道會拿幾分。有填答格的先對最後的數字。看不出步驟哪裡錯，按「複製給 Claude」，到對話裡按 Ctrl+V 貼上。</li>

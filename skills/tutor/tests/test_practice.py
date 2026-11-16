@@ -37,9 +37,13 @@ def drill(qid, text="這題用 t 還是 Z？"):
 DRILLS = drill("which-table") + drill("which-tail") + drill("critical-value")
 MODEL = ('<details class="model"><div class="sheet"><p>The series is stationary.</p></div>'
          '<ul class="rubric"><li data-marks="2">說出沒有趨勢</li><li data-marks="1">結論句</li></ul></details>')
+# 提示和逐步詳解：題型第一次出現的那一題兩個提示加詳解，之後的題一個提示
+HINT = '<ol class="hints"><li>這是讀 ACF 的題型，做法在導讀頁 §16。</li></ol>'
+HINTS = HINT.replace("</ol>", "<li>第一步：看 r₁ 有沒有超出紅線。</li></ol>")
+STEPS = '<details class="steps"><p>r₁ 沒有超出紅線，所以沒有趨勢。</p></details>'
 ONE = ('<section class="q" data-id="acf-seasonal" data-type="acf-read" data-differs="有季節性沒有趨勢，Eg 1 有趨勢">'
-       '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p>' + MODEL + '</section>')
-TWO = ONE.replace("acf-seasonal", "acf-trend").replace("練習 1", "練習 2")
+       '<h2>練習 1</h2><p class="ref">對照 Eg 1（導讀頁 §16、§20）</p><p>畫時間序列圖。</p>' + HINTS + STEPS + MODEL + '</section>')
+TWO = ONE.replace("acf-seasonal", "acf-trend").replace("練習 1", "練習 2").replace(HINTS + STEPS, HINT)
 FULL = ONE + TWO
 PANEL = ('<aside class="panel" data-label="查表"><figure data-tab="Z 表"><img src="z.png" data-zh="z.zh.png">'
          '<figcaption>Statistical Tables p.1</figcaption></figure></aside>')
@@ -179,6 +183,45 @@ class RefRule(Case):
                 self.assertGreen(src(DRILLS + FULL.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', ref)))
 
 
+class HintRule(Case):
+    """練習頁的完整題目都有提示；題型第一次出現的那一題有兩個以上的提示和逐步詳解；模擬卷都不放。"""
+
+    def test_question_without_hints_fails(self):
+        self.assertRed(src(DRILLS + ONE + TWO.replace(HINT, "")), "沒有提示")
+
+    def test_first_question_of_a_type_needs_two_hints_and_steps(self):
+        for first in (ONE.replace(HINTS, HINT), ONE.replace(STEPS, ""), ONE.replace(STEPS, STEPS + STEPS)):
+            with self.subTest(first=first[-200:-120]):
+                self.assertRed(src(DRILLS + first + TWO), "第一次出現的題目")
+
+    def test_later_question_of_the_type_needs_one_hint_only(self):
+        self.assertGreen(src(DRILLS + ONE + TWO))
+        self.assertGreen(src(DRILLS + ONE + TWO.replace(HINT, HINTS + STEPS)))  # 多給不擋
+
+    def test_teachers_original_needs_one_hint_only(self):
+        self.answers(IDS + ["a4-q1"])
+        original = (TWO.replace("acf-trend", "a4-q1").replace("有季節性沒有趨勢，Eg 1 有趨勢", "老師原題")
+                    .replace('data-type="acf-read"', 'data-type="acf-read"'))
+        self.assertGreen(src(DRILLS + FULL + original))
+
+    def test_steps_may_hold_answer_blocks(self):
+        rich = STEPS.replace("<p>", '<div class="calc">r = 0.4</div><p class="trap">別用 1.96</p><p>')
+        self.assertGreen(src(DRILLS + FULL.replace(STEPS, rich)))
+
+    def test_missing_anchor_in_a_hint_fails(self):
+        self.assertRed(src(DRILLS + FULL.replace("做法在導讀頁 §16。</li><li>", "做法在導讀頁 §21。</li><li>")), "§21")
+
+    def test_formatting_variants_pass(self):
+        inner = (FULL.replace('<ol class="hints">', "<OL CLASS='x hints'>", 1)
+                 .replace('<details class="steps">', "<details open class='steps wide'>"))
+        self.assertGreen(src(DRILLS + inner))
+
+    def test_hints_in_mock_fail(self):
+        for extra in (HINT, STEPS):
+            with self.subTest(extra=extra[:30]):
+                self.assertRed(src(MQ.replace(MODEL, extra + MODEL), MOCK_BODY), "不放提示和逐步詳解")
+
+
 class DiffersRule(Case):
     def test_missing_differs_fails(self):
         self.assertRed(src(DRILLS + re.sub(r' data-differs="[^"]*"', "", FULL)), "data-differs")
@@ -221,7 +264,8 @@ class TypeRule(Case):
 
 
 MOCK_BODY = BODY + ' data-mode="mock" data-minutes="45"'
-MQ = ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "").replace(' data-differs="有季節性沒有趨勢，Eg 1 有趨勢"', "")
+MQ = (ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "").replace(' data-differs="有季節性沒有趨勢，Eg 1 有趨勢"', "")
+      .replace(HINTS + STEPS, ""))
 
 
 class MockRule(Case):
@@ -483,6 +527,22 @@ class Build(Case):
         self.assertIn('<a href="guide.html#s16" target="_blank">§16</a>', out)
         self.assertIn('<a href="guide.html#s20" target="_blank">§20</a>', out)
         self.assertIn('<a href="guide.html#s1-2" target="_blank">§1.2</a>', out)
+
+    def test_hints_and_steps_link_to_guide(self):
+        out = self.page(src(DRILLS + FULL.replace(STEPS, STEPS.replace("所以", "見 §20，所以"))))
+        sec = out[out.index('id="q-acf-seasonal"'):out.index('id="q-acf-trend"')]
+        self.assertIn('做法在導讀頁 <a href="guide.html#s16" target="_blank">§16</a>', sec)
+        self.assertIn('見 <a href="guide.html#s20" target="_blank">§20</a>', sec)
+
+    def test_pad_comes_before_hints_steps_and_model(self):
+        out = self.page()
+        sec = out[out.index('id="q-acf-seasonal"'):out.index('id="q-acf-trend"')]
+        order = [sec.index(x) for x in ('class="pad"', 'class="hints"', 'class="steps"', 'class="model"')]
+        self.assertEqual(order, sorted(order))
+
+    def test_steps_get_a_summary_and_start_closed(self):
+        out = self.page(src(DRILLS + FULL.replace('<details class="steps">', '<details class="steps" open>')))
+        self.assertIn(f'<details class="steps"><summary>{practice.STEPS_SUMMARY}</summary>', out)
 
     def test_section_marks_outside_ref_stay_plain(self):
         out = self.page(src(DRILLS + FULL.replace("畫時間序列圖。", "就是 §16 那題")))

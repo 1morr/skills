@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、卡住時一次看一個提示再看逐步詳解、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -15,6 +15,7 @@
   let lastPad = null;
   const fillLines = {};  // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
   const modelLines = {};  // 題目代號 → 回傳這題對範本答案的自評（一行字）
+  const hintLines = {};  // 題目代號 → 回傳這題用了幾個提示、有沒有看逐步詳解（一行字）
 
   // 題目導覽鈕的狀態：填答格全對是 ok、有答錯是 no、對過範本答案是 graded
   function mark(section) {
@@ -190,6 +191,46 @@
       if (!st.seen) return ["範本答案還沒打開"];
       const lost = items.filter(function (_, i) { return !st.got[i]; }).map(function (li) { return li.dataset.label; });
       return ["自評 " + earned() + "/" + total + " 分" + (lost.length ? "；沒拿到：" + lost.join("、") : "")];
+    };
+  }
+
+  // 提示：按一次多看一個；全部看完，逐步詳解才出現。用到第幾個存起來，也進「複製填答結果」
+  function makeHints(section) {
+    const list = section.querySelector("ol.hints");
+    const steps = section.querySelector("details.steps");
+    if (!list && !steps) return;
+    const id = section.dataset.id;
+    const store = KEY + ":" + id + ":hints";
+    const st = JSON.parse(localStorage.getItem(store) || "null") || { shown: 0, steps: false };
+    const items = list ? Array.from(list.children) : [];
+    const bar = document.createElement("p");
+    bar.className = "hint-bar";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    bar.append(btn);
+    (list || steps).before(bar);
+    function show() {
+      items.forEach(function (li, i) { li.hidden = i >= st.shown; });
+      if (list) list.hidden = st.shown === 0;
+      const left = items.length - st.shown;
+      bar.hidden = left <= 0;
+      btn.textContent = (st.shown ? "再看一個提示" : "卡住了：看提示") + "（" + (st.shown + 1) + " / " + items.length + "）";
+      if (steps) steps.hidden = left > 0 && !st.steps;
+    }
+    btn.addEventListener("click", function () {
+      st.shown += 1;
+      localStorage.setItem(store, JSON.stringify(st));
+      show();
+    });
+    if (steps) steps.addEventListener("toggle", function () {
+      if (!steps.open || st.steps) return;
+      st.steps = true;
+      localStorage.setItem(store, JSON.stringify(st));
+    });
+    show();
+    hintLines[id] = function () {
+      const used = items.length ? (st.shown ? "看了提示 " + st.shown + "/" + items.length : "沒看提示") : "";
+      return [[used, st.steps ? "看了逐步詳解" : ""].filter(Boolean).join("，") || "沒看逐步詳解"];
     };
   }
 
@@ -479,6 +520,7 @@
 
   const sections = Array.from(document.querySelectorAll("section.q"));
   sections.forEach(makeFills);
+  sections.forEach(makeHints);
   sections.forEach(makeModel);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
 
@@ -535,7 +577,8 @@
     const status = report.parentNode.querySelector(".status");
     const lines = [TITLE + " 填答結果"].concat(mockLine ? [mockLine()] : []);
     sections.forEach(function (sec) {
-      const got = fillLines[sec.dataset.id]().concat(modelLines[sec.dataset.id] ? modelLines[sec.dataset.id]() : []);
+      const got = fillLines[sec.dataset.id]().concat(hintLines[sec.dataset.id] ? hintLines[sec.dataset.id]() : [],
+        modelLines[sec.dataset.id] ? modelLines[sec.dataset.id]() : []);
       const name = sec.dataset.id + "（" + sec.querySelector("h2").textContent.trim() + "）";
       got.forEach(function (s) { lines.push(name + "：" + s); });
     });
