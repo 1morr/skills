@@ -3,8 +3,8 @@
   "use strict";
   const KEY = document.body.dataset.key;
   const TITLE = document.body.dataset.title || document.title;
-  const MOCK = document.body.dataset.mode === "mock";  // 模擬卷：交卷才對答案
-  const mockChecks = [];  // 交卷時把每個填答格對一次
+  const MOCK = document.body.dataset.mode === "mock";  // 模擬卷：在紙上做完才對答案
+  const mockChecks = [];  // 做完時把每個填答格對一次
   const COLORS = { black: "#1d2433", red: "#c62828", blue: "#1f5fd1" };
   const FAMILY = getComputedStyle(document.body).fontFamily;
   const FONT = 18;  // 打字的字級和行高，單位是畫布座標
@@ -66,6 +66,7 @@
       const answers = el.dataset.answer.split("|").filter(function (a) { return a.trim(); });
       const tol = parseFloat(el.dataset.tol) || 0;
       el.dataset.label = el.textContent.trim();
+      el.dataset.first = answers[0].trim();  // 印答案時接在題目後面
       const input = document.createElement("input");
       input.type = "text";
       input.autocomplete = "off";
@@ -178,7 +179,8 @@
       });
     });
     box.addEventListener("toggle", function () {
-      if (!box.open || st.seen) return;
+      // 印答案時是頁面自己打開的，不算讀者對過答案
+      if (!box.open || st.seen || document.body.classList.contains("print-key")) return;
       st.seen = true;
       localStorage.setItem(store, JSON.stringify(st));
       show();
@@ -480,59 +482,51 @@
   sections.forEach(makeModel);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
 
-  // 模擬卷：按「開始計時」才看得到題目，頂端倒數；按「交卷」才對填答格、才出現範本答案
+  // 模擬卷：在紙上做。按「我在紙上做完了」才對填答格、才出現範本答案；兩個列印鈕各印考卷和答案
   let mockLine = null;
-  const clock = document.querySelector(".clock");
-  if (MOCK && clock) {
+  const bar = document.querySelector(".mockbar");
+  if (MOCK && bar) {
     const store = KEY + ":mock";
-    const limit = +clock.dataset.minutes * 60;
-    const st = JSON.parse(localStorage.getItem(store) || "null") || { start: 0, end: 0 };
-    const left = clock.querySelector(".left");
-    const start = clock.querySelector('[data-act="start"]');
-    const submit = clock.querySelector('[data-act="submit"]');
-    const status = clock.querySelector(".status");
-    const mmss = function (sec) { return Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0"); };
-    let timer = 0;
-    function tick() {
-      const used = ((st.end || Date.now()) - st.start) / 1000;
-      const over = used > limit;
-      clock.classList.toggle("over", over);
-      left.textContent = st.end ? "用時 " + mmss(used) + "（限時 " + mmss(limit) + "）"
-        : over ? "時間到，已超過 " + mmss(used - limit) : "剩 " + mmss(limit - used);
-    }
+    const st = JSON.parse(localStorage.getItem(store) || "null") || { end: 0 };
+    const done = bar.querySelector('[data-act="done"]');
+    const status = bar.querySelector(".status");
+    const DONE = done.textContent;
     function show() {
-      document.body.classList.toggle("started", !!st.start);
       document.body.classList.toggle("submitted", !!st.end);
-      start.hidden = !!st.start;
-      submit.hidden = !st.start || !!st.end;
-      clearInterval(timer);
-      if (st.start) tick(); else left.textContent = "限時 " + mmss(limit);
-      if (st.start && !st.end) timer = setInterval(tick, 1000);
+      done.hidden = !!st.end;
       if (st.end) {
         mockChecks.forEach(function (check) { check(); });
-        status.textContent = "已交卷：往下看每題的範本答案，照給分點勾。";
+        status.textContent = "填答格對完了：往下看每題的範本答案，照給分點勾。";
       }
-      pads.forEach(function (p) { p.resize(); });
     }
-    start.addEventListener("click", function () {
-      st.start = Date.now();
-      localStorage.setItem(store, JSON.stringify(st));
-      show();
-    });
-    submit.addEventListener("click", function () {
-      if (!submit.classList.contains("armed")) {  // 交卷不能反悔，要連按兩下
-        submit.classList.add("armed"); submit.textContent = "再按一次交卷";
-        setTimeout(function () { submit.classList.remove("armed"); submit.textContent = "交卷"; }, 2500);
+    // 答案版：body.print-key 讓列印樣式改印範本答案；摺著的 details 不會印，先全部打開
+    function answerKey(on) {
+      document.body.classList.toggle("print-key", on);
+      document.querySelectorAll("details.model").forEach(function (d) {
+        if (on) { d.dataset.was = d.open ? "1" : ""; d.open = true; } else { d.open = d.dataset.was === "1"; delete d.dataset.was; }
+      });
+    }
+    bar.addEventListener("click", function (e) {
+      const act = e.target.closest("button") && e.target.closest("button").dataset.act;
+      if (act === "print") print();
+      if (act === "print-key") {
+        answerKey(true);
+        addEventListener("afterprint", function () { answerKey(false); }, { once: true });
+        print();
+      }
+      if (act !== "done") return;
+      if (!done.classList.contains("armed")) {  // 按了就看得到答案，不能反悔，要連按兩下
+        done.classList.add("armed"); done.textContent = "再按一次：對答案";
+        setTimeout(function () { done.classList.remove("armed"); done.textContent = DONE; }, 2500);
         return;
       }
       st.end = Date.now();
       localStorage.setItem(store, JSON.stringify(st));
       show();
     });
-    mockLine = function () {
-      return st.end ? "模擬卷用時 " + mmss((st.end - st.start) / 1000) + "，限時 " + mmss(limit) : "模擬卷還沒交卷";
-    };
+    mockLine = function () { return st.end ? "模擬卷在紙上做完，已對答案" : "模擬卷還沒按「我在紙上做完了」"; };
     show();
+    if (location.hash === "#answers") answerKey(true);  // practice.py 印答案 PDF 時開這個網址
   }
 
   // 複製填答結果：每題一行字，貼到對話讓 Claude 記進學習紀錄

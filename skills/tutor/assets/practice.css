@@ -124,21 +124,33 @@ details.model .sheet p { margin: .35rem 0; }
 .rubric .marks { color: var(--muted); font-size: .86rem; white-space: nowrap; }
 details.model .score { font-weight: 700; margin-bottom: 1rem; }
 
-/* 模擬卷：頂端的計時列；開始前看不到題目，交卷前不對答案、看不到範本答案 */
-.clock {
-  position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
+/* 模擬卷：在紙上做。螢幕上是封面、題目和填答格；按「我在紙上做完了」之前不對答案、看不到範本答案 */
+.mockbar {
+  position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem;
   background: var(--paper); border-bottom: 1px solid var(--rule); padding: .6rem 0; margin: 1rem 0;
 }
-.clock .left { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.1rem; }
-.clock.over .left { color: var(--danger); }
-.clock button {
-  font: inherit; font-weight: 600; color: var(--paper); background: var(--accent); border: 0; border-radius: 4px;
-  padding: .25rem 1rem; cursor: pointer;
+.mockbar button {
+  font: inherit; font-size: .9rem; font-weight: 600; color: var(--accent); background: transparent; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; padding: .2rem .9rem;
 }
-.clock button.armed { background: var(--danger); }
-.clock button[hidden] { display: none; }
-.clock .status { color: var(--muted); font-size: .9rem; }
-body[data-mode="mock"]:not(.started) section.q, body[data-mode="mock"]:not(.started) nav.jump,
+.mockbar button:hover { background: var(--accent-soft); }
+.mockbar [data-act="done"] { margin-left: auto; color: var(--paper); background: var(--accent); border-color: var(--accent); }
+.mockbar [data-act="done"]:hover { background: var(--accent); filter: brightness(1.08); }
+.mockbar [data-act="done"].armed { background: var(--danger); border-color: var(--danger); }
+.mockbar button[hidden] { display: none; }
+.mockbar .status { flex-basis: 100%; color: var(--muted); font-size: .9rem; }
+.mockbar .status:empty { display: none; }
+/* 封面：建議時間、滿分、「題目／滿分／得分」表、作答規則 */
+.cover { border-top: 6px solid var(--ink); margin: 1.25rem 0 2rem; padding-top: .9rem; }
+.cover .facts { font-weight: 700; margin: 0 0 .6rem; }
+.cover table { border-collapse: collapse; font-size: .93rem; font-variant-numeric: tabular-nums; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.cover th, .cover td { padding: .3rem .9rem .3rem 0; text-align: left; border-bottom: 1px solid var(--line); }
+.cover th { font-weight: 600; border-bottom-color: var(--rule); }
+.cover th + th, .cover td + td { text-align: center; min-width: 5.5em; padding-right: 0; }
+.cover tr.total td { font-weight: 700; border-bottom: 0; }
+.cover ul { margin: .8rem 0 0; padding-left: 1.2em; font-size: .94rem; }
+.cover li { margin: .2rem 0; }
+.space { display: none; }  /* 紙上的作答區，只在列印時出現 */
 body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not(.submitted) .report { display: none; }
 
 /* 畫布：工具列在上、白紙方格在下 */
@@ -208,4 +220,47 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   main { padding: 1.25rem 1rem 6rem; }
   h1 { font-size: 1.5rem; }
   section.q h2 { font-size: 1.18rem; }
+}
+
+/* ── 模擬卷印在 A4：考卷是封面、題目、作答區，查表面板的表接在卷末；不印翻譯和答案。
+   body.print-key 是答案：題目下面印範本答案和給分點，不印作答區和卷末的表 ── */
+@page {
+  size: A4; margin: 16mm 15mm 18mm;
+  @bottom-center { content: counter(page) " / " counter(pages); font: 9pt sans-serif; color: #555; }
+}
+@media print {
+  html:has(body[data-mode="mock"]) { background: #fff; }
+  body[data-mode="mock"] {
+    --paper: #fff; --card: #fff; --ink: #000; --muted: #444; --line: #bbb; --rule: #888; --accent: #000; --tint: #fff;
+    --danger: #000; --ok: #000; --img-filter: none;
+    background: #fff; color: #000; font-size: 11pt; line-height: 1.6;
+  }
+  body[data-mode="mock"] main { max-width: none; margin: 0; padding: 0; }
+  body[data-mode="mock"] :is(.prefs, .howto, .mockbar, nav.jump, .report, #panel-btn, #panel header, .score),
+  body[data-mode="mock"] .fill :is(input, button, .result) { display: none !important; }
+  body[data-mode="mock"] h1 { font-size: 18pt; }
+  body[data-mode="mock"] .cover { break-after: page; }
+  body[data-mode="mock"] section.q { position: relative; border-top: 0; padding: 0 0 4mm; }
+  /* 題目代號印在每題和作答區的角落：拍照貼回對話時，批改的人靠它找答案 */
+  body[data-mode="mock"] section.q::before { content: attr(data-id); position: absolute; top: 0; right: 0; font: 8pt var(--mono); color: #666; }
+  body[data-mode="mock"] section.q h2 { break-after: avoid; padding-right: 11em; }
+  body[data-mode="mock"] section.q :is(figure, table, pre.mtb), body[data-mode="mock"] .rubric li { break-inside: avoid; }
+  body[data-mode="mock"] section.q table { overflow: visible; }
+  body[data-mode="mock"] section.q figure img { max-height: 110mm; cursor: auto; }
+  body[data-mode="mock"] pre.mtb { border: 1px solid #999; font-size: 8.5pt; overflow: visible; white-space: pre-wrap; }
+  body[data-mode="mock"] .fill::after { content: ""; display: inline-block; width: 9em; margin-left: .4em; border-bottom: 1px solid #000; }
+  body[data-mode="mock"] .space { display: block; position: relative; height: var(--h); margin: 4mm 0 8mm; border: 1px solid #999; }
+  body[data-mode="mock"] .space::before { content: attr(data-id) " 作答區"; position: absolute; top: 1.5mm; left: 2mm; font: 8pt var(--mono); color: #777; }
+  body[data-mode="mock"]:not(.print-key) :is(details.model, .zh) { display: none !important; }
+  body[data-mode="mock"] #panel { display: block !important; position: static; width: auto; border: 0; box-shadow: none; background: none; }
+  body[data-mode="mock"] #panel .body { overflow: visible; padding: 0; }
+  body[data-mode="mock"] #panel figure { display: block !important; break-before: page; }
+  body[data-mode="mock"] #panel figure::before { content: attr(data-name); display: block; margin-bottom: 3mm; font-weight: 700; }
+  body[data-mode="mock"] #panel img { width: auto; max-width: 100%; max-height: 235mm; cursor: auto; }
+  body.print-key h1::after { content: "：答案"; }
+  body.print-key :is(.space, #panel, .cover ul) { display: none !important; }
+  body.print-key .fill::after { content: attr(data-first); width: auto; border: 0; font-weight: 700; }
+  body.print-key details.model { display: block !important; border: 0; margin: 2mm 0 6mm; }
+  body.print-key details.model > summary { display: none; }
+  body.print-key details.model > :not(summary) { margin-left: 0; margin-right: 0; }
 }

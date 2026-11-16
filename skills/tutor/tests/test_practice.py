@@ -6,7 +6,9 @@
 """
 
 import base64
+import contextlib
 import importlib.util
+import io
 import re
 import tempfile
 import unittest
@@ -223,7 +225,7 @@ MQ = ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', ""
 
 
 class MockRule(Case):
-    """模擬卷：只有完整題目、沒有提示、有作答時間；一份導讀頁時每個題型至少一題。"""
+    """模擬卷：只有完整題目、沒有提示，在紙上做；一份導讀頁時每個題型至少一題。"""
 
     def test_valid_mock_passes(self):
         self.assertGreen(src(MQ, MOCK_BODY))
@@ -235,8 +237,11 @@ class MockRule(Case):
     def test_unknown_mode_fails(self):
         self.assertRed(src(body=BODY + ' data-mode="exam"'), "看不懂")
 
-    def test_missing_or_bad_minutes_fail(self):
-        for bad in ("", ' data-minutes="0"', ' data-minutes="一小時"', ' data-minutes="1.5"'):
+    def test_minutes_are_optional(self):
+        self.assertGreen(src(MQ, BODY + ' data-mode="mock"'))
+
+    def test_bad_minutes_fail(self):
+        for bad in (' data-minutes=""', ' data-minutes="0"', ' data-minutes="一小時"', ' data-minutes="1.5"'):
             with self.subTest(bad=bad):
                 self.assertRed(src(MQ, BODY + ' data-mode="mock"' + bad), "data-minutes")
 
@@ -264,12 +269,48 @@ class MockRule(Case):
         (self.dir / "g5.html").write_text(GUIDE, encoding="utf-8")
         self.assertRed(src(body=BODY.replace('data-guide="guide.html"', 'data-guide="guide.html;g5.html"')), "只能寫一份導讀頁")
 
-    def test_mock_page_has_clock_and_no_guide_links(self):
-        out = practice.build(src(MQ, MOCK_BODY), self.dir)
+    def mock_page(self, inner=MQ, body=MOCK_BODY):
+        """組好的模擬卷，只留 <body> 裡的 HTML（不含內嵌的樣式和腳本）。"""
+        out = practice.build(src(inner, body), self.dir)
         self.assertIn('data-mode="mock"', out)
-        self.assertIn('class="clock" data-minutes="45"', out)
-        self.assertNotIn('href="guide.html', out)
-        self.assertNotIn('class="clock"', practice.build(src(), self.dir).split("</style>")[1].split("<script>")[0])
+        return out.split("</style>")[1].split("<script>")[0]
+
+    def test_mock_page_has_no_guide_links(self):
+        self.assertNotIn('href="guide.html', self.mock_page())
+
+    def test_cover_lists_time_total_and_each_question(self):
+        two = MQ + MQ.replace("acf-seasonal", "acf-trend").replace("練習 1", "練習 2").replace('data-marks="2"', 'data-marks="5"')
+        self.answers(["acf-seasonal", "acf-trend"])
+        cover = re.search(r'<div class="cover">.*?</div>', self.mock_page(two), re.S).group(0)
+        self.assertIn("建議時間 45 分鐘", cover)
+        self.assertIn("滿分 9 分", cover)
+        self.assertIn("<tr><td>練習 1</td><td>3</td><td></td></tr><tr><td>練習 2</td><td>6</td><td></td></tr>", cover)
+        self.assertIn('<tr class="total"><td>合計</td><td>9</td><td></td></tr>', cover)
+
+    def test_cover_without_minutes_gives_no_time(self):
+        cover = re.search(r'<div class="cover">.*?</div>', self.mock_page(body=BODY + ' data-mode="mock"'), re.S).group(0)
+        self.assertNotIn("建議時間", cover)
+        self.assertIn("滿分 3 分", cover)
+
+    def test_answer_space_replaces_the_pad(self):
+        out = self.mock_page(MQ.replace('class="q"', 'class="q" data-h="1300"'))
+        self.assertNotIn('class="pad"', out)
+        self.assertLess(out.index('<div class="space" data-id="acf-seasonal" style="--h: 1300px">'), out.index("<details"))
+        self.assertIn('style="--h: 900px"', self.mock_page())
+
+    def test_mock_page_has_print_and_done_buttons_and_no_clock(self):
+        out = self.mock_page()
+        for act in ("print", "print-key", "done"):
+            self.assertIn(f'data-act="{act}"', out)
+        self.assertNotIn('class="clock"', out)
+
+    def test_practice_page_has_no_cover_or_answer_space(self):
+        out = practice.build(src(), self.dir).split("</style>")[1].split("<script>")[0]
+        for cls in ("cover", "mockbar", "space"):
+            self.assertNotIn(f'class="{cls}"', out)
+
+    def test_panel_tables_keep_their_names_for_the_printed_paper(self):
+        self.assertIn('<figure data-tab="t0" data-name="Z 表">', self.mock_page())
 
 
 class NoAnswerRule(Case):
@@ -506,14 +547,51 @@ class Build(Case):
             return ["視窗寬 390px：整頁被撐寬 120px"]
         self.assertEqual(practice.main([str(self.dir / "p-src.html")], measure=measure), 1)
         self.assertFalse((self.dir / "p.html").exists())
-        # 模擬卷的題目和範本答案要先出現再量
-        self.assertIn("started", seen["prepare"])
+        # 模擬卷的範本答案要先出現再量
         self.assertIn("submitted", seen["prepare"])
 
     def test_cli_writes_page_without_a_browser(self):
         (self.dir / "p-src.html").write_text(src(), encoding="utf-8")
         self.assertEqual(practice.main([str(self.dir / "p-src.html")], measure=lambda out, prepare="": None), 0)
         self.assertTrue((self.dir / "p.html").is_file())
+
+    def run_cli(self, source, printer):
+        """跑一次 CLI（不量溢出），回傳退出碼和 stdout、stderr。"""
+        (self.dir / "p-src.html").write_text(source, encoding="utf-8")
+        # main 會對 stdout、stderr 呼叫 reconfigure，StringIO 沒有這個方法
+        out, err = (io.TextIOWrapper(io.BytesIO(), encoding="utf-8") for _ in range(2))
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = practice.main([str(self.dir / "p-src.html")], measure=lambda page, prepare="": [], printer=printer)
+        for stream in (out, err):
+            stream.flush()
+        return code, out.buffer.getvalue().decode("utf-8"), err.buffer.getvalue().decode("utf-8")
+
+    def test_cli_prints_the_mock_as_two_pdfs(self):
+        asked = []
+
+        def printer(page):
+            asked.append(page)
+            return [page.with_name("p.pdf"), page.with_name("p-answers.pdf")]
+        code, out, _ = self.run_cli(src(MQ, MOCK_BODY), printer)
+        self.assertEqual(code, 0)
+        self.assertEqual(asked, [self.dir / "p.html"])
+        self.assertEqual(out.split(), [str(self.dir / n) for n in ("p.html", "p.pdf", "p-answers.pdf")])
+
+    def test_cli_delivers_the_mock_without_a_browser_and_says_so(self):
+        code, out, err = self.run_cli(src(MQ, MOCK_BODY), lambda page: None)
+        self.assertEqual(code, 0)
+        self.assertTrue((self.dir / "p.html").is_file())
+        self.assertIn("沒有印 PDF", err)
+
+    def test_cli_does_not_print_a_practice_page(self):
+        code, out, _ = self.run_cli(src(), lambda page: self.fail("練習頁不印 PDF"))
+        self.assertEqual(code, 0)
+        self.assertEqual(out.split(), [str(self.dir / "p.html")])
+
+    def test_pdf_names_and_urls(self):
+        """考卷和答案各一份：答案版的網址結尾是頁面 JS 認的 #answers。"""
+        self.assertEqual(practice.PDFS, (("", ""), ("-answers", "#answers")))
+        self.assertIn('location.hash === "#answers"', practice.JS.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

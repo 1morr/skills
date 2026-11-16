@@ -11,10 +11,17 @@
     data-guide    導讀頁檔名，相對於產出的練習頁；題目裡的 §N 會連到導讀頁那一段
     data-answers  答案檔，相對於原始檔；批改用，不放進頁面
 
-模擬卷（同一套組頁，照考試的樣子做）：<body data-mode="mock" data-minutes="60">
-    data-minutes  作答時間（分鐘）；頁面頂端倒數，按「交卷」才對填答格、才看得到範本答案
+模擬卷（同一套組頁，印在 A4 紙上做）：<body data-mode="mock" data-minutes="60">
+    data-minutes  建議作答時間（分鐘），印在封面；可以不寫
     data-guide    可以列好幾份導讀頁，用 ; 分開（跨 topic 的累積卷）
     只有完整題目：不放基本功、不寫對照的 §、不用 data-differs。只列一份導讀頁時，它的每個題型至少一題。
+    section 的 data-h 是紙上作答區的高度（px，96 px = 1 吋；預設 900，大約一頁 A4）。
+    版面照 LaTeX exam class 的慣例：封面有「題目／滿分／得分」表（滿分是那題給分點的總和），每題下面留作答區，答案另外印。
+    組好之後用同一個瀏覽器印兩份 PDF，放在頁面旁邊，路徑印在 stdout：
+        <頁面檔名>.pdf          考卷：封面、題目、作答區，查表面板的表接在卷末；不印翻譯和答案
+        <頁面檔名>-answers.pdf  答案：每題的範本答案和給分點
+    找不到瀏覽器只提醒：打開頁面按「列印考卷」「列印答案」各存一份。
+    讀者做完在頁面上按「我在紙上做完了」，才對填答格、才看得到範本答案。
 
 填答格（頁面上馬上對答案，寫法照 Moodle 的 short answer／numerical 題型：多個可接受的答案、不分大小寫、數字可給容許誤差）：
     <p class="fill" data-answer="2.262|2.26" data-why="df = 9、雙尾 α = 0.05，查 t 表">臨界值 =</p>
@@ -40,7 +47,10 @@ import base64
 import html
 import mimetypes
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -227,8 +237,8 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
     mock = mode == "mock"
     if mode not in MODES:
         problems.append(f'<body data-mode="{mode}"> 看不懂：不寫是練習頁，模擬卷寫 mock')
-    if mock and not re.fullmatch(r"[1-9]\d*", (body.get("data-minutes") or "").strip()):
-        problems.append('模擬卷的 <body> 要有 data-minutes：作答時間幾分鐘（正整數），照老師的考試時間按題數比例抓')
+    if mock and body.get("data-minutes") is not None and not re.fullmatch(r"[1-9]\d*", body["data-minutes"].strip()):
+        problems.append(f'data-minutes={body["data-minutes"]!r} 要是正整數：建議作答時間幾分鐘，照老師的考試時間按題數比例抓')
 
     ids = [q["id"] for q in p.qs]
     for q in p.qs:
@@ -249,7 +259,7 @@ def lint(src: str, base: Path, out_dir: Path) -> list:
             if q["drill"]:
                 problems.append(f"模擬卷不放基本功（「{name}」）：只放完整題目，照考試的樣子")
             if q["refs"]:
-                problems.append(f"模擬卷的題目「{name}」不寫對照的 §：考試沒有提示，對照留到交卷後的範本答案")
+                problems.append(f"模擬卷的題目「{name}」不寫對照的 §：考試沒有提示，對照留到做完後的範本答案")
         if not q["drill"] and not mock:
             if not q["refs"]:
                 problems.append(f"題目「{name}」的 .ref 沒寫對照導讀頁的 §N：寫「對照 Eg 1（導讀頁 §16）」，讀者卡住時點過去看")
@@ -355,9 +365,10 @@ def q_tags(inner: str):
             yield m, a
 
 
-def add_pads(inner: str) -> str:
+def add_pads(inner: str, paper: bool = False) -> str:
     """每題完整題目加一張畫布，排在範本答案前面（沒有範本答案就排在最後）：先寫，往下才是答案。data-h 可以在 section 上覆寫預設高度。
-    基本功只填一格，不加畫布（要打草稿的那一題在 section 寫 data-h）。"""
+    基本功只填一格，不加畫布（要打草稿的那一題在 section 寫 data-h）。
+    paper（模擬卷）：同一個位置改放紙上的作答區 .space，只在列印時出現。"""
     out, pos = [], 0
     low = inner.lower()
     for m, a in q_tags(inner):
@@ -369,10 +380,27 @@ def add_pads(inner: str) -> str:
                       if "model" in (tag_attrs(d.group(0)).get("class") or "").split()), None)
         if model is not None:
             end = m.end() + model
-        out += [inner[pos:end], f'<div class="pad" data-id="{html.escape(a["data-id"])}" data-h="{height}"></div>\n']
+        qid = html.escape(a["data-id"])
+        box = (f'<div class="space" data-id="{qid}" style="--h: {height}px"></div>\n' if paper
+               else f'<div class="pad" data-id="{qid}" data-h="{height}"></div>\n')
+        out += [inner[pos:end], box]
         pos = end
     out.append(inner[pos:])
     return "".join(out)
+
+
+def questions(inner: str) -> list:
+    """每題的代號、標題和給分點總分，照頁面上的順序。"""
+    out = []
+    low = inner.lower()
+    for m, a in q_tags(inner):
+        body = inner[m.end():low.index("</section>", m.end())]
+        h2 = re.search(r"<h2\b[^>]*>(.*?)</h2>", body, re.S | re.I)
+        given = (tag_attrs(t.group(0)).get("data-marks", "").strip() for t in re.finditer(r"<li\b[^>]*>", body, re.I))
+        marks = sum(int(g) for g in given if g.isdigit())
+        out.append({"id": a["data-id"], "title": re.sub(r"<[^>]+>", "", h2.group(1)).strip() if h2 else a["data-id"],
+                    "marks": marks})
+    return out
 
 
 def finish_sections(inner: str) -> str:
@@ -386,6 +414,19 @@ def finish_sections(inner: str) -> str:
         pos = m.end()
     out.append(inner[pos:])
     return "".join(out)
+
+
+def cover(inner: str, minutes: str) -> str:
+    """模擬卷的封面：建議時間、滿分、「題目／滿分／得分」表（得分留給讀者在紙上填）和作答規則。"""
+    qs = questions(inner)
+    total = sum(q["marks"] for q in qs)
+    facts = ([f"建議時間 {html.escape(minutes)} 分鐘"] if minutes else []) + [f"滿分 {total} 分"]
+    rows = "".join(f'<tr><td>{html.escape(q["title"])}</td><td>{q["marks"]}</td><td></td></tr>' for q in qs)
+    return (f'<div class="cover">\n<p class="facts">{"　".join(facts)}</p>\n'
+            f'<table><thead><tr><th>題目</th><th>滿分</th><th>得分</th></tr></thead>\n<tbody>{rows}'
+            f'<tr class="total"><td>合計</td><td>{total}</td><td></td></tr></tbody></table>\n'
+            "<ul>\n<li>照考試做：不看導讀頁、不看筆記，只用卷末附的表。</li>\n"
+            "<li>寫在每題下面的作答區，每一步都寫出來；最後的數字再填到題目裡的底線上。</li>\n</ul>\n</div>\n")
 
 
 def finish_models(inner: str) -> str:
@@ -431,7 +472,8 @@ def panel(inner: str):
         for i, fm in enumerate(re.finditer(r"(<figure\b[^>]*>)(.*?</figure>)", m.group(2), re.S | re.I)):
             tab = html.escape(tag_attrs(fm.group(1)).get("data-tab", ""))
             tabs.append(f'<button type="button" data-tab="t{i}" aria-pressed="{"true" if i == 0 else "false"}">{tab}</button>')
-            bodies.append(f'<figure data-tab="t{i}"{"" if i == 0 else " hidden"}>{fm.group(2)}')
+            # data-name：模擬卷把這些表印在卷末，每張表上面要有名字
+            bodies.append(f'<figure data-tab="t{i}" data-name="{tab}"{"" if i == 0 else " hidden"}>{fm.group(2)}')
         html_ = (f'<button id="panel-btn" type="button">{label}</button>\n'
                  f'<aside id="panel" aria-label="{label}"><header>{"".join(tabs)}'
                  f'<button type="button" class="close">關閉</button></header>\n'
@@ -477,19 +519,20 @@ HOWTO = """<details class="howto">
 """
 
 HOWTO_MOCK = """<div class="howto">
-<b>這是模擬卷</b>
+<b>這份模擬卷在紙上做</b>
 <ul>
-<li>照考試做：不看導讀頁、不看筆記，只用考試發的表（右下角「查表」）。準備好再按「開始計時」。</li>
-<li>每題寫在畫布上，最後的數字填進格子。作答時不會告訴你對錯。</li>
-<li>寫完或時間到按「交卷」：填答格一次對完，每題的範本答案和給分點才會出現。照給分點一點一點勾，算出你的分數。</li>
-<li>對完按「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。</li>
+<li>印考卷：用這頁旁邊同名的 PDF，或按「列印考卷」。照封面的規則做完。</li>
+<li>做完回到這頁，把最後的數字填進題目裡的格子，按「我在紙上做完了」：填答格一次對完，每題的範本答案和給分點才會出現。照給分點一點一點勾，算出你的分數。</li>
+<li>想在紙上對答案：印檔名結尾是 -answers 的 PDF，或按「列印答案」，給分點前面的方格可以直接勾。</li>
+<li>對完按「複製填答結果」貼到對話，Claude 會記下哪些題型要再練。要 Claude 看步驟，把寫好的那幾頁拍照貼到對話。</li>
 </ul>
 </div>
 """
 
-MOCK_BAR = ('<div class="clock" data-minutes="{minutes}"><span class="left" aria-live="off"></span>'
-            '<button type="button" data-act="start">開始計時</button>'
-            '<button type="button" data-act="submit" hidden>交卷</button><span class="status" aria-live="polite"></span></div>\n')
+MOCK_BAR = ('<div class="mockbar"><button type="button" data-act="print">列印考卷</button>'
+            '<button type="button" data-act="print-key">列印答案</button>'
+            '<button type="button" data-act="done">我在紙上做完了</button>'
+            '<span class="status" aria-live="polite"></span></div>\n')
 
 # 深淺色由讀者切換、記在瀏覽器（和導讀頁同一個鍵）；在樣式之前套上，打開時才不會先閃一下白底
 THEME = ('<script>try { if (localStorage.getItem("tutor-theme") === "dark") '
@@ -504,14 +547,14 @@ def build(src: str, base: Path) -> str:
     a, inner = body_parts(src)
     inner, panel_html = panel(inner)
     mock = a.get("data-mode") == "mock"
-    inner = finish_models(finish_sections(add_pads(inner)))
+    inner = finish_models(finish_sections(add_pads(inner, paper=mock)))
     if not mock:
         inner = link_refs(inner, a["data-guide"])
     has_lead = re.search(r"""class\s*=\s*["'][^"']*\blead\b""", inner)
     lead = "" if has_lead or mock else '<p class="lead">每題和導讀頁的一題例題或作業同類型，只換了情境和數字，結論不一定一樣。</p>\n'
     title = html.escape(a["data-title"])
     mode = ' data-mode="mock"' if mock else ""
-    howto = HOWTO_MOCK + MOCK_BAR.format(minutes=html.escape(a["data-minutes"].strip())) if mock else HOWTO
+    howto = HOWTO_MOCK + MOCK_BAR + cover(inner, (a.get("data-minutes") or "").strip()) if mock else HOWTO
     page = (f'<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{title}</title>\n'
             f"{THEME}<style>\n{CSS.read_text(encoding='utf-8')}</style>\n</head>\n"
@@ -521,11 +564,38 @@ def build(src: str, base: Path) -> str:
     return inline_images(page, base)
 
 
-# 模擬卷的題目按「開始計時」才出現、範本答案交卷才出現：量溢出之前先讓它們都出現
-REVEAL = 'document.body.classList.add("started", "submitted");'
+# 模擬卷的範本答案按「我在紙上做完了」才出現：量溢出之前先讓它出現
+REVEAL = 'document.body.classList.add("submitted");'
+# 模擬卷印成 PDF：(檔名結尾, 網址結尾)。頁面的 JS 看到 #answers 就換成答案版
+PDFS = (("", ""), ("-answers", "#answers"))
 
 
-def main(argv=None, measure=overflow.measure) -> int:
+def print_pdfs(page: Path):
+    """用無頭瀏覽器把模擬卷印成 PDF（紙張大小和邊界由頁面的 @page 決定），放在 page 旁邊。
+    回傳寫出的檔；找不到瀏覽器回傳 None。"""
+    browser = overflow.find_browser()
+    if not browser:
+        return None
+    out = []
+    for suffix, fragment in PDFS:
+        pdf = page.with_name(page.stem + suffix + ".pdf")
+        pdf.unlink(missing_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="mock-print-"))  # 自己的 profile：不碰使用者開著的瀏覽器，也沒有存過的作答
+        try:
+            subprocess.run(
+                [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                 f"--user-data-dir={work / 'profile'}", "--no-pdf-header-footer", "--virtual-time-budget=5000",
+                 f"--print-to-pdf={pdf}", page.resolve().as_uri() + fragment],
+                capture_output=True, timeout=180)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        if not pdf.is_file():
+            raise SystemExit(f"瀏覽器沒有印出 {pdf}")
+        out.append(pdf)
+    return out
+
+
+def main(argv=None, measure=overflow.measure, printer=print_pdfs) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -544,6 +614,13 @@ def main(argv=None, measure=overflow.measure) -> int:
     if not overflow.deliverable(out, args.src, measure(out, prepare=REVEAL)):
         return 1
     print(out)
+    if body_parts(src)[0].get("data-mode") == "mock":
+        pdfs = printer(out)
+        if pdfs is None:
+            print("提醒：找不到 Chrome 或 Edge，沒有印 PDF；用瀏覽器打開頁面，按「列印考卷」「列印答案」各存一份",
+                  file=sys.stderr)
+        for pdf in pdfs or []:
+            print(pdf)
     return 0
 
 
