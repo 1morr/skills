@@ -98,11 +98,9 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 寫架構與 roadmap（訪談之後、第一個里程碑開工之前）：照 `docs/agents/milestone.md`〈寫架構與 roadmap〉。之後的里程碑留在 roadmap，開工時才有 spec。
 - 做票：一張票一個 session，`/implement`；整批跑票：`/1morr:ticket-coordinator`。
 - 里程碑之間：`/1morr:checkpoint`；想看懂某樣東西現在怎麼運作：`/1morr:explain`；里程碑、票、決定的總覽頁：`/1morr:dashboard`。
-- 新功能與修 bug：`mattpocock-skills:tdd`。設計模組邊界：`mattpocock-skills:codebase-design`。
 - 用實驗回答設計問題：`mattpocock-skills:prototype`，決定寫回 brief，量到的數字寫進 `docs/research/`。實驗腳本留在 `scripts/experiments/`，換版本時要重量。
 - 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論寫成那個檔的〈事實〉段。
 - 每張票與里程碑收尾：`mattpocock-skills:code-review`（Spec 軸讀票，Standards 軸讀本檔）；難 bug 或效能退化：`mattpocock-skills:diagnosing-bugs`。
-- 改本檔或 progress.md 的流程段：`mattpocock-skills:writing-for-agents`。
 
 ## Agent skills
 
