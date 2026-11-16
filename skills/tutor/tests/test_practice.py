@@ -292,11 +292,18 @@ class MockRule(Case):
         self.assertNotIn("建議時間", cover)
         self.assertIn("滿分 3 分", cover)
 
-    def test_answer_space_replaces_the_pad(self):
-        out = self.mock_page(MQ.replace('class="q"', 'class="q" data-h="1300"'))
+    def test_answer_pages_replace_the_pad(self):
+        out = self.mock_page()
         self.assertNotIn('class="pad"', out)
-        self.assertLess(out.index('<div class="space" data-id="acf-seasonal" style="--h: 1300px">'), out.index("<details"))
-        self.assertIn('style="--h: 900px"', self.mock_page())
+        self.assertLess(out.index('<div class="space" data-id="acf-seasonal"></div>'), out.index("<details"))
+
+    def test_answer_pages_follow_the_height(self):
+        """data-h 每一頁 A4（PAPER_PAGE）一張作答頁，四捨五入、至少一張。"""
+        page = practice.PAPER_PAGE
+        for h, pages in ((None, 1), (300, 1), (page + page // 2 - 1, 1), (page + page // 2, 2), (2 * page + 100, 2)):
+            with self.subTest(h=h):
+                q = MQ if h is None else MQ.replace('class="q"', f'class="q" data-h="{h}"')
+                self.assertEqual(self.mock_page(q).count('<div class="space" data-id="acf-seasonal"></div>'), pages)
 
     def test_mock_page_has_print_and_done_buttons_and_no_clock(self):
         out = self.mock_page()

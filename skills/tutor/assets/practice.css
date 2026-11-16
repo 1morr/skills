@@ -150,7 +150,7 @@ details.model .score { font-weight: 700; margin-bottom: 1rem; }
 .cover tr.total td { font-weight: 700; border-bottom: 0; }
 .cover ul { margin: .8rem 0 0; padding-left: 1.2em; font-size: .94rem; }
 .cover li { margin: .2rem 0; }
-.space { display: none; }  /* 紙上的作答區，只在列印時出現 */
+.space { display: none; }  /* 紙上的作答頁，只在列印時出現 */
 body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not(.submitted) .report { display: none; }
 
 /* 畫布：工具列在上、白紙方格在下 */
@@ -222,8 +222,9 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   section.q h2 { font-size: 1.18rem; }
 }
 
-/* ── 模擬卷印在 A4：考卷是封面、題目、作答區，查表面板的表接在卷末；不印翻譯和答案。
-   body.print-key 是答案：題目下面印範本答案和給分點，不印作答區和卷末的表 ── */
+/* ── 模擬卷印在 A4：考卷是封面、題目、作答頁，查表面板的表接在卷末；不印翻譯和答案。
+   每題從新的一頁開始，後面接整頁的作答頁（.space，一個一頁）；題目那一頁剩下的空白也可以寫。
+   body.print-key 是答案：題目下面印範本答案和給分點，不印作答頁和卷末的表 ── */
 @page {
   size: A4; margin: 16mm 15mm 18mm;
   @bottom-center { content: counter(page) " / " counter(pages); font: 9pt sans-serif; color: #555; }
@@ -240,8 +241,8 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body[data-mode="mock"] .fill :is(input, button, .result) { display: none !important; }
   body[data-mode="mock"] h1 { font-size: 18pt; }
   body[data-mode="mock"] .cover { break-after: page; }
-  body[data-mode="mock"] section.q { position: relative; border-top: 0; padding: 0 0 4mm; }
-  /* 題目代號印在每題和作答區的角落：拍照貼回對話時，批改的人靠它找答案 */
+  body[data-mode="mock"] section.q { position: relative; border-top: 0; padding: 0; break-before: page; }
+  /* 題目代號印在每題和每張作答頁的角落：拍照貼回對話時，批改的人靠它找答案 */
   body[data-mode="mock"] section.q::before { content: attr(data-id); position: absolute; top: 0; right: 0; font: 8pt var(--mono); color: #666; }
   body[data-mode="mock"] section.q h2 { break-after: avoid; padding-right: 11em; }
   body[data-mode="mock"] section.q :is(figure, table, pre.mtb), body[data-mode="mock"] .rubric li { break-inside: avoid; }
@@ -249,8 +250,11 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body[data-mode="mock"] section.q figure img { max-height: 110mm; cursor: auto; }
   body[data-mode="mock"] pre.mtb { border: 1px solid #999; font-size: 8.5pt; overflow: visible; white-space: pre-wrap; }
   body[data-mode="mock"] .fill::after { content: ""; display: inline-block; width: 9em; margin-left: .4em; border-bottom: 1px solid #000; }
-  body[data-mode="mock"] .space { display: block; position: relative; height: var(--h); margin: 4mm 0 8mm; border: 1px solid #999; }
-  body[data-mode="mock"] .space::before { content: attr(data-id) " 作答區"; position: absolute; top: 1.5mm; left: 2mm; font: 8pt var(--mono); color: #777; }
+  /* 填答的底線跟著前一塊走，不會單獨一行掉到下一頁 */
+  body[data-mode="mock"] .fill { break-inside: avoid; break-before: avoid; }
+  /* 250mm：比一頁能放的 263mm 矮一點，整格才留在同一頁 */
+  body[data-mode="mock"] .space { display: block; position: relative; height: 250mm; border: 1px solid #999; break-before: page; break-inside: avoid; }
+  body[data-mode="mock"] .space::before { content: attr(data-id) " 作答頁"; position: absolute; top: 1.5mm; left: 2mm; font: 8pt var(--mono); color: #777; }
   body[data-mode="mock"]:not(.print-key) :is(details.model, .zh) { display: none !important; }
   body[data-mode="mock"] #panel { display: block !important; position: static; width: auto; border: 0; box-shadow: none; background: none; }
   body[data-mode="mock"] #panel .body { overflow: visible; padding: 0; }
@@ -260,6 +264,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body.print-key h1::after { content: "：答案"; }
   body.print-key :is(.space, #panel, .cover ul) { display: none !important; }
   body.print-key .fill::after { content: attr(data-first); width: auto; border: 0; font-weight: 700; }
+  body.print-key section.q { break-before: auto; padding-bottom: 4mm; }
   body.print-key details.model { display: block !important; border: 0; margin: 2mm 0 6mm; }
   body.print-key details.model > summary { display: none; }
   body.print-key details.model > :not(summary) { margin-left: 0; margin-right: 0; }
