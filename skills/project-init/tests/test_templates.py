@@ -35,7 +35,7 @@ def load(name):
     return mod
 
 
-check_docs, check_commit_msg = load("check_docs"), load("check_commit_msg")
+check_docs, check_commit_msg, scaffold = load("check_docs"), load("check_commit_msg"), load("scaffold")
 
 
 def fill(name: str) -> str:
@@ -100,6 +100,8 @@ class SkeletonTest(unittest.TestCase):
 class MilestoneDocTest(unittest.TestCase):
     def test_instructions_point_at_it_and_it_names_what_the_check_enforces(self):
         self.assertIn("docs/agents/milestone.md", fill("instructions.md"))
+        for name in ("ui.md", "visual.md"):  # 指令檔指到的檔，scaffold 都寫得出來
+            self.assertIn(scaffold.TEMPLATES[name], fill("instructions.md"))
         text = fill("milestone.md")
         for needle in ("/to-tickets docs/roadmap.md 拆 <里程碑> 的票", "/to-tickets docs/roadmap.md 拆 M0 的票", "寫架構與 roadmap",
                        "NN-<里程碑>-acceptance", check_docs.USER_TRIAL,

@@ -6,7 +6,7 @@
 佔位：{{PROJECT}}、{{ONE_LINE}}、{{DATE}}（預設今天）、{{MAIN_BRANCH}}。`.githooks/` 的檔設成可執行；
 docs/adr、docs/research、docs/archive、scripts/experiments 不存在時各建一個 .gitkeep。
 每個檔印一行：`寫入<TAB><路徑>`，或 `已存在<TAB><路徑><TAB><範本的完整路徑>`（內容沒有動，缺的段落要另外補）。
-範本裡的 `<!-- -->` 註解與標了「只在…時保留」的段落照樣寫進去，留給呼叫的人照專案的情況刪。
+範本裡的 `<!-- -->` 註解、標了「只在…時保留」的段落和它指到的檔（`docs/agents/ui.md`、`docs/agents/visual.md`）照樣寫進去，留給呼叫的人照專案的情況刪。
 只用標準函式庫。
 """
 
@@ -32,6 +32,8 @@ TEMPLATES = {
     "triage-labels.md": "docs/agents/triage-labels.md",
     "domain.md": "docs/agents/domain.md",
     "milestone.md": "docs/agents/milestone.md",
+    "ui.md": "docs/agents/ui.md",
+    "visual.md": "docs/agents/visual.md",
     "gitattributes": ".gitattributes",
     "ci.yml": ".github/workflows/ci.yml",
     "commit-msg": ".githooks/commit-msg",

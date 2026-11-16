@@ -80,24 +80,16 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - cookie、token、簽名網址、API key 的值寫成 `***`。
 - 本機路徑用代稱：`<資料目錄>`、`<暫存目錄>`、`<repo>`。
 
-<!-- 只在專案有 UI 時保留這一段 -->
+<!-- 只在專案有 UI 時保留這一段和 docs/agents/ui.md -->
 ## UI
 
-- **先有設計稿，再寫介面**。不論產品是網頁、原生 App 還是桌面程式，每個畫面先用 `impeccable:impeccable` 做成靜態 HTML 的設計稿，放在 `docs/design/`，使用者逐頁確認後才開做它的票。有爭議的地方給 A／B 兩個方案。只改文案、修 bug、不動版面的票不用。
-- 設計稿要涵蓋的寬度、深淺色與設計系統寫在 brief；實作照定稿做，要偏離先問使用者。
-- 設計稿排成一個只產出文件的階段，在第一個有畫面的里程碑開工前完成。它和里程碑一樣開工：`docs/roadmap.md` 的里程碑表佔一列（`D 設計稿`）、`.scratch/d/` 有 spec 與票，一個畫面一張票，使用者確認定稿才是 `done`。之後才新增或大改的畫面，在那張票的第一步用 `impeccable:impeccable` 出設計，使用者確認後才實作。
-- 做對比版：每一版在自己的 worktree 做，只讀 brief 與設計系統，別的版本的設計稿留到使用者比較時才打開。
 - UI 改動實跑驗證，附截圖或讀回的畫面文字。
+- 排 roadmap、做設計稿或對比版、做會新增畫面或改版面的票之前，先讀 `docs/agents/ui.md`：畫面要先有使用者確認過的設計稿才實作。
 
-<!-- 只在使用者選了用 visual-explainer 時保留這一段 -->
+<!-- 只在使用者選了用 visual-explainer 時保留這一段和 docs/agents/visual.md -->
 ## 視覺化
 
-這個專案用 `visual-explainer` 把圖和要使用者選的事做成一頁。這個 session 的 skill 清單裡沒有它時，照文字流程做，並在回報裡說一聲。
-
-- 用在四處：寫架構時的架構草稿（`visual-explainer:generate-web-diagram`）；里程碑開工、要改的程式碼已經存在時的計劃（`visual-explainer:generate-visual-plan`）；開工時票對程式碼找到的問題（`visual-explainer:plan-review`）；訪談或設計中要畫出來才看得懂的二選一（`visual-explainer:compare`）。
-- 頁面的文字用使用者對話的語言；不帶 `--open`，在對話給完整路徑。
-- 頁面只給使用者看和作答，留在 repo 外面。使用者貼回的回覆照〈使用者確認〉處理：定案寫回 brief、spec、票，並記一條決定。
-- 做完之後的驗收照驗收票，不回頭更新頁面。
+這個專案用 `visual-explainer` 把圖和要使用者選的事做成一頁，用在四處：寫架構的草稿、里程碑開工的計劃、開工時票對程式碼找到的問題、要畫出來才看得懂的二選一。到了這四處先讀 `docs/agents/visual.md`。
 
 ## Skills
 
