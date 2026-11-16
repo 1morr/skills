@@ -196,12 +196,13 @@ h4 { font-size: 1.0625rem; margin: 1.75rem 0 .4rem; }
 
 /* 有名字的區塊：名字由樣式加上，內文直接寫內容 */
 .summary::before, .tr::before, .sheet::before, .uses::before { display: block; font-weight: 700; margin-bottom: .3rem; }
-.why::before, .trap::before, .test::before, .def .yes::before, .def .no::before { font-weight: 700; margin-right: .7em; }
+.trap::before, .test::before, .def .yes::before, .def .no::before { font-weight: 700; margin-right: .7em; }
 .why, .trap { margin: 1.25rem 0; }
-.why::before { content: "為什麼"; }
 .trap::before { content: "常見錯誤"; }
-.why > :first-child, .trap > :first-child { display: inline; }
+.trap > :first-child { display: inline; }
 .trap p, .why p { margin: .4rem 0; }
+/* 「為什麼」沒有固定的名字：開頭那個粗體的問句就是它的標題 */
+.why > b:first-child, .why > p:first-child > b:first-child { margin-right: .7em; }
 
 /* 這頁重點、這題記住：整頁唯一整塊上色的地方 */
 .summary { background: var(--yellow-wash); padding: .9rem 1.25rem 1rem; margin: 1.25rem 0 1.75rem; }

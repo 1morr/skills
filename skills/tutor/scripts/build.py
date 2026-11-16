@@ -59,7 +59,7 @@ FROM_KINDS = {"table", "count", "convention", "rule", "constant"}
 LINKED_FROM = {"table", "count"}
 
 # 這些框的標籤由樣式加上；內文開頭再寫一次就重複了
-LABELS = {"why": ("為什麼",), "trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
+LABELS = {"trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
           "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "test": ("怎樣才算",), "yes": ("是：", "是:"),
           "no": ("不是：", "不是:")}
 # 整頁太長的提醒（不擋產出）：正文字數，和沒有摺起來的圖的張數
@@ -121,6 +121,7 @@ class Lint(HTMLParser):
         self.type_slugs = []  # 題型表每一列的 data-type
         self.boxes = []  # 開著的有標籤的框：{"depth", "labels", "first"}
         self.shown_figures = 0  # 沒有摺在 <details> 裡的圖
+        self.whys = []  # 開著的 .why：{"state": start|q|done|bad, "q": 開頭那個 <b> 裡的字}
 
     def skipping(self) -> bool:
         return any(skip for _, skip, _ in self.stack)
@@ -160,6 +161,10 @@ class Lint(HTMLParser):
             self.boxes.append({"depth": len(self.stack), "labels": LABELS[name], "first": True})
         if "ans" in cls and self.calcs:
             self.calcs[-1]["ans"] = True
+        if tag == "b" and self.whys and self.whys[-1]["state"] == "start":
+            self.whys[-1]["state"] = "q"
+        if "why" in cls:
+            self.whys.append({"state": "start", "q": ""})
         for key in ("src", "href", "data-zh"):
             if tag in ("img", "script", "link", "source") and a.get(key) and REMOTE.match(a[key]):
                 self.problems.append(f"外部資源 <{tag} {key}={a[key]!r}>：頁面要能離線打開，請改成本機檔案")
@@ -306,6 +311,13 @@ class Lint(HTMLParser):
             if not d["example"]:
                 self.problems.append(f'定義框「{d["term"].strip()[:20]}」前面沒有先舉例：新概念先用生活情境和小整數在原地算一次或畫一次，'
                                      "再說「這叫做○○」（這個 h2/h3 塊裡，定義框之前的正文要有數字）")
+        if tag == "b" and self.whys and self.whys[-1]["state"] == "q":
+            self.whys[-1]["state"] = "done"
+        if "why" in cls and self.whys:
+            w = self.whys.pop()
+            if w["state"] != "done" or not w["q"].strip().endswith(("？", "?")):
+                self.problems.append("「為什麼」框沒有先寫出它在回答的問題：開頭寫成 <b>讀者會問的那一句？</b>（問號結尾），"
+                                     "接著才是答案；一個框只答一個問題")
         if "calc" in cls and self.calcs:
             c = self.calcs.pop()
             what = " ".join((c["formula"] + c["subst"]).split())[:30]
@@ -346,6 +358,11 @@ class Lint(HTMLParser):
         if self.row is not None:
             self.row["text"] += data
         text = data.strip()
+        if text and self.whys:
+            if self.whys[-1]["state"] == "start":
+                self.whys[-1]["state"] = "bad"  # 問題之前先寫了別的字
+            elif self.whys[-1]["state"] == "q":
+                self.whys[-1]["q"] += data
         for box in self.boxes:
             if box["first"] and text:
                 box["first"] = False

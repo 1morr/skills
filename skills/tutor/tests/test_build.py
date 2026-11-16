@@ -28,8 +28,8 @@ ZH_FIG = '<figure><img src="a.png" data-zh="a.zh.png" alt=""><figcaption>Classno
 CHECK = '<details class="check"><summary>t 值怎麼算？</summary><p>b 除以 SE</p></details>'
 # 課件欄第一段是 §1，題目欄每題的「這題用到」連到它
 USES = '<ul class="uses"><li>F 是訊號除以雜訊，見 §1</li></ul>'
-# 「為什麼」是選用的：想多講一句才寫，不要求連結或截圖
-WHY = '<div class="why"><p>F 是訊號除以雜訊</p></div>'
+# 「為什麼」是選用的；寫了就先寫出它在回答的問題
+WHY = '<div class="why"><p><b>F 為什麼是除法？</b>F 是訊號除以雜訊</p></div>'
 # 題目欄開頭的題型表：看到什麼 → 用什麼 → 示範題。題目欄第一段的 § 由 page() 算
 TYPES = '<div class="cheat"><table class="types"><tr><th>看到什麼</th><th>用什麼</th><th>示範</th></tr><tr data-type="f-test"><td>ANOVA 表</td><td>F</td><td>§{n}</td></tr></table></div>'
 # 定義框前面先用小數字舉例
@@ -252,7 +252,7 @@ class MethodRule(unittest.TestCase):
         self.assertTrue(has(src, self.NO_USES))
 
     def test_why_is_optional(self):
-        for why in ("", WHY, '<div class="why"><p>見 §2，沒有連到講義也行</p></div>'):
+        for why in ("", WHY, '<div class="why"><p><b>為什麼看 §2？</b>沒有連到講義也行</p></div>'):
             with self.subTest(why=why[:30]):
                 src = prob(f"<h2>一</h2>{USES}{why}" + ans(ORIGIN + CALC))
                 self.assertTrue(ok(src), build.lint(src))
@@ -339,7 +339,7 @@ class TranslationRule(unittest.TestCase):
     def test_formatting_variants_pass(self):
         variants = [
             '<h2>一</h2><P CLASS="x tr">譯文</P>\n  <!-- 註解 -->\n<figure><img src="a.png"><figcaption>p.4</figcaption></figure>',
-            '<h2>一</h2><div class="why"><div class="tr">譯</div><figure class="w"><img src="a.png">'
+            '<h2>一</h2><div class="wrap"><div class="tr">譯</div><figure class="w"><img src="a.png">'
             '<figcaption>p.4</figcaption></figure></div>',
             '<h2>一</h2><figure data-tr="none"><img src="a.png"><figcaption>殘差圖 p.5</figcaption></figure>',
             f'<h2>一</h2>{ZH_FIG}',
@@ -676,7 +676,7 @@ class SentenceRule(unittest.TestCase):
     def test_blocks_end_sentences(self):
         half = "字" * (self.cap // 2 + 1)
         src = page(f"<h2>一</h2><p>{half}</p><p>{half}</p><ul><li>{half}</li><li>{half}</li></ul>"
-                   f"<div class='why'>{half}</div><h3>{half}</h3>")
+                   f"<div class='x'>{half}</div><h3>{half}</h3>")
         self.assertTrue(ok(src), build.lint(src))
 
     def test_calc_table_figure_sheet_not_counted(self):
@@ -731,7 +731,7 @@ class PrereqRule(unittest.TestCase):
                 self.assertFalse(ok(page(f"<h2>一</h2><p>{text}</p>")))
 
     def test_mention_in_why_fails(self):
-        src = prob(f'<h2>一</h2><div class="why"><p>Topic 4 的東西，見 §1</p></div>{USES}' + ans(ORIGIN + CALC))
+        src = prob(f'<h2>一</h2><div class="why"><p><b>這從哪來？</b>Topic 4 的東西，見 §1</p></div>{USES}' + ans(ORIGIN + CALC))
         self.assertTrue(has(src, "把讀者推去看別的 topic"))
 
     def test_teaching_in_place_passes(self):
@@ -838,14 +838,38 @@ class AnswerMarkRule(unittest.TestCase):
         self.assertTrue(ok(src), build.lint(src))
 
 
+class WhyRule(unittest.TestCase):
+    """「為什麼」框開頭是它在回答的問題：一個 <b>，問號結尾。"""
+    NO_QUESTION = "沒有先寫出它在回答的問題"
+
+    def test_statement_without_question_fails(self):
+        cases = ['<p class="why">第一種方法只適合沒有強烈趨勢的序列。</p>',
+                 '<div class="why"><p>拆開的目的是預測。</p></div>',
+                 '<p class="why"><b>第一種方法的限制</b>有趨勢時會被墊高。</p>',
+                 '<p class="why">先說結論。<b>為什麼要先拿掉趨勢？</b>有趨勢時會被墊高。</p>',
+                 '<p class="why"></p>']
+        for why in cases:
+            with self.subTest(why=why):
+                self.assertTrue(has(page(f"<h2>一</h2>{why}"), self.NO_QUESTION))
+
+    def test_question_first_passes(self):
+        cases = ['<p class="why"><b>為什麼不直接用季平均 ÷ 總平均？</b>有趨勢時，後面幾年整體比較高。</p>',
+                 '<div class="why"><p><b>分母為什麼是 n − 1?</b> 少一個自由度。</p><p>再補一句。</p></div>',
+                 '<P CLASS="x why">\n  <B>拿掉平方會怎樣？</B>\n  正負會抵銷。</P>',
+                 '<p class="why"><b>為什麼 <i>S</i> 要調到 400？</b>四季平均才會是 100。</p>']
+        for why in cases:
+            with self.subTest(why=why):
+                src = page(f"<h2>一</h2>{why}")
+                self.assertTrue(ok(src), build.lint(src))
+
+
 class LabelRule(unittest.TestCase):
     """框的標籤由樣式加上，內文開頭不重寫。"""
     DEF = ('<div class="def"><p><dfn>趨勢</dfn>是長期方向</p><p class="test">{}</p></div>')
     REPEAT = "開頭重複了標籤"
 
     def test_repeated_label_fails(self):
-        cases = [prob('<h2>一</h2><div class="why"><p>為什麼：這題在問顯著性，見 §1</p></div>'),
-                 prob("<h2>一</h2>" + ans('<div class="trap">\n <p><b>常見錯誤</b>：把 n 算成 8</p></div>')),
+        cases = [prob("<h2>一</h2>" + ans('<div class="trap">\n <p><b>常見錯誤</b>：把 n 算成 8</p></div>')),
                  page('<h2>一</h2><div class="summary"><p>這頁重點：r 介於 −1 和 1</p></div>'),
                  page(f'<h2>一</h2>{EG}<div class="def"><p>定義：<dfn>趨勢</dfn>是長期方向</p><p class="test">前後平均不同</p></div>'),
                  prob('<h2>一</h2><ul class="uses"><li>這題用到 §1 的 F</li></ul>'),
@@ -860,8 +884,7 @@ class LabelRule(unittest.TestCase):
                 self.assertTrue(has(src, self.REPEAT), build.lint(src))
 
     def test_label_word_later_in_text_passes(self):
-        cases = [prob('<h2>一</h2><div class="why"><p>這題問顯著性，為什麼要除以 n 見 §1</p></div>'),
-                 prob("<h2>一</h2>" + ans('<div class="trap"><p>把 n 算成 8 是常見錯誤</p></div>')),
+        cases = [prob("<h2>一</h2>" + ans('<div class="trap"><p>把 n 算成 8 是常見錯誤</p></div>')),
                  page("<h2>一</h2><p>為什麼：因為資料少。</p><p>常見錯誤：沒有。</p>"),
                  prob('<h2>一</h2><ul class="uses"><li>F 檢定，這題用到 §1</li></ul>'),
                  prob('<h2>一</h2><ul class="uses"><li>§1 的 F</li><li>這題用到 §1</li></ul>'),
