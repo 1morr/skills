@@ -16,7 +16,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
 ## 開工
 
 1. 照 COORDINATOR.md〈開工〉。
-2. 讀專案的 CLAUDE.md / AGENTS.md，找出：票放在哪、狀態欄位、每張票的指令（例如 `/implement <票路徑>`）、**完成標準**，以及它要求每張票的分支都動到哪些檔（project-init 的骨架沒有：做票的紀錄留在票上）。
+2. 讀專案的 CLAUDE.md / AGENTS.md，找出：票放在哪、狀態欄位、每張票的指令名（例如 `/implement`；票路徑由腳本接在後面）、**完成標準**，以及它要求每張票的分支都動到哪些檔（project-init 的骨架沒有：做票的紀錄留在票上）。
 3. 排隊列：參數給了順序就照它，沒給就照檔名。逐張核對 `Blocked by` 和驗收條件：要用到別張票產出的東西（頁面、端點、資料表）也算擋。已經 done 的跳過，衝突先問使用者。
 4. 用 AskUserQuestion 問一次（連同 COORDINATOR.md〈授權〉），文件查得到的不問：
    - 隊列與順序（參數已給就只確認衝突）
@@ -32,7 +32,7 @@ argument-hint: "[票的位置] [額度門檻，例如 5h 80%] [同時最多 N �
    - 同時上限：running 的票到上限就等。
    - 額度：`bash <O>/scripts/quota.sh <5h 門檻> <7d 門檻>`（只填數字，例如 `80`；沒給的填 0）。`gate=closed` 就不開新票，背景 `sleep` 它印的秒數（最多 3600）再問；在跑的票照常等、照常驗收合併。`gate=unknown` 一樣先睡再問，連續 3 次照〈真的卡住〉，原因見 TUI.md〈額度〉。
 
-   `BASE=<主分支> bash <O>/scripts/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令]`。
+   `BASE=<主分支> bash <O>/scripts/new-ticket.sh <repo 選擇器> t<NN> <票路徑> [標題] [每票指令名]`。
 
    互不相擋的票可以同時開，一張一行呼叫（見 TUI.md〈跨平台〉）。會撞的排先後：改同一區程式碼、同一張登記表或閘門測試、都新增資料庫 migration（合起來會有兩個 head）。
 2. **等與被叫醒**：照 COORDINATOR.md〈子 session 的一輪〉。提問這樣答：
