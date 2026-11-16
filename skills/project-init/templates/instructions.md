@@ -43,7 +43,7 @@
 工作單位是**票**：`.scratch/<里程碑>/issues/NN-slug.md`，由里程碑開工的 session 產生（見〈Skills〉）。一個 session 只做一張票，在自己的分支上做。
 
 1. 讀 `docs/progress.md`、`docs/decisions.md`、該里程碑的 spec，跑 `python3 scripts/ticket_notes.py <里程碑的目錄名>` 看先前的票定過什麼，再讀票；只讀票列出的架構與 brief 章節，其他按需讀。
-2. `/implement <票路徑>`：tdd、定期 typecheck、結尾 `/code-review <開工時的 commit>`、commit。
+2. `/implement <票路徑>`：tdd、定期 typecheck、結尾從開工時的 commit 起跑 `mattpocock-skills:code-review`、commit。
 3. 驗證：`docs/development.md`〈全部檢查〉加 test；貼指令輸出。
 4. 影響架構的決定另寫 ADR；要推翻已定的決定照〈使用者確認〉。
 5. 票的 `Status:` 改為 `done`、勾掉驗收條件、code-review 未處理的發現記到票的 `## Comments`；Comments 最後加一行 `Session 紀錄：<YYYY-MM-DD> <做了什麼，一句>`，做票時定的每個選擇各加一行 `決定：<一句>（<決定者>）`，使用者看得到的每個改動各加一行 `變更：<分類>｜<功能>｜<使用者看得懂的一句>`（分類是 Added、Changed、Deprecated、Removed、Fixed、Security 之一；`<功能>` 沿用 `CHANGELOG.md` 與 `GLOSSARY.md` 已有的名字；沒有這種改動寫 `變更：無`）；commit。票就是這些紀錄唯一的來源：做票的分支把 progress.md、decisions.md 與 `CHANGELOG.md` 留給不平行的 session，平行的票才不會互撞。
