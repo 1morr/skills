@@ -45,4 +45,4 @@ argument-hint: "要審的 skill、指令檔或路徑，不寫就是目前的 rep
 - 搬動文字的步驟，commit 前確認搬走的每一段在新位置找得到。
 - 不在 git 裡的檔：動手前複製一份到 scratchpad，告訴使用者路徑。
 
-完成條件：每條發現不是 commit 了，就是列為「沒做」並寫了原因；那個 repo 的全部檢查在最後一個 commit 上通過；對話裡有 commit 清單、和發現不同的地方、還沒 push 的 commit 數（`git log @{u}..` 算出來的）。
+完成條件：每條發現不是 commit 了，就是列為「沒做」並寫了原因；那個 repo 的全部檢查在最後一個 commit 上通過；對話裡有 commit 清單、和發現不同的地方，以及每個動到的 repo 還沒 push 的 commit 數（`git log @{u}..` 算出來的；分支沒有 upstream 就寫沒有，改報它比預設分支多幾個 commit）。
