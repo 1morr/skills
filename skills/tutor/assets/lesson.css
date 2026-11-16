@@ -260,7 +260,8 @@ caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom:
 .types td:last-child { white-space: nowrap; }
 .cheat-tools { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
 /* 速查卡的公式一條一格：短的並排、放不下就換行，對照欄和手機上也不會被切掉 */
-.cheat .formula { display: inline-block; vertical-align: middle; margin: .15rem 2rem .15rem 0; }
+/* 間隔用 padding：寫成 margin 的話，和欄一樣寬的公式會把手機的頁面撐寬 */
+.cheat .formula { display: inline-block; vertical-align: middle; margin: .15rem 0; padding-right: 2rem; }
 /* 名詞表：原文在前，按了在旁邊打開定義 */
 .terms { list-style: none; padding: 0; margin: 1rem 0; border-top: 1px solid var(--ink); }
 .terms li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .2rem 1.25rem; align-items: baseline; margin: 0; padding: .45rem 0; border-bottom: 1px solid var(--rule); }
