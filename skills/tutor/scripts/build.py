@@ -7,12 +7,16 @@
 
 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次水平溢出（pages/scripts/overflow.py）：
 有溢出就不產出，逐條印出哪個元素超出幾 px；找不到瀏覽器只提醒。
+寬螢幕再多查一件事：正文裡的公式、算式、表格比正文欄寬時，會在自己那一行橫向捲動，右邊看起來就是被切掉，
+這也不產出（手機寬照樣可以捲）。
 
 只用標準函式庫，CI 才能直接跑測試。
 """
 
 import argparse
 import base64
+import html
+import json
 import mimetypes
 import re
 import sys
@@ -34,6 +38,8 @@ PER_SECTION = 2000
 MAX_SENTENCE = 50
 # 估閱讀時間：一分鐘讀幾個字（單位見 text_units）。教材要邊讀邊算，比一般閱讀慢
 UNITS_PER_MIN = 80
+# 速查卡的公式行裡，<mspace> 寬到幾 em 就算是把兩條公式接在同一行（標籤和公式之間的小空隙不算）
+JOIN_GAP_EM = 1
 # 題目欄的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
 KINDS = ("calc", "text")
 
@@ -177,6 +183,11 @@ class Lint(HTMLParser):
         if cls & ANSWER_ONLY and self.pane() == "problems" and not self.in_answer():
             what = ", ".join(sorted(cls & ANSWER_ONLY))
             self.problems.append(f'題目欄的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
+        if tag == "mspace" and self.inside_class("cheat") and self.inside_class("formula"):
+            gap = re.fullmatch(r"\s*(\d*\.?\d+)\s*em\s*", a.get("width") or "")
+            if gap and float(gap.group(1)) >= JOIN_GAP_EM:
+                self.problems.append(f'速查卡的公式一條一行：這一行用 <mspace width="{a["width"].strip()}"> 把好幾條接在一起，'
+                                     '在對照欄和手機上右邊會被切掉。每條公式各寫一個 <div class="formula">')
         if tag == "figure":
             self.shown_figures += not self.inside("details")
             if self.inside_class("panel") and not (a.get("data-tab") or "").strip():
@@ -841,7 +852,45 @@ def build(src: str, base: Path) -> str:
     return inject_assets(inline_images(split_bilingual(src), base))
 
 
-def main(argv=None, measure=overflow.measure) -> int:
+# 量寬螢幕之前在頁面裡跑：正文裡自己橫向捲動的容器（.formula、.calc、表格、.sheet）內容比它寬的，記進 <meta name="clipped">
+CLIPPED = re.compile(r'<meta name="clipped" content="([^"]*)"')
+FIND_CLIPPED = r"""
+  (() => {
+    const cut = [...document.querySelectorAll(".page *")]
+      .filter((e) => e.offsetParent && /auto|scroll/.test(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth + 1)
+      .map((e) => ({
+        el: e.tagName.toLowerCase() + (typeof e.className === "string" && e.className.trim() ? "." + e.className.trim().split(/\s+/).join(".") : ""),
+        over: e.scrollWidth - e.clientWidth, text: (e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40),
+      }));
+    const meta = document.createElement("meta");
+    meta.name = "clipped";
+    meta.content = JSON.stringify(cut);
+    document.head.append(meta);
+  })();
+"""
+
+
+def clipped(dom: str, width: int) -> list:
+    """overflow.render() 回傳的 DOM 裡，FIND_CLIPPED 記下的每個被切掉的容器，一條一句。"""
+    m = CLIPPED.search(dom)
+    return [f"視窗寬 {width}px：<{c['el']}> 的內容比正文欄寬 {c['over']}px，右邊被切掉、要橫向捲才看得到「{c['text']}」。"
+            "一行只放一條公式；一條還是太寬就拆成兩行，表格拆欄"
+            for c in (json.loads(html.unescape(m.group(1))) if m else [])]
+
+
+def measure(page: Path):
+    """寬螢幕和手機寬各量一次水平溢出，寬螢幕再查正文裡被切掉的公式和表格；回傳全部的問題，找不到瀏覽器回傳 None。"""
+    out = []
+    for width in overflow.WIDTHS:
+        wide = width == max(overflow.WIDTHS)
+        dom = overflow.render(page, width, FIND_CLIPPED if wide else "")
+        if dom is None:
+            return None
+        out += overflow.problems(dom, width) + (clipped(dom, width) if wide else [])
+    return out
+
+
+def main(argv=None, measure=measure) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])

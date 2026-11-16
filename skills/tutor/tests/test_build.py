@@ -6,7 +6,9 @@
 """
 
 import base64
+import contextlib
 import importlib.util
+import io
 import re
 import tempfile
 import unittest
@@ -1435,9 +1437,63 @@ class AssetStep(unittest.TestCase):
         self.assertIn('<a class="ref" href="#s1">趨勢</a><span>trend</span><span class="where">§1</span>', out)
 
 
-WIDE_FORMULA = ('<div class="formula"><math display="block">'
-                + "".join(f"<mi>MAD</mi><mo>=</mo><mfrac><mi>e</mi><mi>n</mi></mfrac><mspace width='2em'></mspace>" for _ in range(40))
-                + "</math></div>")
+def cheat_with(*formulas):
+    """速查卡：題型表後面接「要背的公式」。"""
+    return TYPES.replace("{n}", "2").replace("</table>", "</table><h4>要背的公式</h4>" + "".join(formulas))
+
+
+def formula(math):
+    return f'<div class="formula"><math display="block">{math}</math></div>'
+
+
+ONE = "<mi>MAD</mi><mo>=</mo><mfrac><mi>e</mi><mi>n</mi></mfrac>"
+# 一條公式就比正文欄寬
+WIDE_FORMULA = formula("<mi>U</mi><mo>=</mo>" + "<mi>y</mi><mo>+</mo>" * 120 + "<mn>1</mn>")
+
+
+class CheatFormulaRule(unittest.TestCase):
+    """速查卡的公式一條一行：用寬的 <mspace> 把幾條接在同一行會紅。"""
+
+    def test_formulas_joined_by_a_wide_gap_fail(self):
+        for gap in ('<mspace width="2em"/>', "<mspace width='1em'></mspace>", '<MSPACE WIDTH=" 1.5em "/>'):
+            with self.subTest(gap=gap):
+                probs = build.lint(page(types=cheat_with(formula(ONE + gap + ONE))))
+                self.assertTrue(any("一條一行" in p for p in probs), probs)
+
+    def test_one_formula_per_line_passes(self):
+        src = page(types=cheat_with(formula(ONE), formula(ONE)))
+        self.assertTrue(ok(src), build.lint(src))
+
+    def test_a_small_gap_after_a_label_passes(self):
+        for gap in ('<mspace width="0.3em"/>', '<mspace width=".9em"/>', "<mspace/>", '<mspace width="4px"/>'):
+            with self.subTest(gap=gap):
+                src = page(types=cheat_with(formula("<mtext>加法</mtext>" + gap + ONE)))
+                self.assertTrue(ok(src), build.lint(src))
+
+    def test_wide_gap_outside_the_cheat_sheet_passes(self):
+        src = page(course=COURSE + formula('<mi>a</mi><mspace width="2em"/><mi>b</mi>'))
+        self.assertTrue(ok(src), build.lint(src))
+
+
+class Clipped(unittest.TestCase):
+    """clipped：從量好的 DOM 讀出被自己的捲軸切掉的容器。"""
+
+    def dom(self, found):
+        content = build.html.escape(build.json.dumps(found, ensure_ascii=False), quote=True)
+        return f'<html><head><meta name="clipped" content="{content}"></head><body></body></html>'
+
+    def test_each_clipped_box_becomes_a_problem(self):
+        probs = build.clipped(self.dom([{"el": "div.formula", "over": 58, "text": 'MAD = "x" & <y>'}]), 1440)
+        self.assertEqual(len(probs), 1)
+        for piece in ("1440px", "<div.formula>", "58px", 'MAD = "x" & <y>', "被切掉"):
+            self.assertIn(piece, probs[0])
+
+    def test_nothing_clipped_or_not_measured_gives_nothing(self):
+        self.assertEqual(build.clipped(self.dom([]), 1440), [])
+        self.assertEqual(build.clipped("<html><head></head></html>", 1440), [])
+
+    def test_the_page_script_writes_the_meta_this_reads(self):
+        self.assertIn('meta.name = "clipped"', build.FIND_CLIPPED)
 
 
 class Overflow(unittest.TestCase):
@@ -1460,10 +1516,21 @@ class Overflow(unittest.TestCase):
                 self.assertTrue(out.is_file())
 
     @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
-    def test_wide_formula_in_the_cheat_sheet_scrolls_in_its_own_line(self):
-        # 速查卡的公式行比欄寬：lesson.css 讓它在自己那一行橫向捲動，兩種寬度都不撐寬欄或整頁
-        cheat = TYPES.replace("{n}", "2").replace("</table>", "</table><h4>要背的公式</h4>" + WIDE_FORMULA)
-        code, out = self.run_main(types=cheat)
+    def test_formula_wider_than_the_column_is_refused(self):
+        # 比正文欄寬的公式在自己那一行橫向捲動，不撐寬整頁，但寬螢幕上右邊看起來被切掉：不產出
+        err = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        with contextlib.redirect_stderr(err):
+            code, out = self.run_main(types=cheat_with(WIDE_FORMULA))
+        err.flush()
+        said = err.buffer.getvalue().decode("utf-8")
+        self.assertEqual(code, 1)
+        self.assertFalse(out.exists())
+        self.assertIn("被切掉", said)
+        self.assertNotIn("被撐寬", said)  # 它沒有撐寬整頁，只是自己被切
+
+    @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
+    def test_formulas_that_fit_are_delivered(self):
+        code, out = self.run_main(types=cheat_with(formula(ONE), formula(ONE)))
         self.assertEqual(code, 0)
         self.assertTrue(out.is_file())
 
