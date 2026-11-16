@@ -14,7 +14,7 @@ argument-hint: "[專案一句話]"
 ## 1. 探查
 
 1. 目前目錄不是 git repo：問使用者要不要 `git init`。查預設分支名。
-2. 已經有 `docs/progress.md`、`docs/plan.md`、`ARCHITECTURE.md`、`docs/roadmap.md` 或 `.scratch/`：這是已有骨架的 repo，改讀 [SYNC.md](SYNC.md) 照它做；下面第 2–6 步只做它指到的那幾項。
+2. 已經有 `docs/progress.md`、`ARCHITECTURE.md`、`docs/roadmap.md` 或 `.scratch/`：這是已有骨架的 repo，改讀 [SYNC.md](SYNC.md) 照它做；下面第 2–6 步只做它指到的那幾項。
 3. 已有的 `AGENTS.md`、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
 4. 找**擋路檔**：專案目錄和它上面每一層的 `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`（`~/.claude/CLAUDE.md` 不算）。有任何一個，Claude Code 就只讀它們、不讀 `AGENTS.md`。
 5. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
