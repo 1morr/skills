@@ -451,6 +451,14 @@ class PageTest(Repo):
         self.write(".scratch/m1/issues/02-bar.md", ticket.replace("\n## Comments", "\n等使用者：在 Comments 之前。\n\n## Comments"))
         self.assertEqual([a["file"] for a in self.collect()["waiting_all"]], ["docs/progress.md"])
 
+    def test_notes_and_questions_written_as_list_items_are_read_too(self):
+        self.sub(".scratch/m1/issues/02-bar.md", "## Comments\n", "## Comments\n\n- Session 紀錄：2026-01-06 候選列做完。\n  - 決定：一頁九個（使用者同意）\n"
+                 "- 等使用者：要不要支援匯出？\n見上面的等使用者：那一題，句子中間的不算。\n")
+        d = self.collect()
+        self.assertEqual([(x["label"], x["decider"], x["text"]) for x in d["decisions"]][0], ("M1 票 02", "使用者同意", "一頁九個"))
+        self.assertEqual([(s["date"], s["ticket"], s["result"]) for s in d["sessions"]][0], ("2026-01-06", "M1 02", "候選列做完。"))
+        self.assertEqual([(a["text"], a["file"]) for a in d["waiting_all"]], [("要不要支援匯出？", ".scratch/m1/issues/02-bar.md")])
+
     def test_static_output(self):
         out = self.root / "out.html"
         self.assertEqual(m.main([str(self.repo), "-o", str(out)]), 0)

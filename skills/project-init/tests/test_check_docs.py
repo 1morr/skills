@@ -605,6 +605,15 @@ class ScratchTest(Repo):
         self.write(".scratch/m1/issues/01-first.md", TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：2026-01-04 做完。\n- 這一行提到決定：但不是開頭。\n")
         self.clean()
 
+    def test_notes_written_as_list_items_count(self):
+        done = TICKET.replace("ready-for-agent", "done")
+        self.write(".scratch/m1/issues/01-first.md", done + "\n- Session 紀錄：2026-01-04 做完。\n  - 決定：" + "長" * 148 + "（Agent 定）\n")
+        self.clean()
+        self.write(".scratch/m1/issues/01-first.md", done + "\n- Session 紀錄：2026-01-04 做完。\n- 決定：改用另一個套件。\n")
+        self.red("01-first.md：「決定：」那一行要標一個決定者")
+        self.write(".scratch/m1/issues/01-first.md", done + "\n- Session 紀錄：2026-01-04 做完。\n- 等使用者：上限寫死還是做成設定？\n")
+        self.red("01-first.md：票做完了，Comments 裡的「等使用者：」還沒有回答")
+
     def test_with_a_changelog_a_done_ticket_says_what_changed_for_the_user(self):
         done = TICKET.replace("ready-for-agent", "done") + "\nSession 紀錄：2026-01-04 做完。\n"
         self.write(".scratch/m1/issues/01-first.md", done)

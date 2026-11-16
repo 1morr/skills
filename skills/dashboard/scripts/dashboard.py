@@ -69,6 +69,8 @@ ADR_FILE = re.compile(r"^(\d{3,4})-.*\.md$")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
 COMMENTS = "\n## Comments"
+# 票上的紀錄行寫成清單（`- 決定：…`）或縮排的也認，和 project-init 的腳本一樣
+ITEM = re.compile(r"^\s*(?:[-*+]\s+)?")
 ACCEPTANCE = "驗收"
 NOTE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
 TICKET_NUMBER = re.compile(r"^(\d+[a-z]?)-")
@@ -169,6 +171,7 @@ def ticket(path: Path) -> dict:
     number = TICKET_NUMBER.match(path.name)
     asked, body = [], "\n".join(lines)
     for l in body.split(COMMENTS, 1)[1].split("\n") if COMMENTS in body else []:
+        l = ITEM.sub("", l)
         if l.startswith(DECISION_NOTE):  # 回答寫成一行「決定：」，它前面的題就算答了
             asked = []
         elif l.startswith(WAITING) and l[len(WAITING):].strip():
@@ -186,6 +189,7 @@ def notes(path: Path) -> dict:
     out = {"date": "", "sessions": [], "decisions": [], "changes": [], "odd": []}
     start = text[:text.index(COMMENTS)].count("\n") + 1 if COMMENTS in text else 0
     for number, line in enumerate(text.split(COMMENTS, 1)[1].split("\n") if COMMENTS in text else [], start):
+        line = ITEM.sub("", line)
         if line.startswith(SESSION_NOTE):
             rest = line[len(SESSION_NOTE):].strip()
             dated = NOTE_DATE.match(rest)

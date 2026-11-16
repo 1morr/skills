@@ -40,7 +40,8 @@
     - 還沒結束的里程碑（roadmap.md 的狀態不是「已驗收」「不做」開頭）每張票有 `## 驗收` 段，裡面至少一個勾選框
     - roadmap.md 標「進行中」的里程碑（表的「里程碑」欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
       有一行 `Session 紀錄：<YYYY-MM-DD> <做了什麼>`，以 `決定：` 開頭的行都標一個決定者、不超過 160 字元
-      （票是這兩種紀錄唯一的來源，封存時加上日期與票號仍在 200 字元內）；spec 的〈驗收〉底下有 `### 使用者試`
+      （票是這兩種紀錄唯一的來源，封存時加上日期與票號仍在 200 字元內）；spec 的〈驗收〉底下有 `### 使用者試`。
+      `Session 紀錄：`、`決定：`、`變更：`、`等使用者：` 這四種行寫成清單（`- 決定：…`）或縮排的也認，長度從這幾個字算起
     - 上一條那些 done 的票，`## Comments` 之後沒有還沒回答的「等使用者：」行（它後面要有一行「決定：」）
     - 有 CHANGELOG.md 的 repo，上一條那些 done 的票還要至少一行 `變更：`：`變更：<分類>｜<功能>｜<一句>`（分類是上面六個之一），
       或沒有使用者看得到的改動時 `變更：無`
@@ -108,6 +109,7 @@ CLOSED = ("已驗收", "不做")
 CHECKBOX = re.compile(r"^\s*[-*] \[[ xX]\]")
 DROPPED = re.compile(r"^\**Status:?\**:?\s*(?:wontfix|cancelled|canceled)", re.I)
 AFTER = re.compile(r"排在\s*`?([^\s`，。；、]+)`?\s*之後")
+ITEM = re.compile(r"^\s*(?:[-*+]\s+)?")
 DEVELOPMENT, GATE_SECTION, GATE_COLUMNS = "docs/development.md", "閘門", ("閘門", "指令或設定檔")
 GATE_ROWS = ("格式", "Lint", "型別", "單元測試", "端到端冒煙", "密鑰掃描", "依賴漏洞", "依賴更新")
 NOT_APPLICABLE = re.compile(r"^不適用[：:]\s*\S")
@@ -446,7 +448,7 @@ def check_scratch(root: Path) -> list:
                 out.append(f"{rel}/issues/{t.name}：第一個 ## 之前要有一行 `Status:`")
             elif d.name in active and any(DONE.match(line) for line in head):
                 comments = text.split("\n## Comments", 1)
-                noted = comments[1].split("\n") if len(comments) == 2 else []
+                noted = [bare(l) for l in comments[1].split("\n")] if len(comments) == 2 else []
                 where = f"{rel}/issues/{t.name}"
                 if open_questions(noted):
                     out.append(f"{where}：票做完了，Comments 裡的「{WAITING}」還沒有回答。在它後面加一行「{DECISION_NOTE}…（<決定者>）」")
@@ -467,6 +469,11 @@ def check_scratch(root: Path) -> list:
                 if criteria is None or not any(CHECKBOX.match(l) for _, l in criteria):
                     out.append(f"{rel}/issues/{t.name}：要有 `## {ACCEPTANCE}` 段，驗收條件寫成裡面的勾選框（照 docs/agents/ticket-template.md）")
     return out
+
+
+def bare(line: str) -> str:
+    """去掉行首的縮排和清單符號：`## Comments` 底下的紀錄常被寫成 `- 決定：…`，照樣要認得。"""
+    return ITEM.sub("", line)
 
 
 def unfinished(path: Path) -> bool:
