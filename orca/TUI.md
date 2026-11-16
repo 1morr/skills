@@ -4,7 +4,7 @@ ticket-coordinator、bake-off、review-loop 共用的參考檔。`<O>` 是這個
 
 ## 開 session
 
-- `new-ticket.sh` / `open-worktree.sh` 印 `started: NO`：子 session 沒起來。第一則訊息（每票指令或 prompt）是啟動參數帶的，沒有東西可以補送。讀畫面：停在信任資料夾這類提示就答掉、再掛等待；其他情況關掉那個終端重開。同一張票或同一版連兩次沒起來算卡住。
+- `new-ticket.sh` / `open-worktree.sh` 印 `started: NO`：子 session 沒起來。第一則訊息（每票指令或 prompt）是啟動參數帶的，沒有東西可以補送。讀畫面：停在信任資料夾這類提示就答掉、再掛等待；其他情況關掉那個終端，在同一個 worktree 用 `bash <O>/scripts/start-session.sh` 重開（worktree 已經在了，不再跑開它的那支腳本；參數照它開頭，照抄原本那支腳本最後一行傳的）。同一張票或同一版連兩次沒起來算卡住。
 
 ## 跨平台
 
