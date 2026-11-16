@@ -70,7 +70,6 @@ sh .githooks/pre-commit                                        # exit 0
 
 1. commit：`docs: scaffold agent workflow, brief and architecture skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
 2. 告訴使用者建了哪些檔，以及之後隨時可以跑 `python3 scripts/next_step.py` 看下一步。現在就跑一次，把它印的訪談指令放進 code block 給使用者，後面接上「：<專案一句話>。<使用者在這次對話提過的平台、限制、參考產品>」，`<…>` 換成實際內容。
+3. 告訴使用者：之後要用額度門檻跑整批票，先照 `${CLAUDE_PLUGIN_ROOT}/README.md`〈額度門檻〉設定一次。
 
-3. 要用額度門檻跑整批票的話，照 `${CLAUDE_PLUGIN_ROOT}/README.md`〈額度門檻〉設定一次。
-
-完成條件：commit 在預設分支上；`next_step.py` 印的訪談指令給了使用者，後面接的 `<…>` 都換成了實際內容。
+完成條件：commit 在預設分支上；`next_step.py` 印的訪談指令給了使用者，後面接的 `<…>` 都換成了實際內容；對話裡提了額度門檻的設定在哪。
