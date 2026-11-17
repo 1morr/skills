@@ -11,7 +11,7 @@ argument-hint: "要審的成品"
 
 審查員用一個全新的 session、不用你自己的子代理，原因有兩個：它要能再開分角度的子代理和盲做；它的上下文要乾淨，沒有前幾輪的東西。
 
-`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`，`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`。**先讀 `<O>/COORDINATOR.md`**，這份只寫審查獨有的部分。
+`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`，`<DIFF>` 是 `${CLAUDE_PLUGIN_ROOT}/skills/diff`。**先讀 `<O>/COORDINATOR.md`**，這份只寫審查獨有的部分。
 
 ## 開工
 
@@ -97,10 +97,11 @@ argument-hint: "要審的成品"
    - 起點和最終版的字數
    - 剩下的可不修項目
    - 使用者交件前要自己手動做的事
-   - 總 diff 的路徑、合併 commit（或還沒合併、在等使用者）、留下的分支
+   - 總 diff：照 `<P>/HANDOFF.md` 給網址和完整路徑。合併了就給主目錄裡的那一份（`<批次目錄>/work` 已經移除），還在等使用者就給 `<批次目錄>/work` 裡的那一份
+   - 合併 commit（或還沒合併、在等使用者）、留下的分支
    - 每一輪審查 session 的 session id，可以用 `claude --resume` 回看
 
-完成條件：總 diff 過了 DOCUMENT.md〈檢查〉的完成條件；合併 commit 在 `BASE_BR` 上，或最後報告寫明還在等使用者；`git worktree list` 沒有這一場的審查 worktree。
+完成條件：總 diff 過了 DOCUMENT.md〈檢查〉的完成條件，`<P>/HANDOFF.md` 的完成條件成立；合併 commit 在 `BASE_BR` 上，或最後報告寫明還在等使用者；`git worktree list` 沒有這一場的審查 worktree。
 
 ## Ledger
 
