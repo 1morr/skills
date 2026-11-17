@@ -30,7 +30,7 @@
     - docs/ 第一層的每個檔與資料夾，名字都出現在指令檔（AGENTS.md，沒有就看 CLAUDE.md）裡；兩個都沒有就不查
     - docs/research/ 第一層：檔名裡有日期的，日期在最後（`<主題>-YYYY-MM-DD`）；`facts-*.md` 有〈事實〉段
   程式碼
-    - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或架構文檔的章節號（「brief §4」「architecture §3」「plan §3.2」）；
+    - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或架構文檔的章節號（「brief §4」「architecture §3」「plan §3.2」，文件名和 § 之間隔了反引號或節名也算；研究筆記與 ADR 的節號可以引）；
       不是 git repo 就不查
   .scratch/
     - 有 issues/ 的目錄都列在 roadmap.md 的里程碑表（表的「里程碑」欄第一個詞，小寫後就是目錄名）；不是里程碑的工作（文件瘦身、審計）也佔一列
@@ -64,7 +64,9 @@ DECISIONS = "docs/decisions.md"
 BRIEF, ARCHITECTURE = "docs/design-brief.md", "ARCHITECTURE.md"
 BUDGETS = {"AGENTS.md": 8000, ARCHITECTURE: 15000, PROGRESS: 20000, BRIEF: 30000}
 TICKET_NUMBER = re.compile(r"票\s*\d")
-SECTION_REF = re.compile(r"(?:architecture|plan|brief)(?:\.md)?\s*§\s*\d", re.I)
+# 文件名到 `§<數字>` 之間可以隔反引號或節名（`plan〈資料流〉 的後處理、§4.4`），但不跨過別的 `.md` 或 ADR，
+# 研究筆記與 ADR 的節號可以引；只看 40 字內，免得同一行後面不相干的 § 被算進來。
+SECTION_REF = re.compile(r"(?:architecture|plan|brief)(?:\.md)?(?:(?!\.md|ADR)[^§\n]){0,40}§\s*\d", re.I)
 NOT_CODE = ("docs/", ".scratch/", "scripts/check_docs.py", "scripts/tests/test_check_docs.py")
 MAX_SCANNED_BYTES = 1_000_000
 INSTRUCTIONS = ("AGENTS.md", "CLAUDE.md")
