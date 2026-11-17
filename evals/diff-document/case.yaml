@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: diff-document
+description: diff 的文件分支：兩版 Markdown 做成一頁前後對照，改動處數由 diff.py 算（這兩版是 2 處）
+tags: [diff]
+context:
+  add_dirs: [fixtures]

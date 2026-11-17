@@ -10,6 +10,7 @@
 | `orca/` | 用 Orca 開子 session 的 skill 共用的流程（`COORDINATOR.md`）、已知行為（`TUI.md`）與腳本 |
 | `pages/` | 產出 HTML 頁的 skill 共用的寫法（`PAGE.md`）、配色字體（`TOKENS.md`，值在 `scripts/tokens.css`）、交付方式（`HANDOFF.md`）、組頁與量溢出的腳本和樣式 |
 | `tests/` | 本檔規則的檢查 |
+| `evals/` | `claude plugin eval` 的案例，一個資料夾一個：`prompt.md`、`case.yaml`、`graders/`、`fixtures/`。跑法在 README〈開發〉；結果寫到 `evals/results/`，不進 git |
 
 - skill 之間不用 `../` 互連。對方是 model-invoked 就寫「呼叫 Skill 工具載入 `<名稱>`」，要跑它的腳本時用 `${CLAUDE_PLUGIN_ROOT}/skills/<名稱>` 定義縮寫；兩個 skill 都要的檔搬到 `orca/` 或 `pages/`。
 - `SKILL.md` 用 `${CLAUDE_SKILL_DIR}`、`${CLAUDE_PLUGIN_ROOT}` 定義路徑縮寫（例如 `<O>`、`<P>`、`<S>`），附屬 md 沿用縮寫：Claude Code 只替換 `SKILL.md` 裡的變數。新縮寫要加進 `tests/test_repo_rules.py` 的 `SHORT`。
