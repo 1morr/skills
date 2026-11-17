@@ -5,7 +5,9 @@
 在 pages/ 執行：python -m unittest discover -s tests
 """
 
+import contextlib
 import importlib.util
+import io
 import os
 import re
 import subprocess
@@ -289,9 +291,13 @@ class BrowserDidNotStart(unittest.TestCase):
         out.write_text(page("<p>短</p>"), encoding="utf-8")
         ov = build.overflow
         failed = subprocess.CompletedProcess([], 1, b"", b"Failed to create socket directory")
-        with mock.patch.object(ov, "find_browser", return_value="browser"), \
-                mock.patch.object(ov.subprocess, "run", return_value=failed):
+        err = io.StringIO()
+        with mock.patch.object(ov, "find_browser", return_value="/apps/browser"), \
+                mock.patch.object(ov.subprocess, "run", return_value=failed), contextlib.redirect_stderr(err):
             self.assertIsNone(ov.measure(out))
+        # 和「沒裝瀏覽器」分得開：說是哪個瀏覽器、它印的最後一行錯誤
+        self.assertIn("browser 開了但沒有交回頁面", err.getvalue())
+        self.assertIn("Failed to create socket directory", err.getvalue())
 
 
 @unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")

@@ -141,8 +141,12 @@ def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
     finally:
         shutil.rmtree(work, ignore_errors=True)
     dom = r.stdout.decode("utf-8", "replace")
-    # 沙箱裡的 Chrome 找得到卻開不起來，什麼都不印：這不是頁面的問題，當成沒有瀏覽器
-    return dom if dom.strip() else None
+    if dom.strip():
+        return dom
+    # 瀏覽器找得到卻什麼都沒印（被沙箱擋住、當掉）：這不是頁面的問題，當成沒有瀏覽器，但說清楚是它沒跑起來
+    last = (r.stderr.decode("utf-8", "replace").strip().splitlines() or ["它沒有印錯誤訊息"])[-1][:300]
+    print(f"提醒：{Path(browser).name} 開了但沒有交回頁面（退出碼 {r.returncode}）：{last}", file=sys.stderr)
+    return None
 
 
 def problems(dom: str, width: int) -> list:
