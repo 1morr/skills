@@ -72,10 +72,10 @@ uv run --no-project --with pymupdf --with pillow python -m unittest discover -s 
 跑 `evals/` 的案例（改 skill 的文字前後各跑一次當對照；會算進用量，CI 不跑）：
 
 ```
-claude plugin eval . --no-publish --allow-tools Bash Write Edit
+claude plugin eval . --no-publish --scaffold --allow-tools Bash Write Edit
 ```
 
-`--no-publish` 讓報告只留在本機。預設每個案例跑三次，並多跑一組沒裝 plugin 的對照；改案例本身時加 `--case <名稱> --runs 1 --ablation none`，只跑一次、不跑對照組。
+`--no-publish` 讓報告只留在本機；`--scaffold` 讓案例的 `fixture.sh` 在每次執行的空工作目錄裡先放好輸入檔；`--allow-tools` 讓受測的 session 能跑指令和寫檔，指令關在它的沙箱裡。預設每個案例跑三次，並多跑一組沒裝 plugin 的對照；改案例本身時加 `--case <名稱> --runs 1 --ablation none`，只跑一次、不跑對照組。
 
 量某個專案的文件實際被 agent 讀了幾次（調整文件結構前後各跑一次）：`python skills/project-init/scripts/doc_reads.py <repo> [--since YYYY-MM-DD]`。
 
