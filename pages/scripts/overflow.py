@@ -3,7 +3,7 @@
     python overflow.py <page.html>
 
 沒有溢出印「沒有水平溢出」，退出碼 0。有溢出時逐條印到 stderr、退出碼 1，每條寫視窗寬、
-哪個容器被撐寬、超出最多的幾個元素和各超出幾 px。找不到瀏覽器印一句提醒，退出碼 2。
+哪個容器被撐寬、超出最多的幾個元素和各超出幾 px。找不到瀏覽器、或它開不起來（例如被沙箱擋住），印一句提醒，退出碼 2。
 
 算溢出的是「直向捲動的容器」被撐寬：整頁，或自己上下捲動的欄。摺疊的 <details> 會先全部打開再量。
 表格、算式、程式碼放在自己橫向捲動的容器裡（overflow-x: auto）不算。
@@ -113,7 +113,7 @@ def with_probe(html: str, prepare: str = "") -> str:
 
 
 def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
-    """用無頭瀏覽器在 width 寬的視窗打開 page 的副本（加了量測）、跑完 JS，回傳畫好的 DOM；找不到瀏覽器回傳 None。
+    """用無頭瀏覽器在 width 寬的視窗打開 page 的副本（加了量測）、跑完 JS，回傳畫好的 DOM；找不到瀏覽器、或它開不起來而沒有交回 DOM，回傳 None。
     prepare 是量之前先跑的一段 JS：頁面有要按了才出現的內容時，用它先讓內容出現。"""
     browser = find_browser()
     if not browser:
@@ -140,7 +140,9 @@ def render(page: Path, width: int = WIDTHS[0], prepare: str = ""):
             copy.unlink(missing_ok=True)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    return r.stdout.decode("utf-8", "replace")
+    dom = r.stdout.decode("utf-8", "replace")
+    # 沙箱裡的 Chrome 找得到卻開不起來，什麼都不印：這不是頁面的問題，當成沒有瀏覽器
+    return dom if dom.strip() else None
 
 
 def problems(dom: str, width: int) -> list:
@@ -157,7 +159,7 @@ def problems(dom: str, width: int) -> list:
 
 
 def measure(page: Path, widths=WIDTHS, prepare: str = ""):
-    """每個寬度量一次，回傳全部的溢出；找不到瀏覽器回傳 None。"""
+    """每個寬度量一次，回傳全部的溢出；找不到瀏覽器或它開不起來回傳 None。"""
     out = []
     for width in widths:
         dom = render(page, width, prepare)
@@ -169,9 +171,9 @@ def measure(page: Path, widths=WIDTHS, prepare: str = ""):
 
 def deliverable(out: Path, src, found) -> bool:
     """組頁腳本寫出 out 之後呼叫，found 是 measure(out) 的結果。有溢出就刪掉 out、逐條印到 stderr，回傳 False；
-    找不到瀏覽器（None）印一句提醒、照樣交付。"""
+    找不到瀏覽器或它開不起來（None）印一句提醒、照樣交付。"""
     if found is None:
-        print("提醒：找不到 Chrome 或 Edge，沒有量水平溢出；用瀏覽器自動化工具在寬螢幕和手機寬各確認一次沒有水平捲軸", file=sys.stderr)
+        print("提醒：找不到 Chrome 或 Edge，或它開不起來，沒有量水平溢出；用瀏覽器自動化工具在寬螢幕和手機寬各確認一次沒有水平捲軸", file=sys.stderr)
         return True
     if not found:
         return True
@@ -191,7 +193,7 @@ def main(argv=None) -> int:
         return 2
     found = measure(Path(args[0]))
     if found is None:
-        print("找不到 Chrome 或 Edge，沒有量水平溢出", file=sys.stderr)
+        print("找不到 Chrome 或 Edge，或它開不起來，沒有量水平溢出", file=sys.stderr)
         return 2
     if found:
         print(f"{args[0]}：{len(found)} 處水平溢出", file=sys.stderr)

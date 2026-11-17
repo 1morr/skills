@@ -9,7 +9,7 @@ diagram.css（瀏覽器打開時畫圖、可縮放拖動）。組好之後用本
 成功時印出輸出檔路徑和「N 張圖都畫出來了」，退出碼 0。有問題時印到 stderr、退出碼 1：
 - 原始頁會從外部載入東西，或自己重新定義配色變數：不產出。外部資源只有這支放的兩個函式庫。
 - 有水平溢出：不產出，逐條印出哪個元素在哪個寬度超出幾 px。
-- 找不到瀏覽器或圖畫不出來：照樣產出。
+- 找不到瀏覽器、它開不起來，或圖畫不出來：照樣產出。
 
 打開組好的頁和這裡的檢查都要連得到 cdn.jsdelivr.net。寫法照 jsDelivr 的建議：網址釘完整版本號，
 <script> 帶 integrity（檔案的 sha384）和 crossorigin="anonymous"，CDN 給的檔不一樣瀏覽器就不執行。
@@ -237,7 +237,7 @@ def main(argv=None, render=render_dom) -> int:
         doms[width] = render(out, width)
         if doms[width] is None:
             print(out)
-            print("找不到 Chrome 或 Edge，沒檢查圖有沒有畫出來、有沒有水平溢出：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
+            print("找不到 Chrome 或 Edge，或它開不起來，沒檢查圖有沒有畫出來、有沒有水平溢出：照 PAGE.md〈交出前〉的退路檢查", file=sys.stderr)
             return 1
     wide = [p for width, dom in doms.items() for p in overflow.problems(dom, width)]
     if wide:

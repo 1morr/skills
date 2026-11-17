@@ -280,6 +280,20 @@ class RenderCopy(unittest.TestCase):
         self.assertEqual([f.name for f in d.iterdir()], ["p.html"])
 
 
+class BrowserDidNotStart(unittest.TestCase):
+    """瀏覽器找得到卻開不起來（沙箱裡的 Chrome）：它沒有交回 DOM，這不是頁面有溢出。"""
+
+    def test_empty_dom_counts_as_no_browser(self):
+        d = Path(tempfile.mkdtemp())
+        out = d / "p.html"
+        out.write_text(page("<p>短</p>"), encoding="utf-8")
+        ov = build.overflow
+        failed = subprocess.CompletedProcess([], 1, b"", b"Failed to create socket directory")
+        with mock.patch.object(ov, "find_browser", return_value="browser"), \
+                mock.patch.object(ov.subprocess, "run", return_value=failed):
+            self.assertIsNone(ov.measure(out))
+
+
 @unittest.skipUnless(build.find_browser(), "本機沒有 Chrome 或 Edge")
 class RealBrowser(unittest.TestCase):
     """用真的 Mermaid、Panzoom（從 CDN 載入，integrity 也在這裡驗到）、diagram.js 和瀏覽器跑：
