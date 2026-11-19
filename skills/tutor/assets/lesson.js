@@ -1,8 +1,9 @@
-// tutor 導讀頁的互動；build.py 會把它內嵌進每一頁。目錄、頁眉、對照欄的 HTML 由 build.py 產生。
+// tutor 導讀頁的互動；build.py 會把它內嵌進每一頁。目錄、頁眉、課件欄、對照欄的 HTML 由 build.py 產生。
 // 目錄和頁眉跟著捲動顯示現在在哪；一路讀下來的段落打勾，記在瀏覽器。
-// 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。
-// 「並排」把對照欄變成右半邊，顯示那一整段。跨段跳轉走瀏覽器的上一頁。
-// 翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的「點圖看中文」是提示，也是鍵盤按得到的按鈕。
+// 課件欄跟著正文：捲到寫了 data-at 的那一塊，課件欄就走到它講的那一頁。那一塊後面的小標籤按了也會回到那一頁；
+// 課件欄的圖點了放大，圖說上的 § 跳到講它的段落。「跟著正文」關掉後課件欄只聽讀者的。
+// 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。跨段跳轉走瀏覽器的上一頁。
+// 正文裡翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的按鈕做同一件事，鍵盤按得到。
 // 「只看重點」每段只留標題、重點、定義。深淺色由讀者切換，和練習頁共用 tutor-theme。
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -19,8 +20,13 @@ const head = $(".head");
 const KEEP = "h1, h2, .meta, .part, .summary, .def, .defs, .cheat, .terms, .digest-note";
 let current = null, currentSub = null, jumping = 0;
 let opener = null, peekId = null, trail = [];
+const deckBody = $(".deck-body");
+const marks = deckBody ? $$("main [data-at]") : [];
+let follow = true, onMark = null, zoom = null, zoomFig = null;
 
-const titleOf = (h) => h.dataset.short || [...h.childNodes].filter((x) => !x.classList?.contains("num")).map((x) => x.textContent).join("").trim();
+// 標題的字：不含 § 編號和課件頁碼的小標籤
+const textOf = (h) => [...h.childNodes].filter((x) => !x.matches?.(".num, .at")).map((x) => x.textContent).join("").trim();
+const titleOf = (h) => h.dataset.short || textOf(h);
 const stopOf = (el) => stops.filter((s) => s === el || (s.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).pop() || stops[0];
 function subsOf(stop) {
   const next = stops[stops.indexOf(stop) + 1];
@@ -68,7 +74,7 @@ function setCurrent(stop, sub) {
   }
   const n = stop.dataset.n;
   $(".crumb").innerHTML = `<b>${n ? `<span class="n">§${n}</span>` : ""}${titleOf(stop)}</b>`
-    + (sub ? `<span class="sep">/</span><span class="h3">${sub.textContent.trim()}</span>` : "");
+    + (sub ? `<span class="sep">/</span><span class="h3">${$(".num", sub)?.textContent || ""} ${textOf(sub)}</span>` : "");
   $(".count").textContent = n ? `${n} / ${numbered.length}` : "";
 }
 function spy() {
@@ -86,6 +92,12 @@ function spy() {
     if (h.getBoundingClientRect().top <= line) sub = h; else break;
   }
   setCurrent(stop, sub);
+  let mark = null;
+  for (const m of marks) {
+    if (!m.getClientRects().length) continue; // 摺起來的、只看重點時收掉的
+    if (m.getBoundingClientRect().top <= line) mark = m; else break;
+  }
+  if (mark) setMark(mark);
   // 頁眉的線是「這一段讀到多少」；整份的進度在目錄上
   const next = stops.slice(stops.indexOf(stop) + 1).find((s) => s.getClientRects().length);
   const from = stop.getBoundingClientRect().top;
@@ -107,7 +119,7 @@ function jumped() {
 }
 addEventListener("hashchange", jumped);
 
-// 版面會變的動作（並排、只看重點）前後，讓讀者正在看的東西留在畫面上同一個位置
+// 版面會變的動作（對照欄、只看重點）前後，讓讀者正在看的東西留在畫面上同一個位置
 function keep(el, change) {
   const before = el?.getBoundingClientRect().top;
   change();
@@ -130,8 +142,7 @@ function blockOf(target, whole) {
 }
 function openPeek(id, from) {
   const body = $(".peek-body");
-  const split = document.body.classList.contains("split");
-  let title, sub = "", hit = null;
+  let title, sub = "";
   if (id === "panel") {
     const figs = $$("#panel figure");
     if (!figs.length) return false;
@@ -153,10 +164,9 @@ function openPeek(id, from) {
   } else {
     const target = document.getElementById(id);
     if (!target) return false;
-    const whole = target.tagName !== "H3" || split; // 並排時右半邊是講義欄：放那一整段，再捲到被點的那一塊
+    const whole = target.tagName !== "H3";
     const { stop, nodes } = blockOf(target, whole);
     body.textContent = "";
-    body.classList.toggle("course", !!target.closest("section.course")); // 重點框的名字跟著原來那一部
     nodes.forEach((n) => {
       const c = n.cloneNode(true);
       [c, ...c.querySelectorAll("[id]")].forEach((x) => { if (x.id) { x.dataset.was = x.id; x.removeAttribute("id"); } });
@@ -170,7 +180,6 @@ function openPeek(id, from) {
       title = `<span class="num">${$(".num", target)?.textContent.trim() || ""}</span>${titleOf(target)}`;
       sub = `${n ? `§${n} ` : ""}${titleOf(stop)}`;
     }
-    if (whole && target.tagName === "H3") hit = $(`[data-was="${id}"]`, body);
     $(".peek-acts .go").hidden = false;
     $(".peek-acts .go").href = `#${id}`;
   }
@@ -180,10 +189,6 @@ function openPeek(id, from) {
   opener = from || null;
   document.body.classList.add("peeking");
   body.scrollTop = 0;
-  if (hit) {
-    body.scrollTop = hit.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
-    hit.classList.add("hit");
-  }
   $(".peek-acts .back").hidden = !trail.length;
   $(".peek-head .close").focus({ preventScroll: true });
   return true;
@@ -191,22 +196,81 @@ function openPeek(id, from) {
 function closePeek() {
   if (!document.body.classList.contains("peeking")) return;
   trail = [];
-  keep(opener || anchor(), () => document.body.classList.remove("peeking", "split"));
-  paintSplit();
+  keep(opener || anchor(), () => document.body.classList.remove("peeking"));
   opener?.focus({ preventScroll: true });
   opener = null;
 }
-function paintSplit() {
-  const on = document.body.classList.contains("split");
-  const b = $(".peek-acts .split");
-  b.setAttribute("aria-pressed", String(on));
-  b.textContent = on ? "取消並排" : "並排";
+// 課件欄。marks 是正文裡講某一頁課件的元素，data-at 是那幾張圖的 id（build.py 寫的）
+function showSlide(id, smooth = true, flash = false) {
+  const fig = document.getElementById(id);
+  if (!fig || !fig.getClientRects().length) return; // 只看必記時，正文講到別的頁就留在原地
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  deckBody.scrollTo({ top: fig.offsetTop - deckBody.offsetTop - 12, behavior: smooth && !calm ? "smooth" : "auto" });
+  if (flash) {
+    fig.classList.remove("hit");
+    void fig.offsetWidth; // 重新觸發動畫
+    fig.classList.add("hit");
+  }
 }
-function setSplit(on) {
-  const from = opener;
-  keep(from || anchor(), () => document.body.classList.toggle("split", on));
-  paintSplit();
-  if (peekId) openPeek(peekId, from);
+function setMark(m) {
+  if (m === onMark) return;
+  onMark?.classList.remove("at-on");
+  onMark = m;
+  m.classList.add("at-on");
+  const ids = m.dataset.at.split(" ");
+  $$(".deck figure.now").forEach((f) => f.classList.remove("now"));
+  ids.forEach((id) => document.getElementById(id)?.classList.add("now"));
+  if (follow) showSlide(ids[0]);
+}
+function setDeckKey(on) {
+  document.body.classList.toggle("deck-key", on);
+  $("[data-act='deck-key']")?.setAttribute("aria-pressed", String(on));
+  if (onMark) showSlide(onMark.dataset.at.split(" ")[0], false);
+}
+// 窄畫面的課件欄是從下面拉上來的一塊；寬螢幕一直都在，這個開關沒有作用
+function setDeck(open) {
+  document.body.classList.toggle("deck-open", open);
+  $("[data-act='deck']")?.setAttribute("aria-pressed", String(open));
+  if (open && onMark) showSlide(onMark.dataset.at.split(" ")[0], false);
+}
+function paintZoom() {
+  const zh = zoomFig.classList.contains("show-zh") && $("img.zh", zoomFig);
+  $("img", zoom).src = (zh || $("img", zoomFig)).src;
+  $("b", zoom).textContent = $("figcaption b", zoomFig).textContent;
+  const lang = $("[data-zoom='lang']", zoom);
+  lang.hidden = !$("img.zh", zoomFig);
+  lang.textContent = zh ? "看原文" : "看中文";
+}
+function stepZoom(by) {
+  const figs = $$(".deck figure").filter((f) => f.getClientRects().length);
+  const next = figs[figs.indexOf(zoomFig) + by];
+  if (!next) return;
+  zoomFig = next;
+  paintZoom();
+  showSlide(next.id, false);
+}
+function openZoom(fig) {
+  if (!zoom) {
+    zoom = document.createElement("dialog");
+    zoom.className = "zoom";
+    zoom.innerHTML = '<div class="zoom-bar"><b></b><span><button type="button" class="btn" data-zoom="prev">上一頁</button>'
+      + '<button type="button" class="btn" data-zoom="next">下一頁</button><button type="button" class="btn" data-zoom="lang"></button>'
+      + '<button type="button" class="btn" data-zoom="close">關閉</button></span></div><img alt="">';
+    document.body.append(zoom);
+    zoom.addEventListener("click", (e) => {
+      const act = e.target.closest("[data-zoom]")?.dataset.zoom;
+      if (act === "close" || e.target === zoom) zoom.close(); // 點到圖外面的暗處
+      else if (act === "lang") { zoomFig.classList.toggle("show-zh"); paintLang(zoomFig); paintZoom(); }
+      else if (act) stepZoom(act === "next" ? 1 : -1);
+    });
+    zoom.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); stepZoom(1); }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); stepZoom(-1); }
+    });
+  }
+  zoomFig = fig;
+  paintZoom();
+  if (!zoom.open) zoom.showModal();
 }
 
 // 只看重點：留下標題、重點、定義，其餘的區塊收起來；摺著的做法先打開，裡面的「這題記住」才看得到
@@ -220,7 +284,7 @@ function mark(el) {
 function setDigest(on) {
   const at = current || stops[0];
   document.body.classList.toggle("digest", on);
-  if (on) $$(".page > section").forEach((pane) => [...pane.children].forEach(mark));
+  if (on) [...$(".page").children].forEach(mark);
   else {
     $$(".dg").forEach((x) => x.classList.remove("dg"));
     $$("details[data-was-closed]").forEach((d) => { d.open = false; delete d.dataset.wasClosed; });
@@ -233,12 +297,21 @@ function setDigest(on) {
 }
 function paintLang(f) {
   const b = $("button.lang", f);
-  if (b) b.textContent = f.classList.contains("show-zh") ? "點圖看原文" : "點圖看中文";
+  // 課件欄的圖點了是放大，換語言只靠按鈕
+  if (b) b.textContent = (f.closest(".deck") ? "看" : "點圖看") + (f.classList.contains("show-zh") ? "原文" : "中文");
 }
 function setLang(zh) {
   $$("figure").forEach((f) => { if ($("img.zh", f)) { f.classList.toggle("show-zh", zh); paintLang(f); } });
   $$("[data-act='lang-zh']").forEach((b) => b.setAttribute("aria-pressed", String(zh)));
   $$("[data-act='lang-en']").forEach((b) => b.setAttribute("aria-pressed", String(!zh)));
+}
+// 選擇題：選錯的劃掉、可以再選；選對了整題結束，理由出現
+function answer(li) {
+  const quiz = li.closest(".quiz");
+  if (quiz.classList.contains("done")) return;
+  const ok = li.hasAttribute("data-ok");
+  li.classList.add(ok ? "right" : "wrong");
+  if (ok) quiz.classList.add("done");
 }
 function setTheme(dark) {
   if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
@@ -257,7 +330,7 @@ document.addEventListener("click", (e) => {
     else if (inside) trail.pop();
     return;
   }
-  if (e.target.closest(".peek-acts .go, .rail a, .resume a")) {
+  if (e.target.closest(".peek-acts .go, .rail a, .resume a, .deck a.to")) {
     jumped();
     closePeek();
     document.body.classList.remove("nav-open");
@@ -278,7 +351,23 @@ document.addEventListener("click", (e) => {
     if (prev) { openPeek(prev.id, opener); $(".peek-body").scrollTop = prev.top; }
     return;
   }
-  if (act === "split") { setSplit(!document.body.classList.contains("split")); return; }
+  if (act === "slide") {
+    e.preventDefault(); // 標籤在 <summary> 裡時不要順便開合
+    closePeek();
+    setDeck(true);
+    if (!document.getElementById(btn.dataset.id)?.classList.contains("key")) setDeckKey(false); // 讀者指名要看這一頁
+    showSlide(btn.dataset.id, true, true);
+    return;
+  }
+  if (act === "follow") {
+    follow = !follow;
+    btn.setAttribute("aria-pressed", String(follow));
+    if (follow && onMark) showSlide(onMark.dataset.at.split(" ")[0]);
+    return;
+  }
+  if (act === "deck-key") { setDeckKey(!document.body.classList.contains("deck-key")); return; }
+  if (act === "deck") { setDeck(!document.body.classList.contains("deck-open")); return; }
+  if (act === "deck-close") { setDeck(false); return; }
   if (act === "digest-on" || act === "digest-off") { setDigest(act === "digest-on"); return; }
   if (act === "digest-toggle") { setDigest(!document.body.classList.contains("digest")); return; }
   if (act === "lang-zh" || act === "lang-en") { setLang(act === "lang-zh"); return; }
@@ -303,22 +392,52 @@ document.addEventListener("click", (e) => {
     $$(".peek-body > figure").forEach((f, i) => { f.hidden = String(i) !== tab.dataset.tab; });
     return;
   }
+  const pick = e.target.closest(".quiz li");
+  if (pick) { answer(pick); return; }
   const fig = e.target.closest("figure");
   if (!fig) return;
+  if (fig.closest(".deck") && e.target.closest("img")) { openZoom(fig); return; }
   if ($("img.zh", fig) && e.target.closest("button.lang, img")) { fig.classList.toggle("show-zh"); paintLang(fig); }
 });
 addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.(".quiz li")) { e.preventDefault(); answer(e.target); }
   if (e.key === "Escape") { closePeek(); document.body.classList.remove("nav-open"); }
 });
 
-// 圖說上的按鈕：翻譯過的圖加「點圖看中文」
+// 選擇題：選項每次打開重排（寫了 data-fixed 的照原樣），鍵盤也按得到
+$$(".quiz ul").forEach((ul) => {
+  const items = [...ul.children];
+  if (!ul.closest(".quiz").hasAttribute("data-fixed")) items.sort(() => Math.random() - 0.5).forEach((li) => ul.append(li));
+  items.forEach((li) => { li.tabIndex = 0; li.setAttribute("role", "button"); });
+});
+// 圖說上的按鈕：翻譯過的圖可以換成中文
 $$("figure").forEach((f) => {
   const cap = $("figcaption", f);
   if (!cap || !$("img.zh", f)) return;
   const b = document.createElement("button");
-  b.type = "button"; b.className = "lang"; b.textContent = "點圖看中文";
+  b.type = "button"; b.className = "lang";
   cap.append(b);
+  paintLang(f);
 });
+// 講某一頁課件的那一塊，後面加一個寫著頁碼的小標籤
+marks.forEach((m) => {
+  const host = m.tagName === "TR" ? m.lastElementChild : m;
+  const ids = m.dataset.at.split(" ");
+  const first = $("figcaption b", document.getElementById(ids[0]))?.textContent;
+  if (!first || !host || /^(TABLE|TBODY|THEAD|UL|OL|DL|DETAILS|SECTION|FIGURE|IMG)$/.test(host.tagName)) return;
+  const last = $("figcaption b", document.getElementById(ids.at(-1)))?.textContent || "";
+  const sameDeck = first.split(" p.")[0] === last.split(" p.")[0];
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "at"; b.dataset.act = "slide"; b.dataset.id = ids[0];
+  b.textContent = ids.length === 1 ? first : sameDeck ? `${first}–${last.split(" p.")[1]}` : `${first}…`;
+  b.title = "在課件欄看這一頁";
+  host.append(b);
+});
+// 沒有重點框和定義框的頁，「只看重點」會只剩標題：把開關收起來
+if (!$("main .summary, main .def")) {
+  $$("[data-act^='digest']").forEach((b) => { (b.closest(".seg") || b).hidden = true; });
+  store.digest = false;
+}
 // 上次讀到哪
 if (!location.hash && store.last && $(".resume")) {
   const s = document.getElementById(store.last);

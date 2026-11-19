@@ -1,14 +1,26 @@
-"""把導讀頁的原始 HTML 組成單一檔案，並檢查寫作規則；規則不過就不產出。
-
-原始檔分兩部：<section class="course"> 是講義導讀，<section class="problems"> 是例題和作業。
-組好的頁是一條捲軸：左邊固定的目錄、中間正文、右邊的對照欄（§ 連結、速查卡、名詞表、查表都在那裡打開）。
+"""把導讀頁的原始 HTML 組成單一檔案；會讓頁面壞掉的事不過就不產出。
 
     python build.py <src.html> [-o <out.html>]
 
-組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次水平溢出（pages/scripts/overflow.py）：
-有溢出就不產出，逐條印出哪個元素超出幾 px；找不到瀏覽器只提醒。
-寬螢幕再多查一件事：正文裡的公式、算式、表格比正文欄寬時，會在自己那一行橫向捲動，右邊看起來就是被切掉，
-這也不產出（手機寬照樣可以捲）。
+原始檔是一份普通的 HTML：<h1>、<h2>、<h3> 和正文，怎麼分段、用哪些元件由作者決定。build 加上的東西：
+§ 編號和連結、左邊的目錄、頁眉、每段的閱讀時間、名詞表（每個 <dfn>）、速查卡的標題和列印鈕、
+查表面板（<aside class="panel">）、右邊的課件欄，並把圖片和樣式內嵌成離線打得開的單一檔案。
+
+課件欄：<body data-slides="slides/slides.json">（deck.py 寫的清單，路徑相對於原始檔）。
+正文裡在講某一頁課件的元素寫 data-slide="L20 p.25"（或 "L20 p.25-28"、"L20 p.29; L22 p.6"），
+讀者捲到那裡，課件欄就跟到那一頁；再加 data-key 的頁是必記的，課件欄可以只看這些。
+
+不產出的情況（逐條印出原因）：
+- 圖片、樣式、腳本連到網路上（頁面要能離線打開）；找不到圖片檔。
+- 內文的 §N 指到不存在的段落。
+- 沒有速查卡 <div class="cheat">，或裡面沒有題型表 <table class="types">，或某一列沒有不重複的 data-type：
+  練習頁、模擬卷、考前速查、學習紀錄都靠它對回題型。
+- 查表面板的 figure 沒有 data-tab。
+- data-slide 寫了清單上沒有的頁，或寫了 data-slide 卻沒有 data-slides。
+- 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次（pages/scripts/overflow.py）：有水平溢出，
+  或寬螢幕上正文裡的公式、算式、表格比正文欄寬、右邊被切掉。找不到瀏覽器只提醒。
+
+成功時印產出的路徑、整頁大約要讀幾分鐘，有課件欄時再印正文講到幾頁、哪幾頁沒講到。
 
 只用標準函式庫，CI 才能直接跑測試。
 """
@@ -18,6 +30,7 @@ import base64
 import html
 import json
 import mimetypes
+import os
 import re
 import sys
 from html.parser import HTMLParser
@@ -30,65 +43,21 @@ import overflow  # noqa: E402
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
 
-# 原始檔的兩部：講義導讀在前，例題和作業在後；組好的頁把它們接成一條捲軸
-PANES = ("course", "problems")
-# 每個 h2 段落的字數上限，單位見 text_units：一頁講義講到這麼長，就該拆成兩段。
-# 整頁不設上限、也不提醒：講解要細，趕時間的讀者用「只看重點」和速查卡
-PER_SECTION = 4000
-# 一句話的字數上限：讀者是零基礎，一句一件事
-MAX_SENTENCE = 50
-# 估閱讀時間：一分鐘讀幾個字（單位見 text_units）。教材要邊讀邊算，比一般閱讀慢
-UNITS_PER_MIN = 80
-# 速查卡的公式行裡，<mspace> 寬到幾 em 就算是把兩條公式接在同一行（標籤和公式之間的小空隙不算）
-JOIN_GAP_EM = 1
-# 題目那部的型態：calc（算題，要有數字從哪來、算式）或 text（文科：答案是要點和句子）
-KINDS = ("calc", "text")
+# 估閱讀時間：一分鐘讀幾個字（單位見 text_units）；每個算式、每個自測、每題選擇題再各加半分鐘
+UNITS_PER_MIN = 200
+WORK_MIN = 0.5
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
-# 這些元素裡的字不算散文：圖、表、公式、程式碼、答案紙樣本、課件譯文（長短由截圖決定）
-SKIP_TAGS = {"figure", "table", "pre", "code", "style", "script", "svg", "math", "title"}
-SKIP_CLASSES = {"sheet", "tr"}
-# 題目那部裡有這些 class 的段落在教一題怎麼做，就要講為什麼、交代不明顯的數字從哪來
-METHOD_CLASSES = {"calc", "sheet"}
-# 題目那部裡會洩漏做法或答案的區塊，要收進 <details class="answer">，先自己做再打開
-ANSWER_ONLY = {"calc", "sheet", "origin", "trap"}
-# 「數字從哪來」表只列不明顯的數字：查表、要數的（n、df）、慣例、經驗法則、公式裡的常數。
-# 題目直接給的、上面算出來的不列，算式就在旁邊
-FROM_KINDS = {"table", "count", "convention", "rule", "constant"}
-# 這兩種在材料或算式上看得到，要連到同一段裡圈出它的 figure 或算出它的 .calc
-LINKED_FROM = {"table", "count"}
-
-# 定義框的三種（data-kind）：要分辨的東西、一個量、一個方法。每種三格 {class: 頁面上的名字}，必填的那一格排第一
-DEF_KINDS = {"class": {"test": "怎樣才算", "yes": "是", "no": "不是"},
-             "quantity": {"how": "怎麼算", "big": "大代表", "small": "小代表"},
-             "method": {"when": "什麼時候用", "io": "做什麼", "without": "不用會怎樣"}}
-DEF_SLOTS = {name for slots in DEF_KINDS.values() for name in slots}
-# 這些框的標籤由樣式加上；內文開頭再寫一次就重複了
-LABELS = {"trap": ("常見錯誤",), "summary": ("這段記住", "這頁重點", "這題記住"), "def": ("定義",),
-          "sheet": ("答案紙上寫這樣",), "uses": ("這題用到",), "yes": ("是：", "是:"), "no": ("不是：", "不是:"),
-          **{name: (label,) for slots in DEF_KINDS.values() for name, label in slots.items() if name not in ("yes", "no")}}
-# 提醒（不擋產出）：沒有摺起來的圖的張數
-FIGURE_WARN = 60
 
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
-PAGE_REF = re.compile(r"\bp{1,2}\.\s*\d+")
-# data-pages 的一項：「檔名 p.3」或「檔名 p.1-8」
-PAGES_ITEM = re.compile(r"^(.+?)\s+p\.\s*(\d+)(?:\s*-\s*(\d+))?$")
 SECTION_REF = re.compile(r"§(\d+(?:\.\d+)?)")
 REMOTE = re.compile(r"^\s*(https?:)?//", re.I)
-# 把讀者推去看別的 topic 的句子：前置知識要在原地從零教，把那一頁課件截過來
-PREREQ = re.compile(r"(Topic\s*\d+\s*(學過|教過|講過|的東西|的內容|已經)|見\s*Topic\s*\d|[上前]一?個\s*topic|"
-                    r"之前(學|教|講)過|前面的\s*topic|上學期)", re.I)
-# 「不考」的說法：只有老師明示過才能寫，而且要寫在帶 data-evidence（出處）的元素裡
-NOT_EXAMINED = re.compile(r"(?<!考)不(?:會直接|會|用)?考(?![試慮量])|看懂就好")
 # 題型代號：題型表每一列一個，練習頁和模擬卷的題目用它對回題型
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
-SENTENCE_END = re.compile(r"[。！？；!?]|\.(?=\s|$)")  # 英文句點後面要有空白，小數點不算
-# 句子在這些元素的邊界結束
-BLOCK = {"p", "li", "div", "h1", "h2", "h3", "h4", "summary", "dd", "dt", "caption", "td", "th", "section", "aside",
-         "blockquote"}
+# data-slide 的一項：「L20 p.25」或「L20 p.25-28」
+SLIDE_REF = re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\s+p\.\s*(\d+)(?:\s*[-–]\s*(\d+))?$")
 
 
 def text_units(s: str) -> int:
@@ -100,459 +69,133 @@ def classes(attrs) -> set:
     return set((dict(attrs).get("class") or "").split())
 
 
+def slide_keys(value: str) -> list:
+    """data-slide 的值拆成 [(代號, 頁)]；看不懂就丟 ValueError。"""
+    keys = []
+    for item in filter(None, (x.strip() for x in value.split(";"))):
+        m = SLIDE_REF.match(item)
+        if not m:
+            raise ValueError(item)
+        first, last = int(m.group(2)), int(m.group(3) or m.group(2))
+        if last < first:
+            raise ValueError(item)
+        keys += [(m.group(1), n) for n in range(first, last + 1)]
+    if not keys:
+        raise ValueError(value)
+    return keys
+
+
+def load_slides(path: Path) -> dict:
+    """讀 deck.py 寫的清單：{(代號, 頁): {"src", "zh", "w", "h"}}，圖檔路徑換成絕對路徑；照課件和頁碼的順序。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {(d["id"], p["n"]): {"src": path.parent / p["src"], "zh": path.parent / p["zh"] if p.get("zh") else None,
+                                    "w": int(p["w"]), "h": int(p["h"])}
+                for d in data["decks"] for p in d["pages"]}
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise SystemExit(f"讀不了課件清單 {path}（{e}）：用 deck.py 產生 slides.json")
+
+
 class Lint(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.problems = []
-        self.pages = None  # <body data-pages>：課件導讀要涵蓋的頁
-        self.page_captions = []  # 每張 figure.page 的 figcaption
-        self.stack = []  # [(tag, skip, classes)]
-        self.prev = [set()]  # prev[d]：stack 第 d 層裡最後一個結束的子元素的 class
-        self.sections = []  # 每個 h2 段落，欄位見 handle_starttag
-        self.row = None  # 正在讀的「數字從哪來」表格列
-        self.defs = []  # 開著的 .def：{"dfn": 個數, "kind": data-kind, "slots": {格子的 class: 文字}}
-        self.calcs = []  # 開著的 .calc：{"formula": 文字, "subst": 文字}
+        self.stack = []  # [(tag, classes)]
+        self.h2 = 0  # 目前有幾個 h2
+        self.h3 = {}  # {第幾個 h2: 底下有幾個 h3}
         self.refs = []  # 內文提到的 §N、§N.M
-        self.heading = None  # 正在讀的 h2 標題
-        self.prelude = 0  # 第一個 h2 之前的字數
-        self.figures = []  # 每個開著的 figure，欄位見 handle_starttag
-        self.kind = "calc"  # <body data-problems>
-        self.sentence = ""  # 正在讀的一句散文
-        self.in_heading = 0  # 在 h2/h3 裡（標題的頁碼不算「先舉例」）
-        self.example = False  # 這個 h2/h3 塊裡，定義框之前有沒有用數字舉過例
-        self.types = None  # 題目那部開頭的題型表提到的 §；None 表示沒有這張表
-        self.problems_h2 = False  # 題目那部已經有 h2 了（題型表要在它前面）
-        self.type_row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
-        self.type_slugs = []  # 題型表每一列的 data-type
-        self.boxes = []  # 開著的有標籤的框：{"depth", "labels", "first"}
-        self.shown_figures = 0  # 沒有摺在 <details> 裡的圖
-        self.checks = []  # 講義那部開著的自測：{"ask": summary 的字, "refs": 答案裡的 § 個數}
-        self.whys = []  # 開著的 .why：{"state": start|q|done|bad, "q": 開頭那個 <b> 裡的字}
-
-    def skipping(self) -> bool:
-        return any(skip for _, skip, _ in self.stack)
-
-    def inside(self, tag) -> bool:
-        return any(t == tag for t, _, _ in self.stack)
+        self.cheat = False  # 有速查卡
+        self.types = None  # 題型表每一列的 data-type；None 表示沒有這張表
+        self.row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
+        self.slides = []  # 每個 data-slide 的值
+        self.deck = None  # <body data-slides>
 
     def inside_class(self, name) -> bool:
-        return any(name in c for _, _, c in self.stack)
-
-    def in_origin(self) -> bool:
-        return any(t == "table" and "origin" in c for t, _, c in self.stack)
-
-    def in_answer(self) -> bool:
-        return any(t == "details" and "answer" in c for t, _, c in self.stack)
-
-    def pane(self):
-        for _, _, c in reversed(self.stack):
-            for name in PANES:
-                if name in c:
-                    return name
-        return None
+        return any(name in c for _, c in self.stack)
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         cls = classes(attrs)
         if tag == "body":
-            self.pages = a.get("data-pages")
-            self.kind = a.get("data-problems") or "calc"
-            if self.kind not in KINDS:
-                self.problems.append(f'<body data-problems="{self.kind}"> 看不懂：只能是 {" 或 ".join(KINDS)}')
-        if self.stack and self.stack[-1][0] == "body" and not (
-                tag in ("script", "style") or (tag == "section" and cls & set(PANES)) or (tag == "aside" and "panel" in cls)):
-            self.problems.append(f'<body> 底下只能放 <section class="course">、<section class="problems"> 和查表面板 '
-                                 f'<aside class="panel">（現在有 <{tag}>）：標題和範圍表放進講義那部的開頭')
-        for name in cls & set(LABELS):
-            self.boxes.append({"depth": len(self.stack), "labels": LABELS[name], "first": True})
-        if "ans" in cls and self.calcs:
-            self.calcs[-1]["ans"] = True
-        if tag == "b" and self.whys and self.whys[-1]["state"] == "start":
-            self.whys[-1]["state"] = "q"
-        if "why" in cls:
-            self.whys.append({"state": "start", "q": ""})
-        if tag == "details" and "check" in cls and self.pane() == "course":
-            self.checks.append({"ask": "", "refs": 0, "depth": len(self.stack)})
+            self.deck = (a.get("data-slides") or "").strip() or None
         for key in ("src", "href", "data-zh"):
             if tag in ("img", "script", "link", "source") and a.get(key) and REMOTE.match(a[key]):
                 self.problems.append(f"外部資源 <{tag} {key}={a[key]!r}>：頁面要能離線打開，請改成本機檔案")
-        if tag == "img":
-            if not self.figures:
-                self.problems.append(f"圖片 {a.get('src', '')!r} 不在 <figure> 裡：每張圖都要有寫出處的 figcaption")
-            elif a.get("data-zh"):
-                self.figures[-1]["zh"] = True
-        if tag in ("input", "textarea", "select"):
-            self.problems.append(f'導讀頁不能有輸入框（<{tag}>）：自測用 <details class="check">，整題的練習放練習頁')
-        if tag in BLOCK:
-            self.end_sentence()
-        if tag in ("h2", "h3"):
-            self.in_heading += 1
-            self.example = False
-        if tag == "table" and "types" in cls and self.pane() == "problems" and not self.problems_h2:
-            self.types = []
-            if not self.inside_class("cheat"):
-                self.problems.append('題型表要放在速查卡 <div class="cheat"> 裡：題目那部開頭一張可以單獨列印的卡，'
-                                     "題型表、要背的公式、判斷規則都在上面")
-        if cls & ANSWER_ONLY and self.pane() == "problems" and not self.in_answer():
-            what = ", ".join(sorted(cls & ANSWER_ONLY))
-            self.problems.append(f'題目那部的 .{what} 要收在 <details class="answer"> 裡：先自己做，做完再打開')
-        if tag == "mspace" and self.inside_class("cheat") and self.inside_class("formula"):
-            gap = re.fullmatch(r"\s*(\d*\.?\d+)\s*em\s*", a.get("width") or "")
-            if gap and float(gap.group(1)) >= JOIN_GAP_EM:
-                self.problems.append(f'速查卡的公式一條一行：這一行用 <mspace width="{a["width"].strip()}"> 把好幾條接在一起，'
-                                     '在對照欄和手機上右邊會被切掉。每條公式各寫一個 <div class="formula">')
-        if tag == "figure":
-            self.shown_figures += not self.inside("details")
-            if self.inside_class("panel") and not (a.get("data-tab") or "").strip():
-                self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
-            self.figures.append({"caption": "", "in_caption": False, "page": "page" in cls, "id": a.get("id") or "",
-                                 "tr": "tr" in self.prev[len(self.stack)], "none": a.get("data-tr") == "none",
-                                 "zh": False})
-            if "page" in cls and not self.inside("details"):
-                self.problems.append('整頁圖 <figure class="page"> 要收在 <details> 裡：正文逐塊講，整頁只在需要時打開')
-        if tag == "figcaption" and self.figures:
-            self.figures[-1]["in_caption"] = True
-        if tag == "dfn":
-            if self.defs:
-                self.defs[-1]["dfn"] += 1
-            else:
-                self.problems.append('<dfn> 不在 class="def" 的定義框裡：術語要有「是什麼、怎樣才算、例子」')
-        if "def" in cls:
-            kind = (a.get("data-kind") or "class").strip()
-            if kind not in DEF_KINDS:
-                self.problems.append(f'定義框的 data-kind="{kind}" 看不懂：只能是 {"、".join(DEF_KINDS)}'
-                                     "（要分辨的東西、一個量、一個方法）")
-                kind = "class"
-            self.defs.append({"dfn": 0, "kind": kind, "slots": {}, "term": "", "example": self.example})
-        if "calc" in cls:
-            self.calcs.append({"formula": "", "subst": "", "ans": False})
         if tag == "h2":
-            self.heading = ""
-            if self.pane() == "problems":
-                self.problems_h2 = True
-            self.sections.append({"title": "", "units": 0, "method": False, "why": False, "origin": False,
-                                  "figs": set(), "calcs": set(), "rows": [], "h3": 0, "uses": False, "uses_refs": [], "calc_first": False,
-                                  "pane": self.pane(), "depth": len(self.stack), "last": set(),
-                                  "last_inner": set(), "recap": "recap" in cls, "refs": [], "done": False,
-                                  "keys": False})
-        if self.sections:
-            sec = self.sections[-1]
-            sec["method"] |= bool(cls & METHOD_CLASSES)
-            sec["why"] |= "why" in cls
-            sec["uses"] |= "uses" in cls
-            if "summary" in cls and not sec["h3"]:
-                sec["keys"] = True  # 講義那部：重點放在這一頁的開頭，第一個 h3 之前
-            if "calc" in cls and not sec["origin"]:
-                sec["calc_first"] = True  # 題目那部要先列出要用的數字從哪來，再代公式
-            sec["origin"] |= "origin" in cls
-            if tag == "h3":
-                sec["h3"] += 1
-            if tag == "figure" and a.get("id"):
-                sec["figs"].add(a["id"])
-            if "calc" in cls and a.get("id"):
-                sec["calcs"].add(a["id"])
-            if tag == "tr" and self.in_origin():
-                self.row = {"text": "", "from": a.get("data-from"), "links": [], "cells": 0}
-                sec["rows"].append(self.row)
-            if self.row is not None:
-                if tag == "td":
-                    self.row["cells"] += 1
-                if tag == "a" and (a.get("href") or "").startswith("#"):
-                    self.row["links"].append(a["href"][1:])
+            self.h2 += 1
+        if tag == "h3":
+            self.h3[self.h2] = self.h3.get(self.h2, 0) + 1
+        if "cheat" in cls:
+            self.cheat = True
+        if tag == "table" and "types" in cls and self.inside_class("cheat") and self.types is None:
+            self.types = []
         if tag == "tr" and self.types is not None and self.inside_class("types"):
-            self.type_row = {"slug": (a.get("data-type") or "").strip(), "cells": 0, "text": ""}
-        if tag == "td" and self.type_row is not None:
-            self.type_row["cells"] += 1
-        if (a.get("data-evidence") or "").strip():
-            cls = cls | {"@evidence"}  # 記在 stack 上：裡面的「不考」有出處
-        if tag in VOID:
-            self.closed(len(self.stack), cls, set())
-        else:
-            self.stack.append((tag, tag in SKIP_TAGS or bool(cls & SKIP_CLASSES), cls))
-            self.prev.append(set())
-
-    def closed(self, depth, cls, inner):
-        """第 depth 層有一個元素結束：記成那一層最後一個子元素；和 h2 同層的，就是這一段目前的最後一塊。
-        inner 是這個元素自己最後一個子元素的 class（最後一塊是摺起來的答案時，要看它裡面的最後一塊）。"""
-        self.prev[depth] = cls
-        if self.sections and self.sections[-1]["depth"] == depth and not self.sections[-1]["done"]:
-            self.sections[-1]["last"] = cls
-            self.sections[-1]["last_inner"] = inner
+            self.row = {"slug": (a.get("data-type") or "").strip(), "cells": 0, "text": ""}
+        if tag == "td" and self.row is not None:
+            self.row["cells"] += 1
+        if tag == "figure" and self.inside_class("panel") and not (a.get("data-tab") or "").strip():
+            self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
+        if "data-slide" in a:
+            self.slides.append(a["data-slide"] or "")
+        if tag not in VOID:
+            self.stack.append((tag, cls))
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag):
-        if tag in VOID:
-            return
         # 容許省略結束標籤：往回找到同名的那層再收
-        cls = None
         for i in range(len(self.stack) - 1, -1, -1):
             if self.stack[i][0] == tag:
-                cls = self.stack[i][2]
-                inner = self.prev[i + 1] if len(self.prev) > i + 1 else set()
                 del self.stack[i:]
-                del self.prev[i + 1:]
-                self.boxes = [b for b in self.boxes if b["depth"] < i]
-                self.closed(i, cls, inner)
                 break
-        if cls is None:
+        else:
             return
-        if tag == "section" and cls & set(PANES) and self.sections:
-            self.sections[-1]["done"] = True  # 這一欄結束了，後面那欄開頭的東西不算這一段的最後一塊
-        if tag in BLOCK:
-            self.end_sentence()
-        if tag in ("h2", "h3"):
-            self.in_heading = max(0, self.in_heading - 1)
-        if tag == "tr":
-            self.row = None
-            if self.type_row is not None and self.type_row["cells"]:
-                slug, what = self.type_row["slug"], " ".join(self.type_row["text"].split())[:20]
+        if tag == "tr" and self.row is not None:
+            if self.row["cells"]:  # 沒有 <td> 的是表頭
+                slug, what = self.row["slug"], " ".join(self.row["text"].split())[:20]
                 if not SLUG.match(slug):
                     self.problems.append(f'題型表的「{what}」沒有 data-type：每一列寫一個英文小寫代號（例如 acf-read），'
                                          "練習頁的題目用它對回這個題型")
-                elif slug in self.type_slugs:
+                elif slug in self.types:
                     self.problems.append(f"題型表的 data-type={slug!r} 重複了：每個題型一個代號")
-                self.type_slugs.append(slug)
-            self.type_row = None
-        if "def" in cls and self.defs:
-            d = self.defs.pop()
-            if d["dfn"] != 1:
-                self.problems.append(f'定義框裡有 {d["dfn"]} 個 <dfn>：一個 class="def" 只定義一個術語')
-            need, label = next(iter(DEF_KINDS[d["kind"]].items()))
-            if not d["slots"].get(need, "").strip():
-                self.problems.append(f'定義框「{d["term"].strip()[:20]}」（data-kind="{d["kind"]}"）沒有 class="{need}" 的「{label}」：'
-                                     + {"class": "要寫讀者能拿來檢查的判斷標準",
-                                        "quantity": "用小整數算一次給讀者看",
-                                        "method": "寫出遇到什麼情況要用它"}[d["kind"]])
-            if not d["example"]:
-                self.problems.append(f'定義框「{d["term"].strip()[:20]}」前面沒有先舉例：新概念先用生活情境和小整數在原地算一次或畫一次，'
-                                     "再說「這叫做○○」（這個 h2/h3 塊裡，定義框之前的正文要有數字）")
-        if tag == "b" and self.whys and self.whys[-1]["state"] == "q":
-            self.whys[-1]["state"] = "done"
-        if "why" in cls and self.whys:
-            w = self.whys.pop()
-            if w["state"] != "done" or not w["q"].strip().endswith(("？", "?")):
-                self.problems.append("「為什麼」框沒有先寫出它在回答的問題：開頭寫成 <b>讀者會問的那一句？</b>（問號結尾），"
-                                     "接著才是答案；一個框只答一個問題")
-        if tag == "details" and self.checks and self.checks[-1]["depth"] == len(self.stack):
-            c = self.checks.pop()
-            if not c["refs"]:
-                self.problems.append(f"自測「{' '.join(c['ask'].split())[:20]}」的答案沒有指回講義的 §：答案要教會答不出來的人，"
-                                     "寫出線索、對到這頁的哪一條規則，最後一行「還不會：回 §N.M」")
-        if "calc" in cls and self.calcs:
-            c = self.calcs.pop()
-            what = " ".join((c["formula"] + c["subst"]).split())[:30]
-            if not re.search(r"[=＝]", c["formula"]):
-                self.problems.append(f'計算「{what}」沒有寫出公式：.calc 裡要有含「=」的 class="formula"，不寫「用 §N 的公式」')
-            if not re.search(r"\d", c["subst"]):
-                self.problems.append(f'計算「{what}」沒有代入數字：.calc 裡要有 class="subst"，把數字代進公式')
-            if not c["ans"]:
-                self.problems.append(f'計算「{what}」沒有標出結果：算出來的那個數包成 <span class="ans">…</span>，讀者一眼找到答案')
-        if tag == "figcaption" and self.figures:
-            self.figures[-1]["in_caption"] = False
-        if tag == "figure" and self.figures:
-            fig = self.figures.pop()
-            caption = fig["caption"]
-            if fig["page"]:
-                self.page_captions.append(caption)
-            if not (fig["zh"] or fig["tr"] or fig["none"]):
-                self.problems.append(f"圖片沒有翻譯（figure {fig['id']}）：用 crop.py cut --zh 產生翻譯圖，"
-                                     '寫成 <img src="原圖" data-zh="翻譯圖">；做不出翻譯圖才在前面緊接著放 class="tr" 的譯文；'
-                                     '圖上沒有要翻的字寫 data-tr="none"')
-            if not PAGE_REF.search(caption):
-                self.problems.append(f"figure 的出處沒有頁碼（figcaption：{caption.strip()[:40]!r}）：要寫檔名和 p.頁碼")
-        if tag == "h2" and self.heading is not None:
-            self.sections[-1]["title"] = self.heading.strip()
-            self.heading = None
-
-    def end_sentence(self):
-        """一個區塊結束，手上這句也結束：太長就報。"""
-        self.check_sentence(self.sentence)
-        self.sentence = ""
-
-    def check_sentence(self, s):
-        n = text_units(s)
-        if n > MAX_SENTENCE:
-            self.problems.append(f"這句有 {n} 字，一句上限 {MAX_SENTENCE}：「{' '.join(s.split())[:30]}…」一句只講一件事，拆開")
+                self.types.append(slug)
+            self.row = None
 
     def handle_data(self, data):
         if self.row is not None:
             self.row["text"] += data
-        text = data.strip()
-        if text and self.whys:
-            if self.whys[-1]["state"] == "start":
-                self.whys[-1]["state"] = "bad"  # 問題之前先寫了別的字
-            elif self.whys[-1]["state"] == "q":
-                self.whys[-1]["q"] += data
-        for box in self.boxes:
-            if box["first"] and text:
-                box["first"] = False
-                if text.startswith(box["labels"]):
-                    self.problems.append(f"「{text[:12]}」開頭重複了標籤：這個框的標籤由樣式加上，內文直接寫內容")
-        if self.type_row is not None:
-            self.type_row["text"] += data
-        m = NOT_EXAMINED.search(data)
-        if m and not self.inside_class("@evidence"):
-            self.problems.append(f"「{m.group(0)}」沒有出處：沒有老師明示就當會考、照會考的規格教；"
-                                 '老師明示過的，寫在帶 data-evidence="檔名 p.頁碼或哪一次公告" 的元素裡')
-        m = PREREQ.search(data)
-        if m:
-            self.problems.append(f"「{m.group(0)}」把讀者推去看別的 topic：前置知識要在原地從零教，"
-                                 "用定義框加上那一頁課件的截圖，只補這裡需要的那一點")
-        if self.types is not None and self.inside_class("types"):
-            self.types += SECTION_REF.findall(data)
-        for fig in self.figures:
-            if fig["in_caption"]:
-                fig["caption"] += data
-        if self.heading is not None:
-            self.heading += data
-        if self.defs:
-            for name in DEF_SLOTS:
-                if self.inside_class(name):
-                    self.defs[-1]["slots"][name] = self.defs[-1]["slots"].get(name, "") + data
-        if self.defs and self.inside("dfn"):
-            self.defs[-1]["term"] += data
-        if self.calcs:
-            if self.inside_class("formula"):
-                self.calcs[-1]["formula"] += data
-            elif self.inside_class("subst"):
-                self.calcs[-1]["subst"] += data
-        found = SECTION_REF.findall(data)
-        self.refs += found
-        if self.checks:
-            if self.inside("summary"):
-                self.checks[-1]["ask"] += data
-            else:
-                self.checks[-1]["refs"] += len(found)
-        if self.sections:
-            self.sections[-1]["refs"] += found
-            if self.inside_class("uses"):
-                self.sections[-1]["uses_refs"] += found
-        if self.skipping():
-            return
-        if not self.in_heading and not self.defs and re.search(r"\d", data):
-            self.example = True
-        if not self.calcs:
-            parts = SENTENCE_END.split(data)
-            for done in parts[:-1]:
-                self.check_sentence(self.sentence + done)
-                self.sentence = ""
-            self.sentence += parts[-1]
-        n = text_units(data)
-        if self.sections:
-            self.sections[-1]["units"] += n
-        else:
-            self.prelude += n
+        if not any(t in ("script", "style") for t, _ in self.stack):
+            self.refs += SECTION_REF.findall(data)
 
 
-def lint(src: str) -> list:
+def lint(src: str, slides=None) -> list:
+    """會讓頁面或下游的頁壞掉的事。slides 是 load_slides() 的結果；頁面沒有課件欄時是 None。"""
     p = Lint()
     p.feed(src)
     p.close()
-    p.end_sentence()
     problems = list(p.problems)
-    problems += coverage(p.pages, p.page_captions)
-    problems += panes(p.sections)
-    course = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "course"}
-    problem_secs = {f"{i}" for i, sec in enumerate(p.sections, 1) if sec["pane"] == "problems"}
-    if p.types is None:
-        problems.append('題目那部開頭（第一個 h2 之前）要有 <table class="types"> 題型表：看到什麼題目 → 用哪條公式、哪張表 → '
-                        "示範題 §N，趕時間的人從這裡起步")
-    elif not any(r.split(".")[0] in problem_secs for r in p.types):
-        problems.append("題型表沒有連到任何一題：每種題型寫出示範題的 §N")
-    for sec in p.sections:
-        title, n = sec["title"][:30], sec["units"]
-        if n > PER_SECTION:
-            problems.append(f"§「{title}」有 {n} 字，每段上限 {PER_SECTION}：拆成幾段，或刪掉不是在教這頁的東西")
-        if sec["pane"] == "problems" and sec["method"]:
-            if not sec["uses"]:
-                problems.append(f'§「{title}」有計算或答案紙，卻沒有 <ul class="uses"> 的「這題用到」：一行列一樣用到的公式或規則，'
-                                "後面寫講義的 §N；教學只寫在講義那一段，不在題目旁邊重寫一次")
-            elif not any(r.split(".")[0] in course for r in sec["uses_refs"]):
-                problems.append(f"§「{title}」的「這題用到」沒有連到講義：每一樣寫出講義的 §N，讀者按了那一段就在旁邊打開")
-            if p.kind == "text":
-                pass
-            elif not sec["origin"]:
-                problems.append(f'§「{title}」有計算或答案紙，卻沒有 class="origin" 的「數字從哪來」表')
-            elif sec["calc_first"]:
-                problems.append(f"§「{title}」的「數字從哪來」表排在算式後面：先列出要用的數字從哪來，再代公式，"
-                                "讀者算到那一步時才知道每個數字的來源")
-        ends = "summary" in sec["last"] or ("answer" in sec["last"] and "summary" in sec["last_inner"])
-        if sec["pane"] == "course":
-            if not sec["keys"]:
-                problems.append(f'§「{title}」開頭沒有 class="summary" 的「這頁重點」：放在 h2 底下、第一個 h3 之前，'
-                                "讀者先看到要帶走什麼，再讀細節")
-            if "check" not in sec["last"]:
-                problems.append(f'§「{title}」最後一塊不是 <details class="check"> 的自測：每一頁講完讓讀者自己算一次或答一次，'
-                                "問題寫在 <summary>，答案摺在裡面")
-        elif not sec["recap"] and not ends:
-            problems.append(f'§「{title}」最後一塊不是 class="summary" 的「這題記住」：每題結尾都要有總結'
-                            "（可以放在 details.answer 的最後）")
-        for row in sec["rows"]:
-            if not row["cells"]:  # 表頭
-                continue
-            what = " ".join(row["text"].split())[:30]
-            missing = [x for x in row["links"] if x not in sec["figs"] | sec["calcs"]]
-            if row["from"] not in FROM_KINDS:
-                problems.append(f'§「{title}」數字從哪來的「{what}」要寫 data-from="{"|".join(sorted(FROM_KINDS))}"：'
-                                "這張表只列不明顯的數字，題目直接給的、上面算出來的不用列")
-            elif missing:
-                problems.append(f"§「{title}」數字從哪來的「{what}」連到 #{missing[0]}，這一段沒有這個 id 的 figure 或 .calc")
-            elif row["from"] in LINKED_FROM and not row["links"]:
-                problems.append(f"§「{title}」數字從哪來的「{what}」沒有附圖：連到這一段圈出它的 figure，"
-                                '或算出它的 .calc（<a href="#id">）')
-    if not p.sections or not p.sections[-1]["recap"]:
-        problems.append('最後一段要是 <h2 class="recap"> 的整個 topic 總結')
-    labels = {f"{i}" for i in range(1, len(p.sections) + 1)}
-    labels |= {f"{i}.{j}" for i, sec in enumerate(p.sections, 1) for j in range(1, sec["h3"] + 1)}
+    if not p.cheat:
+        problems.append('頁面沒有速查卡 <div class="cheat">：考前只看的那一張，考前速查會把它搬過去；裡面第一樣是題型表')
+    elif p.types is None:
+        problems.append('速查卡裡沒有題型表 <table class="types">：考試會要你做的每一件事一列，'
+                        "練習頁、模擬卷和學習紀錄用每一列的 data-type 對回來")
+    elif not p.types:
+        problems.append('題型表沒有任何一列：每個題型寫一列 <tr data-type="英文小寫代號">')
+    labels = {f"{i}" for i in range(1, p.h2 + 1)} | {f"{i}.{j}" for i, n in p.h3.items() for j in range(1, n + 1)}
     for ref in sorted(set(p.refs) - labels):
         problems.append(f"內文提到 §{ref}，但頁面沒有這一段：§ 編號由 build 依 h2、h3 的順序產生")
-    return problems
-
-
-def warnings(src: str) -> list:
-    """不擋產出的提醒：攤開的圖太多時，讀者找不到正文。"""
-    p = Lint()
-    p.feed(src)
-    p.close()
-    out = []
-    if p.shown_figures > FIGURE_WARN:
-        out.append(f"沒摺起來的圖有 {p.shown_figures} 張（提醒門檻 {FIGURE_WARN}）：整張統計表放查表面板，"
-                   "題目裡只留圈出那一格的小截圖")
-    return out
-
-
-def panes(sections) -> list:
-    """每個 h2 都在講義那部或題目那部裡，兩部都要有，講義那部在前。"""
-    problems, seen = [], []
-    for sec in sections:
-        if sec["pane"] is None:
-            problems.append(f'§「{sec["title"][:30]}」不在 <section class="course"> 或 <section class="problems"> 裡')
-        elif sec["pane"] == "course" and "problems" in seen:
-            problems.append(f"§「{sec['title'][:30]}」在講義那部，卻排在題目那部後面：講義那部在前")
-        seen.append(sec["pane"])
-    for name, label in (("course", "講義那部"), ("problems", "題目那部")):
-        if name not in seen:
-            problems.append(f'頁面沒有{label}：要有 <section class="{name}">，裡面至少一個 <h2>')
-    return problems
-
-
-def coverage(pages, captions) -> list:
-    """data-pages 宣告的每一頁，都要有一張 figcaption 寫著那個檔名和頁碼的 figure.page。"""
-    if not (pages or "").strip():
-        return ['<body> 要有 data-pages，宣告課件導讀涵蓋哪些頁，例如 "Classnote Topic 3 p.1-8; Topic 4 Summary p.1-10"']
-    problems = []
-    for item in filter(None, (x.strip() for x in pages.split(";"))):
-        m = PAGES_ITEM.match(item)
-        if not m:
-            problems.append(f"data-pages 的「{item}」看不懂：要寫成「檔名 p.3」或「檔名 p.1-8」，多份用 ; 分開")
+    if p.slides and slides is None:
+        problems.append('正文寫了 data-slide，<body> 卻沒有 data-slides：寫上 deck.py 產生的 slides.json 的路徑')
+    for value in p.slides if slides is not None else ():
+        try:
+            missing = [k for k in slide_keys(value) if k not in slides]
+        except ValueError as e:
+            problems.append(f'data-slide="{value}" 的「{e}」看不懂：寫成「代號 p.3」或「代號 p.3-5」，多份用 ; 分開')
             continue
-        name, first = m.group(1), int(m.group(2))
-        for n in range(first, int(m.group(3) or first) + 1):
-            page = re.compile(rf"\bp\.\s*{n}(?!\d)")
-            if not any(name in c and page.search(c) for c in captions):
-                problems.append(f'課件導讀少了「{name} p.{n}」：要有一張 figcaption 寫著它的 <figure class="page"> 整頁圖')
+        if missing:
+            problems.append(f'data-slide="{value}"：課件清單沒有 {missing[0][0]} p.{missing[0][1]}'
+                            "（代號是 deck.py 的 <代號>=<pdf>，頁碼從 1 起算）")
     return problems
 
 
@@ -611,7 +254,6 @@ def link_refs(src: str, anchors: dict) -> str:
 
 NUMBERED_H2 = re.compile(r'<h2([^>]*)><span class="num">§(\d+)</span> (.*?)</h2\s*>', re.I | re.S)
 ID_ATTR = re.compile(r"""\bid\s*=\s*["']?([^"'\s>]+)""")
-DOT = '<span class="dot">·</span>'
 ICONS = {"check": '<path d="M3 8.5l3.2 3.2L13 4.5"/>', "x": '<path d="M4 4l8 8M12 4l-8 8"/>',
          "list": '<path d="M2.5 4h11M2.5 8h11M2.5 12h7"/>'}
 
@@ -629,46 +271,40 @@ def has_class(name: str) -> str:
     return rf"""[^>]*\bclass\s*=\s*["'](?:[^"']*\s)?{name}(?:\s[^"']*)?["'][^>]*"""
 
 
-def pane_start(src: str, name: str, end: bool = True) -> int:
-    """<section class="name"> 開始標籤結束的位置（end=False 是標籤開始的位置）；沒有就回傳 -1。"""
-    m = re.search(rf"<section\b{has_class(name)}>", src, re.I)
-    return (m.end() if end else m.start()) if m else -1
-
-
 # 目錄上不重複標題尾巴的頁碼：「……（講義 p.3）」
 PAGE_TAIL = re.compile(r"\s*[（(][^（）()]*\bp{1,2}\.\s*\d[^（）()]*[）)]\s*$")
+WORK = re.compile(rf"<(?:div|details)\b(?:{has_class('calc')}|{has_class('check')}|{has_class('quiz')})>", re.I)
 
 
-def add_meta(src: str, anchors: dict) -> str:
-    """每個編號的 h2 寫上 data-n、data-min，後面接一行：約幾分鐘；講義那部的段再列出用到它的題目。"""
+def minutes(body: str) -> int:
+    """這一段大約要讀幾分鐘：字數，加上每個算式、自測、選擇題要自己動手的時間。"""
+    return max(1, round(text_units(TAG.sub("", body)) / UNITS_PER_MIN + len(WORK.findall(body)) * WORK_MIN))
+
+
+def add_meta(src: str) -> str:
+    """每個編號的 h2 寫上 data-n、data-min、目錄用的短標題，後面接一行「約幾分鐘」。"""
     heads = list(NUMBERED_H2.finditer(src))
-    cut = pane_start(src, "problems", end=False)
-    # 每一段的正文到下一個 h2 為止；講義最後一段只到講義那部結束，題目那部開頭的速查卡不算它的
-    ends = [heads[i + 1].start() if i + 1 < len(heads) else len(src) for i in range(len(heads))]
-    bodies = [src[m.end():(cut if m.start() < cut < end else end)] for m, end in zip(heads, ends)]
-    label_of = {anchor: label.split(".")[0] for label, anchor in anchors.items()}
-    used = {}  # 講義段的編號 → 用到它的題目段
-    for m, body in zip(heads, bodies):
-        if cut >= 0 and m.start() > cut:
-            for anchor in re.findall(r'<a class="ref" href="#([^"]+)"', body):
-                users = used.setdefault(label_of.get(anchor), [])
-                if m.group(2) not in users:
-                    users.append(m.group(2))
     out, pos = [], 0
-    for m, body in zip(heads, bodies):
-        n = m.group(2)
-        minutes = max(1, round(text_units(TAG.sub("", body)) / UNITS_PER_MIN))
-        bits = [f"約 {minutes} 分鐘"]
-        if (cut < 0 or m.start() < cut) and used.get(n):
-            bits.append("用到這頁的題目 " + "、".join(f'<a class="ref" href="#{anchors[u]}">§{u}</a>' for u in used[n]))
+    for i, m in enumerate(heads):
+        body = src[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(src)]
         attrs, title = m.group(1), PAGE_TAIL.sub("", plain(m.group(3)))
         if "data-short" not in attrs:  # 目錄和頁眉用的短標題：去掉尾巴的頁碼
             attrs += f' data-short="{title}"'
+        n, mins = m.group(2), minutes(body)
         out += [src[pos:m.start()],
-                f'<h2{attrs} data-n="{n}" data-min="{minutes}"><span class="num">§{n}</span> {m.group(3)}</h2>',
-                f'<p class="meta">{DOT.join(bits)}</p>']
+                f'<h2{attrs} data-n="{n}" data-min="{mins}"><span class="num">§{n}</span> {m.group(3)}</h2>',
+                f'<p class="meta">約 {mins} 分鐘</p>']
         pos = m.end()
     return "".join(out) + src[pos:]
+
+
+def total_minutes(page: str) -> int:
+    return sum(int(x) for x in re.findall(r'<h2\b[^>]*\bdata-min="(\d+)"', page))
+
+
+def body_end(src: str) -> int:
+    end = src.lower().rfind("</body>")
+    return len(src) if end < 0 else end
 
 
 def add_cheat(src: str) -> str:
@@ -676,9 +312,10 @@ def add_cheat(src: str) -> str:
     m = re.search(rf"<div\b{has_class('cheat')}>", src, re.I)
     if not m:
         return src
+    answers = ('<button type="button" class="btn" data-act="answers">展開全部做法</button>'
+               if re.search(rf"<details\b{has_class('answer')}>", src, re.I) else "")
     head = ('<h2 class="plain" id="cheat">速查卡</h2><p class="cheat-tools">'
-            '<button type="button" class="btn" data-act="print">列印速查卡</button>'
-            '<button type="button" class="btn" data-act="answers">展開全部做法</button></p>')
+            f'<button type="button" class="btn" data-act="print">列印速查卡</button>{answers}</p>')
     return src[:m.start()] + head + src[m.start():]
 
 
@@ -687,7 +324,7 @@ HEAD_TAG = re.compile(r"<h[23]\b[^>]*>", re.I)
 
 
 def add_terms(src: str, anchors: dict) -> str:
-    """最後加一張名詞表：每個 <dfn> 一列，緊跟在它後面括號裡的是另一種語言的寫法；連到它所在的那一段。"""
+    """正文最後加一張名詞表：每個 <dfn> 一列，緊跟在它後面括號裡的是另一種語言的寫法；連到它所在的那一段。"""
     label_of = {anchor: label for label, anchor in anchors.items()}
     heads = [(m.start(), ID_ATTR.search(m.group(0))) for m in HEAD_TAG.finditer(src)]
     heads = [(pos, m.group(1)) for pos, m in heads if m and m.group(1) in label_of]
@@ -696,32 +333,98 @@ def add_terms(src: str, anchors: dict) -> str:
         before = [anchor for pos, anchor in heads if pos < m.start()]
         if before:
             rows.append((plain(m.group(1)), m.group(1), plain(m.group(2) or ""), before[-1]))
-    end = src.lower().rfind("</section>")
-    if not rows or end < 0:
+    if not rows:
         return src
     rows.sort(key=lambda r: r[0].lower())
     items = "".join(f'<li><a class="ref" href="#{anchor}">{term}</a><span>{alt}</span>'
                     f'<span class="where">§{label_of[anchor]}</span></li>' for _, term, alt, anchor in rows)
     table = ('<h2 class="plain" id="terms">名詞表</h2><p class="meta">這一頁定義過的名詞，照原文排。按名詞在旁邊打開定義。</p>'
              f'<ul class="terms">{items}</ul>')
+    end = body_end(src)
     return src[:end] + table + src[end:]
 
 
-PART = re.compile(rf"<p\b{has_class('part')}>(.*?)</p\s*>", re.I | re.S)
+OPEN_TAG = re.compile(r"<([a-zA-Z][\w-]*)\b([^<>]*)>")
+SLIDE_ATTR = re.compile(r"""\sdata-slide\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
+KEY_ATTR = re.compile(r"\sdata-key\b", re.I)
+# 圖說上最多列幾個講到這一頁的段落
+MAX_USES = 4
 
 
-def add_parts(src: str) -> str:
-    """每一部的開頭要有 <p class="part">：作者沒寫的，講義那部補「講義」，題目那部補「題目」。"""
-    for name, label in (("problems", "題目"), ("course", "講義")):  # 先補後面那部，前面那部的位置才不會變
-        start = pane_start(src, name)
-        end = pane_start(src, "problems") if name == "course" else -1
-        end = len(src) if end < 0 else end
-        if start < 0 or PART.search(src, start, end):
-            continue
-        m = re.compile(r"<h2[\s>]", re.I).search(src, start, end)
-        if m:
-            src = src[:m.start()] + f'<p class="part">{label}</p>' + src[m.start():]
-    return src
+def slide_id(key) -> str:
+    return f"slide-{key[0]}-{key[1]}"
+
+
+def add_deck(src: str, slides: dict, anchors: dict, base: Path) -> tuple:
+    """課件欄：清單上的每一頁一張圖，照課件順序；圖說連到講到它的段落。正文裡的 data-slide 換成 data-at（那幾張圖的 id）。
+    回傳 (新的 HTML, {"pages": 總頁數, "used": 講到幾頁, "key": 必記幾頁, "idle": 沒講到的 [(代號, 頁)]})。"""
+    label_of = {anchor: label for label, anchor in anchors.items()}
+    uses, keyed, current = {}, set(), [None]
+
+    def repl(m):
+        tag, attrs = m.group(1).lower(), m.group(2)
+        if tag in ("h2", "h3"):
+            own = ID_ATTR.search(attrs)
+            if own and own.group(1) in label_of:
+                current[0] = own.group(1)
+        hit = SLIDE_ATTR.search(attrs)
+        if not hit:
+            return m.group(0)
+        try:
+            keys = slide_keys(hit.group(1) if hit.group(1) is not None else hit.group(2))
+        except ValueError:  # 註解裡的範例：lint 沒看到它，原樣留著
+            return m.group(0)
+        for k in keys:
+            if current[0] and current[0] not in uses.setdefault(k, []):
+                uses[k].append(current[0])
+            uses.setdefault(k, [])
+        if KEY_ATTR.search(attrs):
+            keyed.update(keys)
+        at = " ".join(slide_id(k) for k in keys)
+        rest = SLIDE_ATTR.sub("", attrs, count=1).rstrip()
+        close = " /" if rest.endswith("/") else ""
+        return f'<{m.group(1)}{rest.rstrip("/").rstrip()} data-at="{at}"{close}>'
+
+    src = OPEN_TAG.sub(repl, src)
+    figs, deck = [], None
+    for key, page in slides.items():
+        if key[0] != deck:
+            deck = key[0]
+            figs.append(f'<h3 class="deck-name">{html.escape(deck)}</h3>')
+        cls = " ".join(c for c, on in (("key", key in keyed), ("idle", key not in uses)) if on)
+        rel = [Path(os.path.relpath(f, base)).as_posix() if f else None for f in (page["src"], page["zh"])]
+        zh = f' data-zh="{html.escape(rel[1])}"' if rel[1] else ""
+        to = "".join(f'<a class="to" href="#{a}">§{label_of[a]}</a>' for a in uses.get(key, [])[:MAX_USES])
+        cls = f' class="{cls}"' if cls else ""
+        figs.append(f'<figure id="{slide_id(key)}"{cls}>'
+                    # 寫上大小：圖還沒載入時先佔好位置，課件欄才捲得到對的地方
+                    f'<img src="{html.escape(rel[0])}"{zh} width="{page["w"]}" height="{page["h"]}" alt="" loading="lazy">'
+                    f'<figcaption><b>{html.escape(key[0])} p.{key[1]}</b>{to}</figcaption></figure>')
+    only = (f'<button type="button" class="btn" data-act="deck-key" aria-pressed="false">只看必記 {len(keyed)} 頁</button>'
+            if keyed else "")
+    aside = ('<aside class="deck" aria-label="課件"><div class="deck-head"><b>課件</b>'
+             '<button type="button" class="btn" data-act="follow" aria-pressed="true">跟著正文</button>'
+             f'{only}<button type="button" class="close" data-act="deck-close" aria-label="收起課件">{icon("x")}</button></div>'
+             f'<div class="deck-body">{"".join(figs)}</div></aside>')
+    end = body_end(src)
+    report = {"pages": len(slides), "used": len(uses), "key": len(keyed), "idle": [k for k in slides if k not in uses]}
+    return src[:end] + aside + src[end:], report
+
+
+def idle_text(idle: list) -> str:
+    """沒講到的頁寫成「L20 p.1、4–6；L21 p.2」。"""
+    by_deck = {}
+    for deck, n in idle:
+        by_deck.setdefault(deck, []).append(n)
+    parts = []
+    for deck, pages in by_deck.items():
+        runs, start = [], pages[0]
+        for a, b in zip(pages, pages[1:] + [None]):
+            if b != a + 1:
+                runs.append(f"{start}" if start == a else f"{start}–{a}")
+                start = b
+        parts.append(f"{deck} p.{'、'.join(runs)}")
+    return "；".join(parts)
 
 
 OUTLINE = re.compile(rf"<p\b{has_class('part')}>(?P<part>.*?)</p\s*>|<h(?P<level>[123])\b(?P<attrs>[^>]*)>(?P<inner>.*?)</h(?P=level)\s*>",
@@ -786,33 +489,6 @@ def rail(src: str, groups: list) -> str:
         out.append("</ol>")
     out.append('<button type="button" class="reset" data-act="reset">清掉「讀過」的記號</button></nav>')
     return "".join(out)
-
-
-def add_shell(src: str) -> str:
-    """把兩部包進一條捲軸的版面：目錄、頁眉（現在讀到哪、速查卡、名詞表、查表、只看重點）、正文、對照欄。"""
-    if not re.search(r"<h1\b[^>]*\bid\s*=", src, re.I):
-        src = re.sub(r"<h1\b", '<h1 id="top"', src, count=1, flags=re.I)
-    src = re.sub(r"</h1\s*>", lambda m: m.group(0)
-                 + '<p class="digest-note">現在每段只顯示重點和定義。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
-                 + '<p class="resume" hidden>上次讀到這裡：<a href="#"></a></p>', src, count=1, flags=re.I)
-    tools = "".join(f'<button type="button" class="tool wide" data-act="{act}">{label}</button>'
-                    for act, label in (("cheat", "速查卡"), ("terms", "名詞表"), ("panel", "查表")) if f'id="{act}"' in src)
-    head = (f'<div class="head"><button type="button" class="tool" data-act="nav">{icon("list")}目錄</button>'
-            f'<p class="crumb"></p><p class="count"></p>{tools}'
-            '<button type="button" class="tool" data-act="digest-toggle" aria-pressed="false">只看重點</button>'
-            '<span class="bar" aria-hidden="true"></span></div>')
-    peek = ('<button type="button" class="scrim" data-act="scrim" aria-label="關閉"></button>'
-            '<aside class="peek" aria-label="旁邊打開的那一段"><div class="peek-head"><h2></h2><p></p>'
-            f'<button type="button" class="close" data-act="peek-close" aria-label="關閉">{icon("x")}</button>'
-            '<div class="peek-acts"><button type="button" class="btn back" data-act="peek-back" hidden>返回</button>'
-            '<button type="button" class="btn split" data-act="split" aria-pressed="false">並排</button>'
-            '<a class="go" href="#">跳到這一段</a></div></div><div class="peek-body"></div></aside>')
-    opening = re.search(r"<body\b[^>]*>", src, re.I)
-    start = opening.end() if opening else 0
-    end = src.lower().rfind("</body>")
-    end = len(src) if end < 0 else end
-    return (src[:start] + rail(src, outline(src)) + "<main>" + head + '<div class="page">' + src[start:end]
-            + "</div></main>" + peek + src[end:])
 
 
 PANEL = re.compile(rf"<aside\b{has_class('panel')}>(.*?)</aside\s*>", re.I | re.S)
@@ -887,12 +563,51 @@ def inject_assets(src: str) -> str:
     return src + script
 
 
-def build(src: str, base: Path) -> str:
+DECK = re.compile(rf"<aside\b{has_class('deck')}>.*?</aside\s*>", re.I | re.S)
+BODY_TAG = re.compile(r"<body\b([^>]*)>", re.I)
+
+
+def add_shell(src: str) -> str:
+    """把正文包進版面：目錄、頁眉（現在讀到哪、速查卡、名詞表、查表、課件、只看重點）、正文、課件欄、對照欄。"""
+    if not re.search(r"<h1\b[^>]*\bid\s*=", src, re.I):
+        src = re.sub(r"<h1\b", '<h1 id="top"', src, count=1, flags=re.I)
+    src = re.sub(r"</h1\s*>", lambda m: m.group(0)
+                 + '<p class="digest-note">現在每段只顯示重點和定義。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
+                 + '<p class="resume" hidden>上次讀到這裡：<a href="#"></a></p>', src, count=1, flags=re.I)
+    deck = DECK.search(src)
+    if deck:
+        src = src[:deck.start()] + src[deck.end():]
+        src = BODY_TAG.sub(lambda m: (CLASS_ATTR.sub(lambda c: c.group(1) + "has-deck ", m.group(0), count=1)
+                                     if CLASS_ATTR.search(m.group(1)) else f'<body class="has-deck"{m.group(1)}>'), src, count=1)
+    tools = "".join(f'<button type="button" class="tool wide" data-act="{act}">{label}</button>'
+                    for act, label in (("cheat", "速查卡"), ("terms", "名詞表"), ("panel", "查表")) if f'id="{act}"' in src)
+    if deck:
+        tools += '<button type="button" class="tool narrow" data-act="deck" aria-pressed="false">課件</button>'
+    head = (f'<div class="head"><button type="button" class="tool" data-act="nav">{icon("list")}目錄</button>'
+            f'<p class="crumb"></p><p class="count"></p>{tools}'
+            '<button type="button" class="tool" data-act="digest-toggle" aria-pressed="false">只看重點</button>'
+            '<span class="bar" aria-hidden="true"></span></div>')
+    peek = ('<button type="button" class="scrim" data-act="scrim" aria-label="關閉"></button>'
+            '<aside class="peek" aria-label="旁邊打開的那一段"><div class="peek-head"><h2></h2><p></p>'
+            f'<button type="button" class="close" data-act="peek-close" aria-label="關閉">{icon("x")}</button>'
+            '<div class="peek-acts"><button type="button" class="btn back" data-act="peek-back" hidden>返回</button>'
+            '<a class="go" href="#">跳到這一段</a></div></div><div class="peek-body"></div></aside>')
+    opening = BODY_TAG.search(src)
+    start = opening.end() if opening else 0
+    end = body_end(src)
+    return (src[:start] + rail(src + (deck.group(0) if deck else ""), outline(src)) + "<main>" + head + '<div class="page">'
+            + src[start:end] + "</div></main>" + (deck.group(0) if deck else "") + peek + src[end:])
+
+
+def build(src: str, base: Path, slides=None) -> tuple:
+    """回傳 (組好的頁, 課件欄的統計或 None)。"""
     src, anchors = number_headings(src)
-    src = add_meta(link_refs(add_panel(src), anchors), anchors)
+    src = add_meta(link_refs(add_panel(src), anchors))
     src = add_terms(add_cheat(src), anchors)
-    src = add_shell(add_parts(src))
-    return inject_assets(inline_images(split_bilingual(src), base))
+    report = None
+    if slides is not None:
+        src, report = add_deck(src, slides, anchors, base)
+    return inject_assets(inline_images(split_bilingual(add_shell(src)), base)), report
 
 
 # 量寬螢幕之前在頁面裡跑：正文裡自己橫向捲動的容器（.formula、.calc、表格、.sheet）內容比它寬的，記進 <meta name="clipped">
@@ -933,6 +648,9 @@ def measure(page: Path):
     return out
 
 
+BODY_SLIDES = re.compile(r"""<body\b[^>]*\sdata-slides\s*=\s*["']([^"']+)["']""", re.I)
+
+
 def main(argv=None, measure=measure) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
@@ -941,19 +659,24 @@ def main(argv=None, measure=measure) -> int:
     ap.add_argument("-o", "--out", type=Path)
     args = ap.parse_args(argv)
     src = args.src.read_text(encoding="utf-8")
-    problems = lint(src)
+    declared = BODY_SLIDES.search(src)
+    slides = load_slides(args.src.parent / declared.group(1).strip()) if declared else None
+    problems = lint(src, slides)
     if problems:
         print(f"{args.src}：{len(problems)} 個問題，沒有產出", file=sys.stderr)
         for p in problems:
             print(f"  - {p}", file=sys.stderr)
         return 1
-    for w in warnings(src):
-        print(f"提醒：{w}", file=sys.stderr)
     out = args.out or args.src.with_name(args.src.stem.removesuffix("-src") + ".html")
-    out.write_text(build(src, args.src.parent), encoding="utf-8")
+    page, report = build(src, args.src.parent, slides)
+    out.write_text(page, encoding="utf-8")
     if not overflow.deliverable(out, args.src, measure(out)):
         return 1
     print(out)
+    print(f"讀完大約 {total_minutes(page)} 分鐘")
+    if report:
+        idle = f"；沒講到：{idle_text(report['idle'])}" if report["idle"] else ""
+        print(f"課件欄 {report['pages']} 頁：正文講到 {report['used']} 頁，必記 {report['key']} 頁{idle}")
     return 0
 
 

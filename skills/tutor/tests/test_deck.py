@@ -58,9 +58,10 @@ class Deck(unittest.TestCase):
         self.run_deck()
         self.assertEqual(self.read("zh.json"), {TITLE: "", BODY: ""})
         self.assertEqual(self.read("slides.json"), {"decks": [{"id": "L1", "pages": [
-            {"n": 1, "src": "L1-01.png", "zh": None}, {"n": 2, "src": "L1-02.png", "zh": None}]}]})
+            {"n": 1, "src": "L1-01.png", "zh": None, "w": 1000, "h": 400},
+            {"n": 2, "src": "L1-02.png", "zh": None, "w": 1000, "h": 400}]}]})
         with Image.open(self.out / "L1-01.png") as im:
-            self.assertEqual(im.width, 1000)
+            self.assertEqual(im.size, (1000, 400))
 
     def test_filled_text_gives_a_translated_picture_for_that_page_only(self):
         self.run_deck()

@@ -11,13 +11,15 @@
    並把課件上每一塊不重複的原文寫進 zh.json：{"原文": ""}。
 2. 把 zh.json 的譯文填上再跑一次：有譯文的頁多一張 <代號>-<頁>.zh.*，slides.json 跟著更新。
 
-zh.json 的值是 HTML（可以用 <b>）。留空字串的那一塊不翻：人名、年份、地圖上的地名、公式。
-重跑會保留填好的譯文；課件多了字就加進去，課件上已經沒有的原文留著不刪。
+zh.json 照課件的順序排，被拆成兩塊的一句話會排在一起。值是 HTML（可以用 <b>）。留空字串的那一塊不翻：人名、年份、地圖上的地名、公式。
+重跑會保留填好的譯文；課件多了字就加在最後，課件上已經沒有的原文留著不刪。
 斜放的字（角落的緞帶）和沒有字母的塊（頁碼、純數字）不列進 zh.json。
 
 slides.json（build.py 讀它；路徑相對於這個檔）：
 
-    {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.jpg", "zh": "L20-01.zh.jpg"}, {"n": 2, "src": "L20-02.png", "zh": null}]}]}
+    {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.jpg", "zh": "L20-01.zh.jpg", "w": 1000, "h": 563}, …]}]}
+
+沒有翻譯圖的頁 zh 是 null；w、h 是圖的大小（px）。
 
 最後印每份課件幾頁、幾頁有翻譯圖、zh.json 還有幾塊沒填。譯文放不下時字會縮小並印提醒。
 """
@@ -75,13 +77,15 @@ def overlay(page, found: list, zh: dict) -> list:
     return items
 
 
-def save(page, path: Path, width: int, photo: bool):
+def save(page, path: Path, width: int, photo: bool) -> tuple:
+    """存一張整頁圖，回傳 (寬, 高)。"""
     pix = page.get_pixmap(dpi=round(width / page.rect.width * 72))
     im = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
     if photo:
         im.save(path, quality=82, optimize=True)
     else:
         im.quantize(colors=64).save(path, optimize=True)
+    return im.size
 
 
 def main(argv=None) -> int:
@@ -118,7 +122,7 @@ def main(argv=None) -> int:
             photo = bool(page.get_images())
             ext = "jpg" if photo else "png"
             stem = f"{name}-{n:0{digits}d}"
-            save(page, a.out / f"{stem}.{ext}", a.width, photo)
+            w, h = save(page, a.out / f"{stem}.{ext}", a.width, photo)
             items = overlay(page, found, zh)
             zh_name = None
             if items:
@@ -126,10 +130,10 @@ def main(argv=None) -> int:
                 zh_name = f"{stem}.zh.{ext}"
                 save(page, a.out / zh_name, a.width, photo)
                 done += 1
-            pages.append({"n": n, "src": f"{stem}.{ext}", "zh": zh_name})
+            pages.append({"n": n, "src": f"{stem}.{ext}", "zh": zh_name, "w": w, "h": h})
         manifest["decks"].append({"id": name, "pages": pages})
         print(f"{name}：{len(pages)} 頁，{done} 頁有翻譯圖")
-    todo.write_text(json.dumps(zh, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    todo.write_text(json.dumps(zh, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     (a.out / "slides.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     empty = sum(1 for v in zh.values() if not v.strip())
     print(f"{todo}：{len(zh)} 塊原文，{empty} 塊沒有譯文" + ("（填上再跑一次；不翻的留空）" if empty else ""))

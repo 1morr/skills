@@ -1,5 +1,5 @@
 /* tutor 導讀頁的樣式；build.py 會把它內嵌進每一頁。
-   一本只有一條捲軸的課本：左邊固定的目錄；正文一欄，在右邊的空間裡置中，圖都排在正文裡；對照欄從右邊打開。
+   一條捲軸的正文，左邊固定的目錄；有課件時右邊是課件欄，跟著正文走到正在講的那一頁。對照欄從右邊打開，蓋在課件欄上。
    白紙黑字，一個藍色管結構，三支螢光筆各管一件事：
    藍＝§ 編號、連結、新名詞、目錄上現在那一段；黃＝算出來的答案和要帶走的話；粉紅＝容易錯；綠＝讀過。
    整塊上色的只有「這頁重點」。正紅留給課件截圖上老師的紅框，介面不用。
@@ -50,6 +50,7 @@
   --sheet-bg: #eeeae1; --img-filter: brightness(.86);
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; text-autospace: normal; scroll-padding-top: calc(var(--head) + 1.25rem); background: var(--paper); }
 body {
   margin: 0; color: var(--ink); background: var(--paper);
@@ -132,6 +133,7 @@ main { min-width: 0; }
 .tool { flex: none; display: none; align-items: center; gap: .35rem; border: 1px solid var(--rule-2); background: var(--paper); border-radius: 6px; padding: .25rem .6rem; font-size: .8125rem; cursor: pointer; }
 .tool:hover { border-color: var(--ink); }
 .tool.wide { display: inline-flex; }
+.tool.narrow { display: none; }
 .tool[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .btn { border: 1px solid var(--ink); background: var(--paper); border-radius: 6px; padding: .3rem .9rem; font-size: .875rem; font-weight: 600; cursor: pointer; }
 .btn:hover, .btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
@@ -146,7 +148,8 @@ main { min-width: 0; }
 @media (min-width: 1180px) {  /* 更窄的畫面對照欄本來就蓋在正文上，不挪 */
   body.peeking .page { margin-left: max(0px, min(var(--mid), calc(100% - var(--peek) - 1rem - var(--pad) - var(--col)))); }
 }
-.page section > *, .page section > section > * { max-width: var(--col); }
+.page > *, .page section > *, .page section > section > * { max-width: var(--col); }
+.page > section { max-width: none; }
 .page section > section { max-width: none; }
 h1 { font-size: 2rem; line-height: 1.3; font-weight: 700; margin: 2.5rem 0 .75rem; text-wrap: balance; }
 p { margin: .8rem 0; }
@@ -158,6 +161,8 @@ a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: .
 /* 變數（Y、X₁、b）照教科書排成襯線斜體 */
 i, var { font-family: var(--serif); font-size: 1.06em; }
 sub, sup { line-height: 0; }
+pre { font: .875rem/1.6 ui-monospace, "SF Mono", Consolas, monospace; background: var(--wash); padding: .8rem 1rem; margin: 1rem 0; overflow-x: auto; }
+pre code { background: none; padding: 0; font: inherit; }
 code { font: .9em/1 ui-monospace, "SF Mono", Consolas, monospace; background: var(--wash); border-radius: 3px; padding: .1em .3em; }
 .lead { font-size: 1.125rem; line-height: 1.75; }
 .resume { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; border-top: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule-2); padding: .6rem 0; margin: 1.25rem 0; }
@@ -204,10 +209,10 @@ h4 { font-size: 1.0625rem; margin: 1.75rem 0 .4rem; }
 /* 「為什麼」沒有固定的名字：開頭那個粗體的問句就是它的標題 */
 .why > b:first-child, .why > p:first-child > b:first-child { margin-right: .7em; }
 
-/* 這頁重點、這題記住：整頁唯一整塊上色的地方 */
+/* 重點：整頁唯一整塊上色的地方。名字預設是「重點」，要換就寫 data-label */
 .summary { background: var(--yellow-wash); padding: .9rem 1.25rem 1rem; margin: 1.25rem 0 1.75rem; }
-.summary::before { content: "這題記住"; }
-section.course .summary::before, .peek-body.course .summary::before { content: "這頁重點"; }
+.summary::before { content: "重點"; }
+.summary[data-label]::before { content: attr(data-label); }
 .summary ul, .summary ol { margin: 0; }
 .summary > p:last-child:not(:first-child) { margin: .6rem 0 0; color: var(--key-note); font-size: .9375rem; }
 
@@ -216,7 +221,7 @@ section.course .summary::before, .peek-body.course .summary::before { content: "
 .def > p { margin: .3rem 0; }
 dfn { font-style: normal; font-weight: 700; font-size: 1.125rem; }
 .def :is(.test, .yes, .no, .how, .big, .small, .io, .when, .without) { font-size: .9375rem; line-height: 1.7; }
-/* 三種定義框各三格：要分辨的東西、一個量、一個方法（名字和 build.py 的 DEF_KINDS 一樣） */
+/* 定義框裡有名字的格子，用得到哪一格才寫哪一格 */
 .def .test::before { content: "怎樣才算"; }
 .def .yes::before { content: "是"; color: var(--green-ink); }
 .def .no::before { content: "不是"; color: var(--pink-ink); }
@@ -321,6 +326,18 @@ details.check[open] > summary::after, details.answer[open] > summary::after { co
 details.answer > summary::after { grid-row: 1; }
 details.check > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
 
+/* 選擇題：點一個選項，馬上知道對不對，下面出現理由；選項的順序每次打開重排 */
+.quiz { margin: 1.25rem 0; padding: .2rem 0 .2rem 1rem; border-left: 2px solid var(--rule-2); }
+.quiz > p:first-child { font-weight: 600; margin: .3rem 0; }
+.quiz ul { list-style: none; padding: 0; margin: .4rem 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.quiz li { margin: 0; border: 1px solid var(--rule-2); border-radius: 6px; padding: .2rem .75rem; cursor: pointer; font-size: .9375rem; }
+.quiz li:hover { border-color: var(--ink); }
+.quiz li.right { border-color: var(--green-ink); color: var(--green-ink); font-weight: 700; }
+.quiz li.wrong { border-color: var(--pink-ink); color: var(--pink-ink); text-decoration: line-through; }
+.quiz.done li { cursor: default; }
+.quiz .because { display: none; margin: .3rem 0; font-size: .9375rem; color: var(--ink-2); }
+.quiz.done .because { display: block; }
+
 /* 題目：這題用到什麼，一行一樣；教學只寫在講義那一段，按 § 在旁邊打開 */
 .uses { list-style: none; padding: 0; margin: 1.25rem 0; }
 .uses::before { content: "這題用到"; padding-bottom: .3rem; border-bottom: 1px solid var(--ink); margin-bottom: 0; }
@@ -341,13 +358,11 @@ body.peeking .peek { transform: none; visibility: visible; transition: transform
 .peek-head .close:hover { border-color: var(--ink); }
 .peek-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin-top: .35rem; }
 .peek-acts .btn { padding: .15rem .7rem; }
-.peek-acts .split { display: none; }
 .peek-acts .go { font-size: .875rem; font-weight: 600; text-decoration: none; }
 .peek-acts .go[hidden] { display: none; }
 .peek-body { overflow-y: auto; overscroll-behavior: contain; padding: .25rem 1.25rem 3rem; font-size: 1rem; scrollbar-width: thin; }
 .peek-body h2, .peek-body .meta, .peek-body .cheat-tools { display: none; }
 .peek-body .defs { grid-template-columns: 1fr; gap: 1rem; }
-.peek-body .hit { animation: stroke 1.6s var(--ease) both; }
 .peek-body .tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; }
 .scrim { display: none; }
 #panel { display: none; }
@@ -358,24 +373,65 @@ body.digest h2 { margin-top: 2.5rem; }
 .digest-note { display: none; }
 body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375rem; }
 
-/* ── 寬螢幕 ── */
+/* ── 課件欄：整份課件一頁一張，照順序；正在講的那一頁框藍線，正文沒講到的頁變淡 ── */
+.deck { display: flex; flex-direction: column; min-width: 0; background: var(--wash); }
+.deck-head { flex: none; height: var(--head); display: flex; align-items: center; gap: .5rem; padding: 0 .75rem 0 1rem; background: var(--paper); border-bottom: 1px solid var(--rule); font-size: .875rem; }
+.deck-head b { margin-right: auto; }
+.deck-head .btn { padding: .1rem .7rem; font-size: .8125rem; font-weight: 500; border-color: var(--rule-2); }
+.deck-head .close { display: none; border: 1px solid var(--rule-2); background: none; border-radius: 6px; width: 2rem; height: 2rem; place-items: center; cursor: pointer; }
+.deck-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: .25rem 1rem 60vh; scrollbar-width: thin; }
+.deck-name { font-size: .8125rem; font-weight: 600; color: var(--ink-2); margin: 1.25rem 0 .4rem; }
+.deck figure { margin: 0 0 1.1rem; }
+.deck figure img { width: 100%; cursor: zoom-in; outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s; }
+.deck figure.now img { outline-color: var(--blue); }
+.deck figure.idle { opacity: .5; }
+.deck figure.idle:hover, .deck figure.idle.now { opacity: 1; }
+.deck figure.hit img { animation: stroke 1.6s var(--ease) both; }
+.deck figcaption b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.deck figure.key figcaption b::after { content: "必記"; margin-left: .5em; padding: 0 .4em; background: var(--yellow); border-radius: 3px; font-size: .75rem; }
+.deck a.to { font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
+.deck a.to:hover { text-decoration: underline; }
+body.deck-key .deck figure:not(.key), body.deck-key .deck-name { display: none; }
+/* 正文裡講某一頁課件的地方：後面的小標籤寫那一頁，按了課件欄回到那一頁；現在帶著課件欄的那一塊是藍的 */
+button.at { border: 1px solid var(--rule-2); background: var(--paper); border-radius: 999px; padding: 0 .6em; margin-left: .6em; font: 500 .75rem/1.7 var(--sans); letter-spacing: 0; color: var(--ink-2); cursor: pointer; white-space: nowrap; vertical-align: .12em; font-variant-numeric: tabular-nums; }
+button.at:hover { border-color: var(--blue); color: var(--blue); }
+.at-on > button.at, .at-on > td > button.at, .at-on > th > button.at { background: var(--blue); border-color: var(--blue); color: var(--paper); }
+/* 放大：整個視窗看一頁，左右鍵換頁 */
+dialog.zoom { border: 0; padding: 0; background: none; color: #fff; width: min(96vw, 100rem); max-width: none; max-height: none; }
+dialog.zoom::backdrop { background: oklch(0.14 0.02 265 / .86); }
+dialog.zoom img { display: block; width: 100%; max-height: calc(100dvh - 5rem); object-fit: contain; background: #fff; }
+.zoom-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem 0; font-size: .9375rem; }
+.zoom-bar span { display: flex; gap: .4rem; }
+.zoom-bar .btn { background: none; color: #fff; border-color: oklch(1 0 0 / .5); font-weight: 500; padding: .2rem .8rem; }
+.zoom-bar .btn:hover { background: #fff; color: #000; }
+
+/* ── 寬螢幕：有課件時三欄，正文窄一點，剩下的寬度都給課件 ── */
 @media (min-width: 1180px) {
-  /* 並排：左半邊是正在做的題目，右半邊是講義那一整段；目錄收進頁眉的按鈕 */
-  .peek-acts .split { display: inline-block; }
-  body.split { display: block; }
-  body.split .rail { position: fixed; z-index: 30; left: 0; top: 0; width: 20rem; background: var(--paper); transform: translateX(-100%); visibility: hidden; border-right: 1px solid var(--ink); }
-  body.split.nav-open .rail { transform: none; visibility: visible; }
-  body.split.nav-open .scrim { display: block; position: fixed; inset: 0; z-index: 25; border: 0; background: oklch(0.2 0.02 265 / .35); }
-  body.split .rail .shut { display: grid; }
-  body.split .tool[data-act="nav"] { display: inline-flex; }
-  body.split .peek { width: 50vw; box-shadow: none; transition: none; }
-  body.split .peek-head { padding-left: 2.5rem; }
-  body.split .peek-body { padding: .25rem 2.5rem 4rem; font-size: 1.0625rem; }
-  body.split .peek-body > * { max-width: var(--col); }
-  body.split .peek-body .defs { grid-template-columns: 1fr 1fr; gap: 0 1.75rem; }
-  body.split main { margin-right: 50vw; }
-  body.split .head { padding-left: 2.5rem; }
-  body.split .page { padding: 0 2.5rem 8rem; margin-left: 0; }
+  body.has-deck {
+    --col: 40rem; --pad: 2.25rem;
+    --deck: clamp(24rem, calc(100vw - var(--rail) - var(--col) - 2 * var(--pad)), 60rem); --peek: var(--deck);
+    grid-template-columns: var(--rail) minmax(0, 1fr) var(--deck);
+  }
+  body.has-deck .deck { position: sticky; top: 0; height: 100vh; height: 100dvh; border-left: 1px solid var(--rule); }
+  body.has-deck.peeking .page { margin-left: max(0px, var(--mid)); }
+}
+/* 筆電寬：目錄收進頁眉的按鈕，把寬度讓給課件 */
+@media (min-width: 1180px) and (max-width: 1599px) {
+  body.has-deck { --rail: 0rem; grid-template-columns: minmax(0, 1fr) var(--deck); }
+  body.has-deck .rail { position: fixed; z-index: 30; left: 0; top: 0; width: 20rem; background: var(--paper); transform: translateX(-100%); visibility: hidden; transition: transform .28s var(--ease), visibility 0s .28s; border-right: 1px solid var(--ink); }
+  body.has-deck.nav-open .rail { transform: none; visibility: visible; transition: transform .28s var(--ease); }
+  body.has-deck.nav-open .scrim { display: block; position: fixed; inset: 0; z-index: 25; border: 0; background: oklch(0.2 0.02 265 / .35); }
+  body.has-deck .rail .shut { display: grid; }
+  body.has-deck .tool[data-act="nav"] { display: inline-flex; }
+}
+/* 平板、手機：課件欄是從下面拉上來的一塊，頁眉的「課件」開關；開著時一樣跟著正文 */
+@media (max-width: 1179px) {
+  .tool.narrow { display: inline-flex; }
+  .deck { position: fixed; left: 0; right: 0; bottom: 0; height: 46dvh; z-index: 12; border-top: 1px solid var(--ink); box-shadow: 0 -1rem 2.5rem -1.25rem oklch(0.2 0.02 265 / .3); transform: translateY(100%); visibility: hidden; transition: transform .28s var(--ease), visibility 0s .28s; }
+  body.deck-open .deck { transform: none; visibility: visible; transition: transform .28s var(--ease); }
+  body.deck-open .page { padding-bottom: calc(46dvh + 4rem); }
+  .deck-head .close { display: grid; }
+  .deck-body { padding-bottom: 30dvh; }
 }
 @media (min-width: 1180px) and (max-width: 1359px) {
   :root { --rail: 15.5rem; --pad: 2.5rem; --peek: 19.5rem; }
@@ -399,7 +455,7 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
   .head { padding-right: .75rem; gap: .5rem; }
   .count { display: none; }
   .page { max-width: calc(var(--col) + 2 * var(--pad)); margin: 0 auto; padding: 0 var(--pad) 6rem; }
-  .page section > *, .page section > section > * { max-width: 100%; }
+  .page > *, .page section > *, .page section > section > * { max-width: 100%; }
 }
 @media (max-width: 639px) {
   body { font-size: 1rem; }
@@ -419,11 +475,10 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
 }
 @media print {
   body { display: block; background: #fff; color: #000; }
-  .rail, .head, .peek, .scrim, .cheat-tools, figcaption button { display: none !important; }
+  .rail, .head, .peek, .deck, .scrim, .cheat-tools, figcaption button, button.at { display: none !important; }
   .page { max-width: none; padding: 0; margin: 0; }
   figure img { filter: none; }
   /* 列印速查卡：只印那張卡 */
-  body.print-cheat .page section > :not(.cheat), body.print-cheat section.course { display: none; }
-  body.print-cheat .page section.problems > section { display: none; }
+  body.print-cheat .page > :not(.cheat):not(:has(.cheat)), body.print-cheat .page > :has(.cheat) > :not(.cheat) { display: none; }
   figure, .sheet { break-inside: avoid; }
 }
