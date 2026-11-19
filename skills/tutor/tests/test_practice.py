@@ -1,4 +1,4 @@
-"""practice.py 的規則閘門與組頁：每條規則都驗兩個方向。
+"""practice.py 的規則閘門與組頁：會讓頁面壞掉的事要擋，題目放幾題、怎麼排不管。每條規則都驗兩個方向。
 
 違規要紅（而且是那一條在紅）；只改無關的格式（引號、屬性順序、大小寫、題目代號的命名）不能紅。
 
@@ -122,18 +122,24 @@ class IdRule(Case):
                 self.assertGreen(src(DRILLS + FULL.replace("acf-seasonal", good)))
 
 
-class DrillRule(Case):
-    def test_too_few_drills_fail(self):
-        self.assertRed(src(drill("which-table") + drill("which-tail") + FULL), "基本功小題")
+class ShapeRule(Case):
+    """放幾題小題、幾題整題、怎麼排，由出題的人照考試的形式決定。"""
 
-    def test_drill_after_full_fails(self):
-        self.assertRed(src(drill("which-table") + drill("which-tail") + FULL + drill("critical-value")), "排在完整題目前面")
+    def test_any_mix_and_order_passes(self):
+        for inner in (DRILLS, FULL, drill("which-table") + FULL + drill("which-tail"), ONE):
+            with self.subTest(inner=inner[:60]):
+                self.assertGreen(src(inner))
 
-    def test_no_full_problem_fails(self):
-        self.assertRed(src(DRILLS), "沒有完整題目")
+    def test_page_without_questions_fails(self):
+        self.assertRed(src("<p>還沒出題</p>"), "頁面沒有題目")
 
-    def test_drills_need_no_ref_or_differs(self):
-        self.assertGreen(src(DRILLS.replace("<p>", '<p class="ref">對照 §1.2</p><p>', 1) + FULL))
+    def test_full_question_needs_no_ref_hints_steps_or_note(self):
+        bare = (ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "").replace(HINTS + STEPS, "")
+                .replace(' data-differs="有季節性沒有趨勢，Eg 1 有趨勢"', ""))
+        self.assertGreen(src(bare))
+
+    def test_section_mark_in_a_ref_must_still_exist_in_the_guide(self):
+        self.assertRed(src(DRILLS + FULL.replace("§20", "§21")), "§21")
 
 
 class FillRule(Case):
@@ -145,8 +151,8 @@ class FillRule(Case):
             with self.subTest(bad=bad):
                 self.assertRed(src(DRILLS.replace('data-answer="t|t 分配"', bad, 1) + FULL), "沒有 data-answer")
 
-    def test_drill_fill_without_why_fails(self):
-        self.assertRed(src(DRILLS.replace(' data-why="σ 未知，用 t"', "", 1) + FULL), "沒有 data-why")
+    def test_reason_is_optional(self):
+        self.assertGreen(src(DRILLS.replace(' data-why="σ 未知，用 t"', "") + FULL))
 
     def test_fill_outside_question_fails(self):
         self.assertRed(src(FILL + DRILLS + FULL), "不在題目裡")
@@ -163,13 +169,6 @@ class FillRule(Case):
 
 
 class RefRule(Case):
-    def test_full_without_ref_fails(self):
-        self.assertRed(src(DRILLS + FULL.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "")), ".ref")
-
-    def test_section_mark_outside_ref_does_not_count(self):
-        no_ref = FULL.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "<p>見 §16</p>")
-        self.assertRed(src(DRILLS + no_ref), ".ref")
-
     def test_missing_anchor_fails(self):
         self.assertRed(src(DRILLS + FULL.replace("§20", "§21")), "§21")
 
@@ -184,25 +183,12 @@ class RefRule(Case):
 
 
 class HintRule(Case):
-    """練習頁的完整題目都有提示；題型第一次出現的那一題有兩個以上的提示和逐步詳解；模擬卷都不放。"""
+    """提示和逐步詳解放不放由出題的人決定；裡面的 § 要連得到導讀頁；模擬卷都不放。"""
 
-    def test_question_without_hints_fails(self):
-        self.assertRed(src(DRILLS + ONE + TWO.replace(HINT, "")), "沒有提示")
-
-    def test_first_question_of_a_type_needs_two_hints_and_steps(self):
-        for first in (ONE.replace(HINTS, HINT), ONE.replace(STEPS, ""), ONE.replace(STEPS, STEPS + STEPS)):
-            with self.subTest(first=first[-200:-120]):
-                self.assertRed(src(DRILLS + first + TWO), "第一次出現的題目")
-
-    def test_later_question_of_the_type_needs_one_hint_only(self):
-        self.assertGreen(src(DRILLS + ONE + TWO))
-        self.assertGreen(src(DRILLS + ONE + TWO.replace(HINT, HINTS + STEPS)))  # 多給不擋
-
-    def test_teachers_original_needs_one_hint_only(self):
-        self.answers(IDS + ["a4-q1"])
-        original = (TWO.replace("acf-trend", "a4-q1").replace("有季節性沒有趨勢，Eg 1 有趨勢", "老師原題")
-                    .replace('data-type="acf-read"', 'data-type="acf-read"'))
-        self.assertGreen(src(DRILLS + FULL + original))
+    def test_how_much_help_a_question_gets_is_up_to_the_author(self):
+        for q in (ONE.replace(HINTS, HINT), ONE.replace(STEPS, ""), ONE.replace(HINTS + STEPS, ""), ONE.replace(HINTS, "")):
+            with self.subTest(q=q[-200:-120]):
+                self.assertGreen(src(DRILLS + q + TWO))
 
     def test_steps_may_hold_answer_blocks(self):
         rich = STEPS.replace("<p>", '<div class="calc">r = 0.4</div><p class="trap">別用 1.96</p><p>')
@@ -222,16 +208,8 @@ class HintRule(Case):
                 self.assertRed(src(MQ.replace(MODEL, extra + MODEL), MOCK_BODY), "不放提示和逐步詳解")
 
 
-class DiffersRule(Case):
-    def test_missing_differs_fails(self):
-        self.assertRed(src(DRILLS + re.sub(r' data-differs="[^"]*"', "", FULL)), "data-differs")
-
-    def test_blank_differs_fails(self):
-        self.assertRed(src(DRILLS + re.sub(r'data-differs="[^"]*"', 'data-differs="  "', FULL)), "data-differs")
-
-
 class TypeRule(Case):
-    """每題寫明練的是題型表的哪一列；每個題型至少兩題變式。"""
+    """每題整題寫明練的是題型表的哪一列；還沒有題目的題型只提醒，不擋。"""
     TYPES2 = GUIDE.replace("</table>", '<tr data-type="mad"><td>MAD</td></tr></table>')
 
     def test_missing_type_fails(self):
@@ -240,16 +218,26 @@ class TypeRule(Case):
     def test_unknown_type_fails(self):
         self.assertRed(src(DRILLS + ONE.replace("acf-read", "acf-raed") + TWO), "不在導讀頁的題型表裡")
 
-    def test_too_few_per_type_fails(self):
-        self.answers(IDS[:-1])
-        self.assertRed(src(DRILLS + ONE), "只有 1 題變式")
+    def notes(self, s):
+        got = []
+        self.assertEqual(practice.lint(s, self.dir, self.dir, got), [])
+        return got
 
-    def test_originals_do_not_count(self):
-        self.assertRed(src(DRILLS + ONE + TWO.replace("有季節性沒有趨勢，Eg 1 有趨勢", "老師原題")), "只有 1 題變式")
-
-    def test_uncovered_type_fails(self):
+    def test_type_without_a_question_is_a_note_not_a_failure(self):
         (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
-        self.assertRed(src(), "'mad' 只有 0 題")
+        got = self.notes(src())
+        self.assertEqual(len(got), 1)
+        self.assertIn("mad", got[0])
+        self.assertNotIn("acf-read", got[0])
+
+    def test_every_type_covered_gives_no_note(self):
+        self.assertEqual(self.notes(src(ONE)), [])
+
+    def test_a_typed_drill_covers_its_type(self):
+        (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
+        typed = drill("mad-pick").replace('class="q drill"', 'class="q drill" data-type="mad"')
+        self.answers(IDS + ["mad-pick"])
+        self.assertEqual(self.notes(src(typed + FULL)), [])
 
     def test_one_question_can_cover_several_types(self):
         (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
@@ -269,7 +257,7 @@ MQ = (ONE.replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', "
 
 
 class MockRule(Case):
-    """模擬卷：只有完整題目、沒有提示，在紙上做；一份導讀頁時每個題型至少一題。"""
+    """模擬卷：只有整題、沒有提示，在紙上做。"""
 
     def test_valid_mock_passes(self):
         self.assertGreen(src(MQ, MOCK_BODY))
@@ -290,18 +278,34 @@ class MockRule(Case):
                 self.assertRed(src(MQ, BODY + ' data-mode="mock"' + bad), "data-minutes")
 
     def test_drill_in_mock_fails(self):
-        self.assertRed(src(drill("which-table") + MQ, MOCK_BODY), "不放基本功")
+        self.assertRed(src(drill("which-table") + MQ, MOCK_BODY), "不放小題")
 
     def test_ref_in_mock_fails(self):
         self.assertRed(src(ONE, MOCK_BODY), "不寫對照的 §")
 
-    def test_mock_still_needs_model_and_type(self):
-        self.assertRed(src(MQ.replace(MODEL, ""), MOCK_BODY), "要有一個 <details class=\"model\">")
+    def test_mock_still_needs_a_way_to_check_and_a_type(self):
+        self.assertRed(src(MQ.replace(MODEL, ""), MOCK_BODY), "對不了答案")
         self.assertRed(src(MQ.replace(' data-type="acf-read"', ""), MOCK_BODY), "沒有 data-type")
 
-    def test_single_guide_needs_every_type_once(self):
-        (self.dir / "guide.html").write_text(TypeRule.TYPES2, encoding="utf-8")
-        self.assertRed(src(MQ, MOCK_BODY), "'mad' 只有 0 題")
+    def test_mock_with_only_short_questions_has_no_questions(self):
+        self.assertRed(src(DRILLS, MOCK_BODY), "頁面沒有題目")
+
+    def test_short_answer_question_takes_no_answer_page(self):
+        match = ('<section class="q" data-id="match-country" data-type="acf-read" data-space="none"><h2>第 1 題</h2>'
+                 '<p class="fill" data-answer="B">NEP →</p><p class="fill" data-answer="C">Rama VI →</p></section>')
+        self.answers(["match-country", "acf-seasonal"])
+        out = self.mock_page(match + MQ)
+        self.assertNotIn('<div class="space" data-id="match-country">', out)
+        self.assertIn('<div class="space" data-id="acf-seasonal"></div>', out)
+        cover = re.search(r'<div class="cover">.*?</div>', out, re.S).group(0)
+        self.assertIn("<tr><td>第 1 題</td><td>2</td><td></td></tr>", cover)  # 沒有給分點：一個填答格一分
+        self.assertIn("作答頁", cover)
+        alone = re.search(r'<div class="cover">.*?</div>', self.mock_page(match), re.S).group(0)
+        self.assertIn("答案直接寫在題目裡的底線上", alone)
+        self.assertNotIn("作答頁", alone)
+
+    def test_unknown_space_fails(self):
+        self.assertRed(src(MQ.replace('class="q"', 'class="q" data-space="half"'), MOCK_BODY), "data-space")
 
     def test_cumulative_mock_draws_types_from_all_guides(self):
         (self.dir / "g5.html").write_text(GUIDE.replace("acf-read", "decompose"), encoding="utf-8")
@@ -390,19 +394,21 @@ class NoAnswerRule(Case):
 
 
 class ModelRule(Case):
-    """每題完整題目一個範本答案，裡面有帶分數的給分點；讀圖題型的題目要有圖或軟體輸出。"""
+    """整題要有範本答案或填答格，讀者才對得了答案；給分點可以不寫；讀圖題型的題目要有圖或軟體輸出。"""
     READS = GUIDE.replace('data-type="acf-read"', 'data-reads="figure" data-type="acf-read"')
     FIG = '<figure data-tr="none"><img src="q.png"><figcaption>gen.py 畫的 ACF</figcaption></figure>'
 
-    def test_missing_model_fails(self):
-        self.assertRed(src(DRILLS + ONE.replace(MODEL, "") + TWO), "要有一個 <details class=\"model\">")
+    def test_nothing_to_check_against_fails(self):
+        self.assertRed(src(DRILLS + ONE.replace(MODEL, "") + TWO), "對不了答案")
+
+    def test_fills_alone_are_enough(self):
+        self.assertGreen(src(DRILLS + ONE.replace(MODEL, '<p class="fill" data-answer="0.62">r4 =</p>') + TWO))
 
     def test_two_models_fail(self):
-        self.assertRed(src(DRILLS + ONE.replace(MODEL, MODEL + MODEL) + TWO), "現在 2 個")
+        self.assertRed(src(DRILLS + ONE.replace(MODEL, MODEL + MODEL) + TWO), "有 2 個")
 
-    def test_model_without_rubric_fails(self):
-        self.assertRed(src(DRILLS + ONE.replace('<li data-marks="2">說出沒有趨勢</li><li data-marks="1">結論句</li>', "") + TWO),
-                       "沒有給分點")
+    def test_model_without_rubric_passes(self):
+        self.assertGreen(src(DRILLS + ONE.replace('<li data-marks="2">說出沒有趨勢</li><li data-marks="1">結論句</li>', "") + TWO))
 
     def test_rubric_item_without_marks_fails(self):
         for bad in ("<li>結論句</li>", '<li data-marks="0">結論句</li>', '<li data-marks="一">結論句</li>'):
@@ -436,14 +442,11 @@ class FigureRule(Case):
     def put(self, fig):
         return src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", fig))
 
-    def test_untranslated_fails(self):
-        self.assertRed(self.put('<figure><img src="q.png"><figcaption>Eg p.2</figcaption></figure>'), "沒有翻譯")
-
-    def test_no_caption_fails(self):
-        self.assertRed(self.put('<figure><img src="q.png" data-zh="q.zh.png"></figure>'), "figcaption")
-
-    def test_bare_img_fails(self):
-        self.assertRed(self.put('<img src="q.png">'), "不在 <figure> 裡")
+    def test_plain_pictures_pass(self):
+        for fig in ('<figure><img src="q.png"><figcaption>Eg p.2</figcaption></figure>',
+                    '<figure><img src="q.png" data-zh="q.zh.png"></figure>', '<img src="q.png">'):
+            with self.subTest(fig=fig):
+                self.assertGreen(self.put(fig))
 
     def test_remote_fails(self):
         self.assertRed(self.put('<figure><img src="https://x.org/q.png" data-zh="q.zh.png"><figcaption>p.1</figcaption></figure>'),
@@ -599,10 +602,39 @@ class Build(Case):
         self.assertNotIn("<details open", out)
 
     def test_cli_writes_nothing_when_red(self):
-        (self.dir / "p-src.html").write_text(src(DRILLS), encoding="utf-8")
+        (self.dir / "p-src.html").write_text(src("<p>還沒出題</p>"), encoding="utf-8")
         out = self.dir / "p.html"
         self.assertEqual(practice.main([str(self.dir / "p-src.html"), "-o", str(out)]), 1)
         self.assertFalse(out.exists())
+
+    def test_how_to_only_mentions_what_the_page_has(self):
+        def howto(inner):
+            return practice.build(src(inner), self.dir).split('<details class="howto">')[1].split("</details>")[0]
+
+        full = howto(DRILLS + FULL)
+        for word in ("小題", "看提示", "逐步詳解", "畫布", "範本答案", "複製填答結果"):
+            self.assertIn(word, full)
+        drills = howto(DRILLS)
+        for word in ("看提示", "逐步詳解", "畫布", "範本答案"):
+            self.assertNotIn(word, drills)
+        plain = howto(ONE.replace(HINTS + STEPS, "").replace('<p class="ref">對照 Eg 1（導讀頁 §16、§20）</p>', ""))
+        for word in ("小題", "看提示", "逐步詳解", "§"):
+            self.assertNotIn(word, plain)
+        self.assertIn("畫布", plain)
+
+    def test_page_opens_with_the_authors_own_words_only(self):
+        self.assertNotIn('class="lead"', self.page())
+        self.assertIn('<p class="lead">照 Quiz 3 的形式出的。</p>', self.page(src('<p class="lead">照 Quiz 3 的形式出的。</p>' + FULL)))
+
+    def test_cli_names_the_types_without_a_question(self):
+        (self.dir / "guide.html").write_text(TypeRule.TYPES2, encoding="utf-8")
+        (self.dir / "p-src.html").write_text(src(), encoding="utf-8")
+        err = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.TextIOWrapper(io.BytesIO(), encoding="utf-8")):
+            code = practice.main([str(self.dir / "p-src.html")], measure=lambda out, **kw: [])
+        err.flush()
+        self.assertEqual(code, 0)
+        self.assertIn("提醒：題型表上這幾個題型沒有題目：mad", err.buffer.getvalue().decode("utf-8"))
 
     def test_cli_writes_page(self):
         (self.dir / "p-src.html").write_text(src(), encoding="utf-8")

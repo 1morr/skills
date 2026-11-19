@@ -51,7 +51,7 @@
     const past = (f.rounds || []).map(round);
     return past.length ? "重做第 " + past.length + " 次：" + round(f) + "；之前：" + past.join("；") : round(f);
   }
-  // 基本功錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給 Claude 批改
+  // 小題錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給 Claude 批改
   function makeFills(section) {
     const id = section.dataset.id;
     const drill = section.classList.contains("drill");
@@ -156,6 +156,7 @@
       return items.reduce(function (n, li, i) { return n + (st.got[i] ? +li.dataset.marks : 0); }, 0);
     }
     function show() {
+      score.hidden = !items.length; // 沒有給分點的範本答案只拿來對照，不算分
       score.textContent = "自評：" + earned() + " / " + total + " 分";
       section.classList.toggle("graded", st.seen);
       mark(section);
@@ -189,6 +190,7 @@
     show();
     modelLines[id] = function () {
       if (!st.seen) return ["範本答案還沒打開"];
+      if (!items.length) return ["對過範本答案"];
       const lost = items.filter(function (_, i) { return !st.got[i]; }).map(function (li) { return li.dataset.label; });
       return ["自評 " + earned() + "/" + total + " 分" + (lost.length ? "；沒拿到：" + lost.join("、") : "")];
     };

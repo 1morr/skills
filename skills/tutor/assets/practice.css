@@ -56,7 +56,7 @@ p.part-lead { color: var(--muted); margin: .3rem 0 0; }
 /* 每題：細線分隔，不做卡片；題目在上、畫布在下 */
 section.q { padding: 1.75rem 0 .5rem; margin: 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }
 h2.part + p.part-lead + section.q, h2.part + section.q { border-top: 0; }
-/* 基本功：一題一格、沒有畫布，排緊一點 */
+/* 小題：一題一格、沒有畫布，排緊一點 */
 section.q.drill { padding: .9rem 0 .5rem; }
 section.q.drill p { margin: .35rem 0; }
 section.q h2 { font-size: 1.3rem; line-height: 1.45; margin: 0; }
@@ -232,6 +232,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
 
 /* ── 模擬卷印在 A4：考卷是封面、題目、作答頁，查表面板的表接在卷末；不印翻譯和答案。
    每題從新的一頁開始，後面接一張整頁的作答頁（.space）；題目那一頁剩下的空白也可以寫。
+   寫了 data-space="none" 的題答案寫在題目上：沒有作答頁，接著上一題排。
    body.print-key 是答案：題目下面印範本答案和給分點，不印作答頁和卷末的表 ── */
 @page {
   size: A4; margin: 16mm 15mm 18mm;
@@ -250,6 +251,9 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   body[data-mode="mock"] h1 { font-size: 18pt; }
   body[data-mode="mock"] .cover { break-after: page; }
   body[data-mode="mock"] section.q { position: relative; border-top: 0; padding: 0; break-before: page; }
+  /* 答案直接寫在題目上的題（配對、填空）：接著上一題排，不另起一頁 */
+  body[data-mode="mock"] section.q[data-space="none"] { break-before: auto; padding-top: 6mm; }
+  body[data-mode="mock"] .cover + section.q[data-space="none"] { break-before: page; padding-top: 0; }
   /* 題目代號印在每題和每張作答頁的角落：拍照貼回對話時，批改的人靠它找答案 */
   body[data-mode="mock"] section.q::before { content: attr(data-id); position: absolute; top: 0; right: 0; font: 8pt var(--mono); color: #666; }
   body[data-mode="mock"] section.q h2 { break-after: avoid; padding-right: 11em; }
