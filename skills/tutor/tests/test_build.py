@@ -278,7 +278,7 @@ class Numbering(unittest.TestCase):
 
 
 class MetaStep(unittest.TestCase):
-    """add_meta：每個編號的 h2 帶 data-n、data-min、data-short，後面接一行約幾分鐘。"""
+    """add_meta：每個編號的 h2 帶 data-n 和目錄用的短標題；頁面上不寫閱讀時間。total_minutes：給寫頁的人看的估計。"""
 
     def run_meta(self, body):
         src, _ = build.number_headings(body)
@@ -288,23 +288,12 @@ class MetaStep(unittest.TestCase):
     def h2_tag(out, anchor):
         return re.search(rf'<h2[^>]*\bid="{anchor}"[^>]*>', out).group(0)
 
-    def test_minutes_follow_text_units(self):
-        out = self.run_meta(f"<h2>短</h2><p>{'字' * 10}</p><h2>長</h2><p>{'字' * build.UNITS_PER_MIN * 3}</p>")
-        self.assertIn('data-min="1"', self.h2_tag(out, "s1"))
-        self.assertIn('data-min="3"', self.h2_tag(out, "s2"))
-        self.assertIn('</h2><p class="meta">約 3 分鐘</p>', out)
-        self.assertEqual(build.total_minutes(out), 4)
-
-    def test_minutes_ignore_markup_and_count_english_by_word(self):
-        words = " ".join(["word"] * build.UNITS_PER_MIN * 2)
-        out = self.run_meta(f'<h2>甲</h2><p class="{"x" * 2000}">{words}</p>')
-        self.assertIn('data-min="2"', self.h2_tag(out, "s1"))
-
-    def test_each_calculation_and_self_check_adds_working_time(self):
-        work = ('<div class="calc"><p>x</p></div><details class="check big"><summary>問</summary></details>'
-                '<div class="quiz"><p>問</p></div>') * 2
-        out = self.run_meta(f"<h2>甲</h2>{work}<details><summary>不是自測</summary></details>")
-        self.assertIn('data-min="3"', self.h2_tag(out, "s1"))
+    def test_heading_gets_its_number_and_no_reading_time(self):
+        out = self.run_meta(f"<h2>短</h2><p>{'字' * 10}</p><h2>長</h2><p>{'字' * 900}</p>")
+        self.assertIn('data-n="2"', self.h2_tag(out, "s2"))
+        self.assertNotIn("data-min", out)
+        self.assertNotIn("分鐘", out)
+        self.assertNotIn('class="meta"', out)
 
     def test_short_title_drops_the_trailing_page_note(self):
         out = self.run_meta("<h2>今天和昨天有沒有關係？（講義 p.3）</h2><p>x</p>")
@@ -314,6 +303,19 @@ class MetaStep(unittest.TestCase):
         out = self.run_meta('<h2 data-short="自相關">今天和昨天有沒有關係？</h2><p>x</p>')
         self.assertEqual(self.h2_tag(out, "s1").count("data-short"), 1)
         self.assertIn('data-short="自相關"', out)
+
+    def test_minutes_follow_text_units_section_by_section(self):
+        src = f"<h2>短</h2><p>{'字' * 10}</p><h2>長</h2><p>{'字' * build.UNITS_PER_MIN * 3}</p>"
+        self.assertEqual(build.total_minutes(src), 1 + 3)
+
+    def test_minutes_ignore_markup_and_count_english_by_word(self):
+        words = " ".join(["word"] * build.UNITS_PER_MIN * 2)
+        self.assertEqual(build.total_minutes(f'<h2>甲</h2><p class="{"x" * 2000}">{words}</p>'), 2)
+
+    def test_each_calculation_and_self_check_adds_working_time(self):
+        work = ('<div class="calc"><p>x</p></div><details class="check big"><summary>問</summary></details>'
+                '<div class="quiz"><p>問</p></div>') * 2
+        self.assertEqual(build.total_minutes(f"<h2>甲</h2>{work}<details><summary>不是自測</summary></details>"), 3)
 
 
 class CheatStep(unittest.TestCase):

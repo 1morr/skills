@@ -4,7 +4,7 @@
 // 課件欄的圖點了放大，圖說上的 § 跳到講它的段落。「跟著正文」關掉後課件欄只聽讀者的。
 // 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。跨段跳轉走瀏覽器的上一頁。
 // 正文裡翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的按鈕做同一件事，鍵盤按得到。
-// 「只看重點」每段只留標題、重點、定義。深淺色由讀者切換，和練習頁共用 tutor-theme。
+// 「只看重點」只留標題、重點框、定義、表格、常見錯誤。深淺色由讀者切換，和練習頁共用 tutor-theme。
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const KEY = `tutor-guide:${document.title}`;
@@ -17,7 +17,7 @@ const stops = $$("main h1[id], main h2[id]");
 const numbered = stops.filter((s) => s.dataset.n);
 const railLinks = new Map($$(".rail a[href^='#']").map((a) => [a.getAttribute("href").slice(1), a]));
 const head = $(".head");
-const KEEP = "h1, h2, .meta, .part, .summary, .def, .defs, .cheat, .terms, .digest-note";
+const KEEP = "h1, h2, h3, .meta, .part, .summary, .def, .defs, .trap, table, .cheat, .terms, .digest-note";
 let current = null, currentSub = null, jumping = 0;
 let opener = null, peekId = null, trail = [];
 const deckBody = $(".deck-body");
@@ -33,15 +33,10 @@ function subsOf(stop) {
   return $$("main h3[id]").filter((h) => (stop.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING)
     && (!next || (h.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING)));
 }
-function fmt(min) {
-  const h = Math.floor(min / 60), m = min % 60;
-  return (h ? ` ${h} 小時` : "") + (m || !h ? ` ${m} 分` : "");
-}
 function paintStatus() {
   const done = numbered.filter((s) => store.read.includes(s.id));
-  const left = numbered.filter((s) => !store.read.includes(s.id)).reduce((t, s) => t + Number(s.dataset.min || 0), 0);
   const status = $(".status");
-  if (status) status.innerHTML = `<b>讀了 ${done.length} / ${numbered.length} 段</b> <span>還剩約${fmt(left)}</span>`;
+  if (status) status.innerHTML = `<b>讀了 ${done.length} / ${numbered.length} 段</b>`;
   stops.forEach((s) => {
     railLinks.get(s.id)?.parentElement.classList.toggle("read", store.read.includes(s.id));
     const cell = $(`.strip i[data-for="${s.id}"]`);
@@ -88,7 +83,7 @@ function spy() {
   }
   let sub = null;
   for (const h of subsOf(stop)) {
-    if (!h.getClientRects().length) continue; // 只看重點時小節標題收起來了
+    if (!h.getClientRects().length) continue; // 在摺起來的區塊裡
     if (h.getBoundingClientRect().top <= line) sub = h; else break;
   }
   setCurrent(stop, sub);
@@ -273,7 +268,7 @@ function openZoom(fig) {
   if (!zoom.open) zoom.showModal();
 }
 
-// 只看重點：留下標題、重點、定義，其餘的區塊收起來；摺著的做法先打開，裡面的「這題記住」才看得到
+// 只看重點：留下標題、重點框、定義、表格、常見錯誤，其餘的區塊收起來；摺著的做法先打開，裡面的「這題記住」才看得到
 function mark(el) {
   if (el.matches(KEEP)) return;
   if (el.querySelector(KEEP)) {
@@ -433,8 +428,8 @@ marks.forEach((m) => {
   b.title = "在課件欄看這一頁";
   host.append(b);
 });
-// 沒有重點框和定義框的頁，「只看重點」會只剩標題：把開關收起來
-if (!$("main .summary, main .def")) {
+// 沒有重點框、定義框、表格、常見錯誤的頁，「只看重點」會只剩標題：把開關收起來
+if (!$("main .summary, main .def, main .trap, main table")) {
   $$("[data-act^='digest']").forEach((b) => { (b.closest(".seg") || b).hidden = true; });
   store.digest = false;
 }

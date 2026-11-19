@@ -366,7 +366,7 @@ body.peeking .peek { transform: none; visibility: visible; transition: transform
 .peek-body .tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; }
 .scrim { display: none; }
 #panel { display: none; }
-/* 只看重點：每段只留標題、重點、定義；lesson.js 替其餘的區塊加上 .dg */
+/* 只看重點：只留標題、重點框、定義、表格、常見錯誤；lesson.js 替其餘的區塊加上 .dg */
 .dg { display: none !important; }
 body.digest .def :is(.test, .yes, .no, .how, .big, .small, .io, .when, .without) { display: none; }
 body.digest h2 { margin-top: 2.5rem; }

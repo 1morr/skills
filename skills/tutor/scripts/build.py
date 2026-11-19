@@ -3,7 +3,7 @@
     python build.py <src.html> [-o <out.html>]
 
 原始檔是一份普通的 HTML：<h1>、<h2>、<h3> 和正文，怎麼分段、用哪些元件由作者決定。build 加上的東西：
-§ 編號和連結、左邊的目錄、頁眉、每段的閱讀時間、名詞表（每個 <dfn>）、速查卡的標題和列印鈕、
+§ 編號和連結、左邊的目錄、頁眉、名詞表（每個 <dfn>）、速查卡的標題和列印鈕、
 查表面板（<aside class="panel">）、右邊的課件欄，並把圖片和樣式內嵌成離線打得開的單一檔案。
 
 課件欄：<body data-slides="slides/slides.json">（deck.py 寫的清單，路徑相對於原始檔）。
@@ -20,7 +20,7 @@
 - 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次（pages/scripts/overflow.py）：有水平溢出，
   或寬螢幕上正文裡的公式、算式、表格比正文欄寬、右邊被切掉。找不到瀏覽器只提醒。
 
-成功時印產出的路徑、整頁大約要讀幾分鐘，有課件欄時再印正文講到幾頁、哪幾頁沒講到。
+成功時印產出的路徑、整頁大約要讀幾分鐘（給寫頁的人對照計畫的份量，頁面上不顯示），有課件欄時再印正文講到幾頁、哪幾頁沒講到。
 
 只用標準函式庫，CI 才能直接跑測試。
 """
@@ -282,24 +282,22 @@ def minutes(body: str) -> int:
 
 
 def add_meta(src: str) -> str:
-    """每個編號的 h2 寫上 data-n、data-min、目錄用的短標題，後面接一行「約幾分鐘」。"""
-    heads = list(NUMBERED_H2.finditer(src))
-    out, pos = [], 0
-    for i, m in enumerate(heads):
-        body = src[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(src)]
+    """每個編號的 h2 寫上 data-n 和目錄用的短標題。"""
+    def repl(m):
         attrs, title = m.group(1), PAGE_TAIL.sub("", plain(m.group(3)))
         if "data-short" not in attrs:  # 目錄和頁眉用的短標題：去掉尾巴的頁碼
             attrs += f' data-short="{title}"'
-        n, mins = m.group(2), minutes(body)
-        out += [src[pos:m.start()],
-                f'<h2{attrs} data-n="{n}" data-min="{mins}"><span class="num">§{n}</span> {m.group(3)}</h2>',
-                f'<p class="meta">約 {mins} 分鐘</p>']
-        pos = m.end()
-    return "".join(out) + src[pos:]
+        return f'<h2{attrs} data-n="{m.group(2)}"><span class="num">§{m.group(2)}</span> {m.group(3)}</h2>'
+
+    return NUMBERED_H2.sub(repl, src)
 
 
-def total_minutes(page: str) -> int:
-    return sum(int(x) for x in re.findall(r'<h2\b[^>]*\bdata-min="(\d+)"', page))
+def total_minutes(src: str) -> int:
+    """原始檔整頁大約要讀幾分鐘：每個 h2 段落各自估，再加起來。"""
+    numbered, _ = number_headings(src)
+    heads = list(NUMBERED_H2.finditer(numbered))
+    return sum(minutes(numbered[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(numbered)])
+               for i, m in enumerate(heads))
 
 
 def body_end(src: str) -> int:
@@ -576,7 +574,7 @@ def add_shell(src: str) -> str:
     if not re.search(r"<h1\b[^>]*\bid\s*=", src, re.I):
         src = re.sub(r"<h1\b", '<h1 id="top"', src, count=1, flags=re.I)
     src = re.sub(r"</h1\s*>", lambda m: m.group(0)
-                 + '<p class="digest-note">現在每段只顯示重點和定義。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
+                 + '<p class="digest-note">現在只顯示標題、重點框、定義、表格和常見錯誤。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
                  + '<p class="resume" hidden>上次讀到這裡：<a href="#"></a></p>', src, count=1, flags=re.I)
     deck = DECK.search(src)
     if deck:
@@ -677,7 +675,7 @@ def main(argv=None, measure=measure) -> int:
     if not overflow.deliverable(out, args.src, measure(out)):
         return 1
     print(out)
-    print(f"讀完大約 {total_minutes(page)} 分鐘")
+    print(f"讀完大約 {total_minutes(src)} 分鐘")
     if report:
         idle = f"；沒講到：{idle_text(report['idle'])}" if report["idle"] else ""
         print(f"課件欄 {report['pages']} 頁：正文講到 {report['used']} 頁，必記 {report['key']} 頁{idle}")
