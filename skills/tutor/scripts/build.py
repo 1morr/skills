@@ -319,12 +319,14 @@ def add_cheat(src: str) -> str:
     return src[:m.start()] + head + src[m.start():]
 
 
-DFN = re.compile(r"<dfn\b[^>]*>(.*?)</dfn\s*>\s*(?:[（(]([^（）()]*)[）)])?", re.I | re.S)
+DFN = re.compile(r"<dfn\b[^>]*>(.*?)</dfn\s*>", re.I | re.S)
+# <dfn> 裡寫成「譯名（原文）」：名詞表照原文排，譯名放旁邊
+DFN_PAIR = re.compile(r"^(.*?)\s*[（(]([^（）()]+)[）)]\s*$", re.S)
 HEAD_TAG = re.compile(r"<h[23]\b[^>]*>", re.I)
 
 
 def add_terms(src: str, anchors: dict) -> str:
-    """正文最後加一張名詞表：每個 <dfn> 一列，緊跟在它後面括號裡的是另一種語言的寫法；連到它所在的那一段。"""
+    """正文最後加一張名詞表：每個 <dfn> 一列，照原文排；<dfn>譯名（原文）</dfn> 的譯名放在旁邊。連到它所在的那一段。"""
     label_of = {anchor: label for label, anchor in anchors.items()}
     heads = [(m.start(), ID_ATTR.search(m.group(0))) for m in HEAD_TAG.finditer(src)]
     heads = [(pos, m.group(1)) for pos, m in heads if m and m.group(1) in label_of]
@@ -332,7 +334,9 @@ def add_terms(src: str, anchors: dict) -> str:
     for m in DFN.finditer(src):
         before = [anchor for pos, anchor in heads if pos < m.start()]
         if before:
-            rows.append((plain(m.group(1)), m.group(1), plain(m.group(2) or ""), before[-1]))
+            pair = DFN_PAIR.match(m.group(1))
+            term, alt = (pair.group(2), pair.group(1)) if pair else (m.group(1), "")
+            rows.append((plain(term), term.strip(), plain(alt), before[-1]))
     if not rows:
         return src
     rows.sort(key=lambda r: r[0].lower())

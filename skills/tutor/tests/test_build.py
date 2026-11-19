@@ -353,10 +353,10 @@ class TermsStep(unittest.TestCase):
         return build.add_terms(src, anchors)
 
     def test_one_row_per_dfn_sorted_ignoring_case(self):
-        out = self.terms("<body><p><dfn>前言</dfn></p><h2>甲</h2><p><dfn>banana</dfn>（香蕉）</p>"
-                         "<h3>乙</h3><p><dfn>Apple</dfn> (red)</p><p><dfn>cherry</dfn>是水果（不算別名）</p>"
+        out = self.terms("<body><p><dfn>前言</dfn></p><h2>甲</h2><p><dfn>香蕉（banana）</dfn></p>"
+                         "<h3>乙</h3><p><dfn>紅蘋果 (Apple)</dfn></p><p><dfn>cherry</dfn>是水果（括號在外面的不算）</p>"
                          "<h2>例</h2><p><dfn>Zed</dfn></p></body>")
-        self.assertEqual(self.ROW.findall(out), [("s1-1", "Apple", "red", "1.1"), ("s1", "banana", "香蕉", "1"),
+        self.assertEqual(self.ROW.findall(out), [("s1-1", "Apple", "紅蘋果", "1.1"), ("s1", "banana", "香蕉", "1"),
                                                  ("s1-1", "cherry", "", "1.1"), ("s2", "Zed", "", "2")])
 
     def test_table_goes_at_the_end_of_the_body(self):
@@ -365,8 +365,8 @@ class TermsStep(unittest.TestCase):
         self.assertEqual(out.count('id="terms"'), 1)
 
     def test_term_does_not_need_a_definition_box(self):
-        out = self.terms('<body><h2 id="own">甲</h2><table><tr><td><DFN class="x"><b>beta</b></DFN>\n（β）</td></tr></table></body>')
-        self.assertEqual(self.ROW.findall(out), [("own", "<b>beta</b>", "β", "1")])
+        out = self.terms('<body><h2 id="own">甲</h2><table><tr><td><DFN class="x">貝塔\n（<b>beta</b>）</DFN></td></tr></table></body>')
+        self.assertEqual(self.ROW.findall(out), [("own", "<b>beta</b>", "貝塔", "1")])
 
     def test_no_dfn_or_only_before_any_heading_changes_nothing(self):
         for src in ("<body><h2>甲</h2><p>沒有名詞</p></body>", "<body><p><dfn>前言</dfn></p></body>"):

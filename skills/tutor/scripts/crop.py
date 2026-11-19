@@ -80,8 +80,10 @@ def background(pix, r) -> tuple:
     return tuple(v / 255 for v in rgb)
 
 
-def translate(page, items):
-    """把每塊原文蓋掉，原位寫進中文。"""
+def translate(page, items, warn=True) -> list:
+    """把每塊原文蓋掉，原位寫進中文。回傳每一塊的字縮到幾成（1 是沒縮）；warn 時放不下的逐塊印提醒。
+    一項可以另外給 "box"：譯文寫進這個比 rect 大的範圍（rect 還是只蓋掉原文）。"""
+    scales = []
     probe = page.get_pixmap(dpi=72)
     lines = text_lines(page)
     for it in items:
@@ -92,10 +94,12 @@ def translate(page, items):
         page.draw_rect(r, color=None, fill=background(probe, r), overlay=True)
         css = (f"* {{font-family: sans-serif; font-size: {size:.1f}px; line-height: 1.45; color: #{color:06x};}} "
                + it.get("css", ""))
-        _, scale = page.insert_htmlbox(r, it["zh"], css=css)
-        if scale < SHRINK_WARN:
+        _, scale = page.insert_htmlbox(pymupdf.Rect(it["box"]) if it.get("box") else r, it["zh"], css=css)
+        scales.append(scale)
+        if warn and scale < SHRINK_WARN:
             text = " ".join(it["zh"].split())[:20]
             print(f"提醒：「{text}…」放不下，字縮到 {scale:.0%}：精簡譯文或放大 rect", file=sys.stderr)
+    return scales
 
 
 def load_zh(path: str, page: int) -> list:

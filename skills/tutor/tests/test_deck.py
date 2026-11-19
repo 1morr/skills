@@ -89,6 +89,42 @@ class Deck(unittest.TestCase):
         self.assertIn("L1：2 頁，0 頁有翻譯圖", out)
         self.assertIn("2 塊原文，2 塊沒有譯文", out)
 
+    def blocked_page(self):
+        """一頁三塊字：Beside 的右邊緊貼著一張小圖，Alone 的右邊是空的，Far 離左邊界很遠。"""
+        photo = self.dir / "p.png"
+        Image.new("RGB", (40, 40), (200, 30, 30)).save(photo)
+        page = pymupdf.open().new_page(width=500, height=200)
+        page.insert_text((40, 60), "Beside", fontsize=12)
+        page.insert_image(pymupdf.Rect(200, 45, 225, 70), filename=str(photo))
+        page.insert_text((40, 120), "Alone", fontsize=12)
+        page.insert_text((300, 170), "Far", fontsize=12)
+        return page
+
+    def test_long_translation_runs_into_the_empty_space_on_its_right(self):
+        self.run_deck()
+        self.fill(**{TITLE: "平穩序列（stationary series）是沒有趨勢的時間序列"})
+        out, _ = self.run_deck()
+        en, zh = (Image.open(self.out / n).convert("L") for n in ("L1-01.png", "L1-01.zh.png"))
+        beyond = (540, 90, 740, 125)  # 原文標題右邊的空白：原圖沒有字，翻譯圖寫到這裡
+        self.assertGreater(en.crop(beyond).getextrema()[0], 200)
+        self.assertLess(zh.crop(beyond).getextrema()[0], 120)
+        self.assertNotIn("字縮到", out)
+
+    def test_text_stops_before_whatever_sits_on_its_right(self):
+        page = self.blocked_page()
+        boxes = deck.obstacles(page)
+        beside, alone, far = (pymupdf.Rect(b["rect"]) for b in deck.blocks(page))
+        self.assertAlmostEqual(deck.right_edge(page, boxes, beside), 200 - 6)  # 右邊那張圖的前面
+        self.assertEqual(deck.right_edge(page, boxes, alone), 500 - 40)  # 右邊留的邊和左邊一樣寬
+        self.assertEqual(deck.right_edge(page, boxes, far), 500 - 50)  # 左邊界離得遠的，右邊最多留頁寬的一成
+
+    def test_pages_whose_text_shrank_a_lot_are_named(self):
+        self.blocked_page().parent.save(self.dir / "tight.pdf")
+        self.run_deck(f"T={self.dir / 'tight.pdf'}")
+        self.fill(Beside="這一塊的譯文比原來的位置長很多很多很多很多很多很多很多很多很多，右邊又有一張圖擋著")
+        out, _ = self.run_deck(f"T={self.dir / 'tight.pdf'}")
+        self.assertRegex(out, r"T p\.1：字縮到 \d+%")
+
     def test_page_with_a_photo_is_saved_as_jpeg(self):
         photo = self.dir / "p.png"
         Image.new("RGB", (40, 40), (200, 30, 30)).save(photo)

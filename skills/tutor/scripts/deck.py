@@ -21,7 +21,9 @@ slides.json（build.py 讀它；路徑相對於這個檔）：
 
 沒有翻譯圖的頁 zh 是 null；w、h 是圖的大小（px）。
 
-最後印每份課件幾頁、幾頁有翻譯圖、zh.json 還有幾塊沒填。譯文放不下時字會縮小並印提醒。
+譯文比原文長時，會往右寫到那一列空著的地方（右邊有別的字或圖就到它前面為止）；還是放不下字才縮小。
+最後印每份課件幾頁、幾頁有翻譯圖、zh.json 還有幾塊沒填，並列出字縮到七成以下的頁（「L20 p.28：字縮到 52%」）：
+那幾頁打開看，太小的把那一頁的譯文改短再跑一次。
 """
 
 import argparse
@@ -43,6 +45,10 @@ LETTER = re.compile(r"[^\W\d_]")
 PAD_Y, PAD_X = 0.12, 0.06
 # 中文字比同字級的英文寬，標題再大也不超過頁寬的這個比例
 SHRINK, MAX_SIZE = 0.92, 1 / 32
+# 字縮到這個比例以下的頁列出來給人看
+TINY = 0.7
+# 佔頁面這麼大的圖是底圖，不擋字
+BACKDROP = 0.5
 
 
 def blocks(page) -> list:
@@ -62,9 +68,27 @@ def blocks(page) -> list:
     return out
 
 
+def obstacles(page) -> list:
+    """這頁會擋住字的東西：每一塊字，和不是底圖的每一張圖。"""
+    area = page.rect.width * page.rect.height
+    boxes = [pymupdf.Rect(b["bbox"]) for b in page.get_text("dict")["blocks"] if b.get("type") == 0]
+    boxes += [r for r in (pymupdf.Rect(i["bbox"]) for i in page.get_image_info()) if r.get_area() < area * BACKDROP]
+    return boxes
+
+
+def right_edge(page, boxes: list, r) -> float:
+    """這一塊可以往右寫到哪：同一橫帶上右邊最近的字或圖的前面；都沒有就到右邊界，留的邊和這一塊離左邊界一樣寬。"""
+    limit = page.rect.width - max(page.rect.width * 0.03, min(r.x0, page.rect.width * 0.1))
+    for o in boxes:
+        if o.x0 >= r.x1 - 1 and o.y0 < r.y1 and o.y1 > r.y0:
+            limit = min(limit, o.x0 - 6)
+    return max(limit, r.x1)
+
+
 def overlay(page, found: list, zh: dict) -> list:
     """這頁有譯文的塊，寫成 crop.translate() 的格式。"""
     cap = page.rect.width * MAX_SIZE
+    boxes = obstacles(page)
     items = []
     for b in found:
         text = zh.get(b["en"], "").strip()
@@ -72,8 +96,9 @@ def overlay(page, found: list, zh: dict) -> list:
             continue
         x0, y0, x1, y1 = b["rect"]
         dx, dy = b["size"] * PAD_X, b["size"] * PAD_Y
-        items.append({"rect": [x0 - dx, y0 - dy, x1 + dx, y1 + dy], "zh": text,
-                      "size": min(b["size"], cap) * SHRINK, "css": "* {line-height: 1.2;}"})
+        cover = [x0 - dx, y0 - dy, x1 + dx, y1 + dy]
+        items.append({"rect": cover, "box": [cover[0], cover[1], max(cover[2], right_edge(page, boxes, pymupdf.Rect(b["rect"]))), cover[3]],
+                      "zh": text, "size": min(b["size"], cap) * SHRINK, "css": "* {line-height: 1.2;}"})
     return items
 
 
@@ -111,6 +136,7 @@ def main(argv=None) -> int:
     todo = a.out / "zh.json"
     zh = json.loads(todo.read_text(encoding="utf-8")) if todo.is_file() else {}
     manifest = {"decks": []}
+    tiny = []  # [(字縮到幾成, "L20 p.28")]
     for name, pdf in decks:
         pages, done = [], 0
         doc = pymupdf.open(pdf)
@@ -126,7 +152,9 @@ def main(argv=None) -> int:
             items = overlay(page, found, zh)
             zh_name = None
             if items:
-                crop.translate(page, items)
+                smallest = min(crop.translate(page, items, warn=False))
+                if smallest < TINY:
+                    tiny.append((smallest, f"{name} p.{n}"))
                 zh_name = f"{stem}.zh.{ext}"
                 save(page, a.out / zh_name, a.width, photo)
                 done += 1
@@ -137,6 +165,8 @@ def main(argv=None) -> int:
     (a.out / "slides.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     empty = sum(1 for v in zh.values() if not v.strip())
     print(f"{todo}：{len(zh)} 塊原文，{empty} 塊沒有譯文" + ("（填上再跑一次；不翻的留空）" if empty else ""))
+    for scale, where in sorted(tiny):
+        print(f"{where}：字縮到 {scale:.0%}")
     print(a.out / "slides.json")
     return 0
 
