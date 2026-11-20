@@ -13,8 +13,8 @@
 不產出的情況（逐條印出原因）：
 - 圖片、樣式、腳本連到網路上（頁面要能離線打開）；找不到圖片檔。
 - 內文的 §N 指到不存在的段落。
-- 沒有速查卡 <div class="cheat">，或裡面沒有題型表 <table class="types">，或某一列沒有不重複的 data-type：
-  練習頁、模擬卷、考前速查、學習紀錄都靠它對回題型。
+- 寫了題型表 <table class="types">，某一列卻沒有不重複的 data-type：練習頁、模擬卷、考前速查、學習紀錄靠它對回題型。
+  （速查卡 <div class="cheat"> 和題型表都可以不寫。）
 - 查表面板的 figure 沒有 data-tab。
 - data-slide 寫了清單上沒有的頁，或寫了 data-slide 卻沒有 data-slides。
 - 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次（pages/scripts/overflow.py）：有水平溢出，
@@ -104,7 +104,6 @@ class Lint(HTMLParser):
         self.h2 = 0  # 目前有幾個 h2
         self.h3 = {}  # {第幾個 h2: 底下有幾個 h3}
         self.refs = []  # 內文提到的 §N、§N.M
-        self.cheat = False  # 有速查卡
         self.types = None  # 題型表每一列的 data-type；None 表示沒有這張表
         self.row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
         self.slides = []  # 每個 data-slide 的值
@@ -125,9 +124,7 @@ class Lint(HTMLParser):
             self.h2 += 1
         if tag == "h3":
             self.h3[self.h2] = self.h3.get(self.h2, 0) + 1
-        if "cheat" in cls:
-            self.cheat = True
-        if tag == "table" and "types" in cls and self.inside_class("cheat") and self.types is None:
+        if tag == "table" and "types" in cls and self.types is None:
             self.types = []
         if tag == "tr" and self.types is not None and self.inside_class("types"):
             self.row = {"slug": (a.get("data-type") or "").strip(), "cells": 0, "text": ""}
@@ -175,12 +172,7 @@ def lint(src: str, slides=None) -> list:
     p.feed(src)
     p.close()
     problems = list(p.problems)
-    if not p.cheat:
-        problems.append('頁面沒有速查卡 <div class="cheat">：考前只看的那一張，考前速查會把它搬過去；裡面第一樣是題型表')
-    elif p.types is None:
-        problems.append('速查卡裡沒有題型表 <table class="types">：考試會要你做的每一件事一列，'
-                        "練習頁、模擬卷和學習紀錄用每一列的 data-type 對回來")
-    elif not p.types:
+    if p.types is not None and not p.types:
         problems.append('題型表沒有任何一列：每個題型寫一列 <tr data-type="英文小寫代號">')
     labels = {f"{i}" for i in range(1, p.h2 + 1)} | {f"{i}.{j}" for i, n in p.h3.items() for j in range(1, n + 1)}
     for ref in sorted(set(p.refs) - labels):

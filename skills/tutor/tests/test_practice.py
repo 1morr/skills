@@ -243,9 +243,10 @@ class TypeRule(Case):
         (self.dir / "guide.html").write_text(self.TYPES2, encoding="utf-8")
         self.assertGreen(src(DRILLS + FULL.replace('data-type="acf-read"', "data-type='mad  acf-read'")))
 
-    def test_guide_without_types_fails(self):
+    def test_guide_without_a_types_table_needs_no_types(self):
         (self.dir / "guide.html").write_text(GUIDE.replace(' data-type="acf-read"', ""), encoding="utf-8")
-        self.assertRed(src(), "題型表沒有 data-type")
+        self.assertGreen(src())
+        self.assertGreen(src(DRILLS + FULL.replace(' data-type="acf-read"', "")))
 
     def test_drills_need_no_type(self):
         self.assertGreen(src())

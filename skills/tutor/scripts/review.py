@@ -17,8 +17,11 @@
     -    一條筆記，接在速查頁那個題型的下面；冒號前面的字排成粗體，「錯過」開頭的用粉紅螢光筆
          下一行沒有「- 」開頭的，接在上一條後面；筆記裡的 §N 連到那份導讀頁
 
-不產出的情況：導讀頁沒有速查卡；筆記還沒寫任何 ## 就出現題型的 ###；導讀頁的 ## 底下，「- 」前面沒有題型的 ###。
-只提醒的情況（印在 stderr）：筆記寫了這次沒給的導讀頁；題型代號不在那份導讀頁的題型表裡（筆記照樣印在那個 topic 的最後）。
+沒有速查卡的導讀頁只放它的筆記；沒有題型表的導讀頁，筆記照 ### 的標題排在它的最後（### 寫「§N 標題」）。
+
+不產出的情況：沒有任何一份導讀頁有速查卡或筆記；筆記還沒寫任何 ## 就出現題型的 ###；導讀頁的 ## 底下，「- 」前面沒有題型的 ###。
+只提醒的情況（印在 stderr）：筆記寫了這次沒給的導讀頁；導讀頁有題型表、筆記的題型代號卻不在上面（筆記照樣印在那個 topic 的最後）；
+導讀頁沒有速查卡也沒有筆記（這次不放）。
 組好之後和導讀頁一樣量水平溢出，有就不產出。
 
 只用標準函式庫，CI 才能直接跑測試。
@@ -113,26 +116,28 @@ def parse_notes(text: str):
     return notes, problems
 
 
+def linked(text: str, link, anchors: set) -> str:
+    """跳脫過的文字，裡面的 §N 連到導讀頁（導讀頁有那一段才連）。"""
+    return build.SECTION_REF.sub(
+        lambda m: f'<a class="ref" href="{link}#s{m.group(1).replace(".", "-")}" target="_blank">{m.group(0)}</a>'
+        if "s" + m.group(1).replace(".", "-") in anchors else m.group(0), html.escape(text, quote=False))
+
+
 def note_html(note: str, link, anchors: set) -> str:
     """一條筆記：冒號前面的字粗體（「錯過」開頭的用粉紅螢光筆），§N 連到導讀頁。"""
-    def refs(text):
-        text = html.escape(text, quote=False)
-        return build.SECTION_REF.sub(
-            lambda m: f'<a class="ref" href="{link}#s{m.group(1).replace(".", "-")}" target="_blank">{m.group(0)}</a>'
-            if "s" + m.group(1).replace(".", "-") in anchors else m.group(0), text)
-
     m = LABEL.match(note)
     if not m:
-        return f"<li>{refs(note)}</li>"
+        return f"<li>{linked(note, link, anchors)}</li>"
     cls = ' class="mk mk-pink"' if m.group(1).startswith(MISS) else ""
-    return f"<li><b{cls}>{refs(m.group(1))}</b> {refs(m.group(2))}</li>"
+    return f"<li><b{cls}>{linked(m.group(1), link, anchors)}</b> {linked(m.group(2), link, anchors)}</li>"
 
 
 def section(page: str, name: str, link: str, n: int, notes: dict):
-    """一份導讀頁的那一節：標題、速查卡、接在題型下面的筆記。回傳 (HTML, 提醒)；沒有速查卡回傳 (None, [])。"""
-    cheat = cheat_of(page)
-    if cheat is None:
+    """一份導讀頁的那一節：標題、速查卡、接在題型下面的筆記。回傳 (HTML, 提醒)；速查卡和筆記都沒有回傳 (None, [])。"""
+    cheat = cheat_of(page) or ""
+    if not cheat and not any(notes.values()):
         return None, []
+    typed = bool(ROW.search(cheat))
     h1 = H1.search(page)
     title = build.plain(h1.group(1)) if h1 else name
     anchors = set(ANCHOR.findall(page))
@@ -149,16 +154,19 @@ def section(page: str, name: str, link: str, n: int, notes: dict):
         return f'{m.group(0)}<tr class="mine"><td colspan="{cols}"><ul>{items}</ul></td></tr>'
 
     cheat = ROW.sub(with_notes, cheat)
-    rest, warns = "", []
+    rest, loose, warns = "", "", []
     for slug, mine in left.items():
         if not mine:
             continue
-        warns.append(f"筆記的題型 {slug!r} 不在 {name} 的題型表裡：這幾條印在那個 topic 的最後，代號寫錯就改筆記")
-        rest += "".join(note_html(f"{slug}：{x}", link, anchors) for x in mine)
+        if typed:
+            warns.append(f"筆記的題型 {slug!r} 不在 {name} 的題型表裡：這幾條印在那個 topic 的最後，代號寫錯就改筆記")
+            rest += "".join(note_html(f"{slug}：{x}", link, anchors) for x in mine)
+        else:  # 沒有題型表：筆記照它自己的 ### 標題分組
+            loose += f'<h4>{linked(slug, link, anchors)}</h4><ul class="mine">{"".join(note_html(x, link, anchors) for x in mine)}</ul>'
     if rest:
         rest = f'<h4>{OTHERS}</h4><ul class="mine">{rest}</ul>'
     return (f'<section id="t{n}"><h2 class="plain">{html.escape(title)}</h2>'
-            f'<p class="meta"><a href="{link}" target="_blank">打開導讀頁</a></p>{cheat}{rest}</section>\n'), warns
+            f'<p class="meta"><a href="{link}" target="_blank">打開導讀頁</a></p>{cheat}{rest}{loose}</section>\n'), warns
 
 
 def assemble(guides: list, notes: dict, title: str, lang: str = "zh-Hant"):
@@ -167,10 +175,12 @@ def assemble(guides: list, notes: dict, title: str, lang: str = "zh-Hant"):
     for n, (name, link, page) in enumerate(guides, 1):
         part, w = section(page, name, link, n, notes.get(name, {}))
         if part is None:
-            problems.append(f'{name} 沒有速查卡 <div class="cheat">：它要是 build.py 組好的導讀頁，舊的頁用現在的 build.py 重組')
+            warns.append(f"{name} 沒有速查卡也沒有筆記：這次不放進考前速查")
         else:
             parts.append(part)
             warns += w
+    if not parts:
+        problems.append("沒有任何一份導讀頁有速查卡或筆記：考前速查沒有東西可放")
     for name in notes:
         if name not in names:
             warns.append(f"筆記有 {name} 的筆記，這次沒有給這份導讀頁：它的筆記沒有印出來")

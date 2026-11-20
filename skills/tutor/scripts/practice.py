@@ -4,7 +4,7 @@
     <section class="q drill" data-id="…">   小題：只有填答格，沒有畫布；一題問一件事
     <section class="q" data-id="…" data-type="題型代號">   整題：有畫布，可以有填答格、提示、逐步詳解、範本答案
 每題要有 <h2> 標題和 data-id（說明內容的英文小寫代號；它是存檔的鍵，發出去之後不要改）。
-整題的 data-type 寫它練的是導讀頁題型表的哪幾列（空白分開）；整題至少要有範本答案或填答格其中一樣，讀者才對得了答案。
+導讀頁有題型表時，整題的 data-type 寫它練的是哪幾列（空白分開）；沒有題型表就不用寫。整題至少要有範本答案或填答格其中一樣，讀者才對得了答案。
 組好之後印「提醒」：題型表上還沒有題目的題型（不擋產出，出題的人對照計畫）。
 
     python practice.py <practice-src.html> -o <topicN-practice.html>
@@ -324,9 +324,9 @@ def lint(src: str, base: Path, out_dir: Path, notes=None) -> list:
 
 
 def type_coverage(full: list, types: dict, guide: str) -> list:
-    """每題整題寫明練的是題型表的哪幾列；讀圖題型的題目有圖或軟體輸出。"""
-    if not types:
-        return [f"導讀頁 {guide} 的題型表沒有 data-type：用現在的 build.py 重組導讀頁"]
+    """導讀頁有題型表時，每題整題寫明練的是哪幾列；讀圖題型的題目有圖或軟體輸出。"""
+    if not types:  # 導讀頁沒有題型表：題目只靠 § 對回導讀頁
+        return []
     problems = []
     for q in full:
         name = q["title"] or q["id"]

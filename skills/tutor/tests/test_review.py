@@ -128,9 +128,26 @@ class Page(unittest.TestCase):
         self.assertLess(page.index('<h2 class="plain">Topic 4</h2>'), page.index('<h2 class="plain">Topic 5：時間序列分解</h2>'))
         self.assertEqual(page.count('<tr class="mine">'), 1)  # Topic 5 的筆記只接到 Topic 5
 
-    def test_guide_without_a_card_fails(self):
-        _, problems, _ = self.build(guides=[("old.html", "old.html", "<html><body><h1>x</h1></body></html>")])
-        self.assertTrue(any("沒有速查卡" in p for p in problems), problems)
+    BARE = "<html><body><h1>Topic 6</h1><h2 id=\"s3\">§3 四型</h2></body></html>"
+
+    def test_guide_without_a_card_shows_only_its_notes(self):
+        notes = "## topic6-guide.html\n### §3 四型\n- 錯過：把 Burma 選成 ethnic\n"
+        page, problems, warns = self.build(notes, guides=[("topic6-guide.html", "topic6-guide.html", self.BARE)])
+        self.assertEqual((problems, warns), ([], []))
+        self.assertIn('<h2 class="plain">Topic 6</h2>', page)
+        self.assertIn('<h4><a class="ref" href="topic6-guide.html#s3" target="_blank">§3</a> 四型</h4>'
+                      '<ul class="mine"><li><b class="mk mk-pink">錯過</b> 把 Burma 選成 ethnic</li></ul>', page)
+
+    def test_guide_with_neither_card_nor_notes_is_left_out(self):
+        page, problems, warns = self.build(guides=[("topic5-guide.html", "topic5-guide.html", GUIDE),
+                                                   ("topic6-guide.html", "topic6-guide.html", self.BARE)])
+        self.assertEqual(problems, [])
+        self.assertTrue(any("topic6-guide.html" in w for w in warns), warns)
+        self.assertNotIn("Topic 6", page)
+
+    def test_nothing_to_show_fails(self):
+        _, problems, _ = self.build("", guides=[("topic6-guide.html", "topic6-guide.html", self.BARE)])
+        self.assertTrue(any("沒有東西可放" in p for p in problems), problems)
 
     def test_unknown_type_is_kept_at_the_end_with_a_warning(self):
         page, problems, warns = self.build(NOTES.replace("### deseason", "### seasonal-indx\n- 懂了：打錯代號的筆記"))

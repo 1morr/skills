@@ -96,17 +96,16 @@ class RefRule(unittest.TestCase):
 
 
 class CheatRule(unittest.TestCase):
-    """速查卡和題型表：練習頁、模擬卷、考前速查靠它對回題型。"""
+    """速查卡和題型表都可以不寫；寫了題型表，每一列要有不重複的代號，下游才對得回題型。"""
 
-    def test_no_card_fails(self):
-        self.assertTrue(has(page(cheat=""), "沒有速查卡"))
+    def test_card_and_table_are_optional(self):
+        for cheat in ("", '<div class="cheat"><p>公式</p></div>'):
+            with self.subTest(cheat=cheat):
+                self.assertEqual(build.lint(page(cheat=cheat)), [])
 
-    def test_card_without_table_fails(self):
-        self.assertTrue(has(page(cheat='<div class="cheat"><p>公式</p></div>'), "沒有題型表"))
-
-    def test_table_outside_the_card_does_not_count(self):
-        table = '<table class="types"><tr data-type="a"><td>x</td></tr></table>'
-        self.assertTrue(has(page(cheat=f'{table}<div class="cheat"><p>公式</p></div>'), "沒有題型表"))
+    def test_table_outside_the_card_is_checked_too(self):
+        self.assertEqual(build.lint(page(cheat='<table class="types"><tr data-type="a"><td>x</td></tr></table>')), [])
+        self.assertTrue(has(page(cheat='<table class="types"><tr><td>x</td></tr></table>'), "沒有 data-type"))
 
     def test_table_with_only_a_header_fails(self):
         self.assertTrue(has(page(cheat='<div class="cheat"><table class="types"><tr><th>考什麼</th></tr></table></div>'), "沒有任何一列"))
