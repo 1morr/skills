@@ -95,7 +95,7 @@ function spy() {
     const y = m.getBoundingClientRect().top;
     if (y <= line) { mark = m; markTop = y; } else { after = m; afterTop = y; break; }
   }
-  if (mark) setMark(mark);
+  setMark(mark); // 捲回第一個講到課件的地方之前，框也要收掉
   if (mark) followDeck(deckAt(mark, line - markTop, after, afterTop - markTop));
   else if (after) followDeck(deckAt(null, GLIDE() - (afterTop - line), after, GLIDE()));
   // 頁眉的線是「這一段讀到多少」；整份的進度在目錄上
@@ -261,8 +261,9 @@ function setMark(m) {
   if (m === onMark) return;
   onMark?.classList.remove("at-on");
   onMark = m;
-  m.classList.add("at-on");
   $$(".deck figure.now").forEach((f) => f.classList.remove("now"));
+  if (!m) return;
+  m.classList.add("at-on");
   m.dataset.at.split(" ").forEach((id) => document.getElementById(id)?.classList.add("now"));
 }
 // 窄畫面的課件欄是從下面拉上來的一塊；寬螢幕一直都在，這個開關沒有作用
@@ -457,7 +458,7 @@ $$("figure").forEach((f) => {
 });
 // 講某一頁課件的那一塊，後面加一個寫著頁碼的小標籤
 marks.forEach((m) => {
-  const host = m.tagName === "TR" ? m.lastElementChild : m;
+  const host = /^(TR|UL|OL)$/.test(m.tagName) ? m.lastElementChild : m; // 列和清單：標籤接在最後一格、最後一項
   const ids = m.dataset.at.split(" ");
   const first = $("figcaption b", document.getElementById(ids[0]))?.textContent;
   if (!first || !host || /^(TABLE|TBODY|THEAD|UL|OL|DL|DETAILS|SECTION|FIGURE|IMG)$/.test(host.tagName)) return;
