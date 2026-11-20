@@ -86,7 +86,7 @@ SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 ORDINAL = re.compile(r"^(?:q|p|ex|drill|practice|problem|question|item|task)?-?\d+[a-z]?$")
 # 題目本身只放題目和填答格；做法和答案只能放在讀者自己打開的地方：逐步詳解 details.steps、範本答案 details.model
 ANSWER_CLASSES = {"answer", "calc", "sheet", "origin", "trap", "summary"}
-MODEL_SUMMARY = "寫完了再打開：範本答案和給分點"
+MODEL_SUMMARY = "寫完了再打開：範本答案"
 STEPS_SUMMARY = "提示看完還是不會：逐步詳解"
 # 這些 class 裡的 §N 連到導讀頁
 LINKED = {"ref", "hints", "steps"}

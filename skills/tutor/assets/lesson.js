@@ -1,7 +1,7 @@
 // tutor 導讀頁的互動；build.py 會把它內嵌進每一頁。目錄、頁眉、課件欄、對照欄的 HTML 由 build.py 產生。
 // 目錄和頁眉跟著捲動顯示現在在哪；一路讀下來的段落打勾，記在瀏覽器。
 // 課件欄跟著正文：寫了 data-at 的那一塊在講哪一頁，課件欄就停在那一頁、把它框起來；下一塊快捲到時，
-// 課件欄照正文捲動的距離滑到下一頁。那一塊後面的小標籤按了也會回到那一頁；
+// 課件欄照正文捲動的距離滑到下一頁（隔得遠的等捲到了再一次滑過去）。那一塊後面的小標籤按了也會回到那一頁；
 // 課件欄的圖點了放大，圖說上的 § 跳到講它的段落。「跟著正文」關掉後課件欄只聽讀者的。
 // 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。跨段跳轉走瀏覽器的上一頁。
 // 正文裡翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的按鈕做同一件事，鍵盤按得到。
@@ -211,15 +211,16 @@ function runOf(m) {
   return [figs[0], last];
 }
 // 課件欄該捲到哪：into 是閱讀線進了 mark 這一塊多遠，span 是這一塊到下一塊 after 的距離。
-// 這一塊只講一頁就停在那一頁；講連續幾頁就讀到哪、捲到哪。最後 GLIDE 那一段距離滑到下一塊的第一頁
+// 停在這一塊的第一頁。下一塊的頁就在附近時，最後 GLIDE 那一段距離照正文捲動的距離滑過去；
+// 隔得遠就留在原地，等閱讀線到了下一塊再一次滑過去：中間那些頁和正文無關，不停在上面
 function deckAt(mark, into, after, span) {
-  const next = after ? slideTop(runOf(after)[0]) : null;
-  if (!mark) return next * Math.max(0, Math.min(1, into / span)); // 還沒到第一塊：從課件欄最上面滑過去
-  const [a, b] = runOf(mark), from = slideTop(a), end = slideTop(b);
+  const from = mark ? slideTop(runOf(mark)[0]) : 0;
   if (!after) return from;
+  const next = slideTop(runOf(after)[0]);
+  const near = Math.abs(next - (mark ? slideTop(runOf(mark)[1]) : 0)) <= deckBody.clientHeight * 1.5;
   const hold = span - Math.min(span * 0.6, GLIDE()); // 再短的一塊，它的那一頁也先停一下
-  if (into <= hold) return from + (end - from) * (into / hold);
-  return end + (next - end) * ((into - hold) / (span - hold));
+  if (!near || into <= hold) return from;
+  return from + (next - from) * ((into - hold) / (span - hold));
 }
 // 朝 goal 追過去，越近越慢：正文一格一格捲，課件欄是連續地滑
 function chase(now) {
