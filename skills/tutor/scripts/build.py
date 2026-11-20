@@ -8,7 +8,7 @@
 
 課件欄：<body data-slides="slides/slides.json">（deck.py 寫的清單，路徑相對於原始檔）。
 正文裡在講某一頁課件的元素寫 data-slide="L20 p.25"（或 "L20 p.25-28"、"L20 p.29; L22 p.6"），
-讀者捲到那裡，課件欄就跟到那一頁；再加 data-key 的頁是必記的，課件欄可以只看這些。
+讀者捲到那裡，課件欄就跟到那一頁；再加 data-key 的頁是必記的：課件欄標出來，「只看重點」時那一塊留著。
 
 不產出的情況（逐條印出原因）：
 - 圖片、樣式、腳本連到網路上（頁面要能離線打開）；找不到圖片檔。
@@ -393,20 +393,17 @@ def add_deck(src: str, slides: dict, anchors: dict, base: Path) -> tuple:
         if key[0] != deck:
             deck = key[0]
             figs.append(f'<h3 class="deck-name">{html.escape(deck)}</h3>')
-        cls = " ".join(c for c, on in (("key", key in keyed), ("idle", key not in uses)) if on)
         rel = [Path(os.path.relpath(f, base)).as_posix() if f else None for f in (page["src"], page["zh"])]
         zh = f' data-zh="{html.escape(rel[1])}"' if rel[1] else ""
         to = "".join(f'<a class="to" href="#{a}">§{label_of[a]}</a>' for a in uses.get(key, [])[:MAX_USES])
-        cls = f' class="{cls}"' if cls else ""
+        cls = ' class="key"' if key in keyed else ""
         figs.append(f'<figure id="{slide_id(key)}"{cls}>'
                     # 寫上大小：圖還沒載入時先佔好位置，課件欄才捲得到對的地方
                     f'<img src="{html.escape(rel[0])}"{zh} width="{page["w"]}" height="{page["h"]}" alt="" loading="lazy">'
                     f'<figcaption><b>{html.escape(key[0])} p.{key[1]}</b>{to}</figcaption></figure>')
-    only = (f'<button type="button" class="btn" data-act="deck-key" aria-pressed="false">只看必記 {len(keyed)} 頁</button>'
-            if keyed else "")
     aside = ('<aside class="deck" aria-label="課件"><div class="deck-head"><b>課件</b>'
              '<button type="button" class="btn" data-act="follow" aria-pressed="true">跟著正文</button>'
-             f'{only}<button type="button" class="close" data-act="deck-close" aria-label="收起課件">{icon("x")}</button></div>'
+             f'<button type="button" class="close" data-act="deck-close" aria-label="收起課件">{icon("x")}</button></div>'
              f'<div class="deck-body">{"".join(figs)}</div></aside>')
     end = body_end(src)
     report = {"pages": len(slides), "used": len(uses), "key": len(keyed), "idle": [k for k in slides if k not in uses]}
@@ -574,7 +571,7 @@ def add_shell(src: str) -> str:
     if not re.search(r"<h1\b[^>]*\bid\s*=", src, re.I):
         src = re.sub(r"<h1\b", '<h1 id="top"', src, count=1, flags=re.I)
     src = re.sub(r"</h1\s*>", lambda m: m.group(0)
-                 + '<p class="digest-note">現在只顯示標題、重點框、定義、表格和常見錯誤。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
+                 + '<p class="digest-note">現在只顯示標題、重點框、定義、表格、常見錯誤和必記的課件頁那幾段。<button type="button" class="btn" data-act="digest-off">看全文</button></p>'
                  + '<p class="resume" hidden>上次讀到這裡：<a href="#"></a></p>', src, count=1, flags=re.I)
     deck = DECK.search(src)
     if deck:

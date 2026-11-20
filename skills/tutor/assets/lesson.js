@@ -1,10 +1,11 @@
 // tutor 導讀頁的互動；build.py 會把它內嵌進每一頁。目錄、頁眉、課件欄、對照欄的 HTML 由 build.py 產生。
 // 目錄和頁眉跟著捲動顯示現在在哪；一路讀下來的段落打勾，記在瀏覽器。
-// 課件欄跟著正文：捲到寫了 data-at 的那一塊，課件欄就走到它講的那一頁。那一塊後面的小標籤按了也會回到那一頁；
+// 課件欄跟著正文：寫了 data-at 的那一塊在講哪一頁，課件欄就停在那一頁、把它框起來；下一塊快捲到時，
+// 課件欄照正文捲動的距離滑到下一頁。那一塊後面的小標籤按了也會回到那一頁；
 // 課件欄的圖點了放大，圖說上的 § 跳到講它的段落。「跟著正文」關掉後課件欄只聽讀者的。
 // 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。跨段跳轉走瀏覽器的上一頁。
 // 正文裡翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的按鈕做同一件事，鍵盤按得到。
-// 「只看重點」只留標題、重點框、定義、表格、常見錯誤。深淺色由讀者切換，和練習頁共用 tutor-theme。
+// 「只看重點」只留標題、重點框、定義、表格、常見錯誤、講必記那一頁課件的那一塊。深淺色由讀者切換，和練習頁共用 tutor-theme。
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const KEY = `tutor-guide:${document.title}`;
@@ -17,12 +18,13 @@ const stops = $$("main h1[id], main h2[id]");
 const numbered = stops.filter((s) => s.dataset.n);
 const railLinks = new Map($$(".rail a[href^='#']").map((a) => [a.getAttribute("href").slice(1), a]));
 const head = $(".head");
-const KEEP = "h1, h2, h3, .meta, .part, .summary, .def, .defs, .trap, table, .cheat, .terms, .digest-note";
+const KEEP = "h1, h2, h3, .meta, .part, .summary, .def, .defs, .trap, table, [data-key], .cheat, .terms, .digest-note";
 let current = null, currentSub = null, jumping = 0;
 let opener = null, peekId = null, trail = [];
 const deckBody = $(".deck-body");
 const marks = deckBody ? $$("main [data-at]") : [];
 let follow = true, onMark = null, zoom = null, zoomFig = null;
+let goal = 0, followed = null, chasing = 0, chased = 0;
 
 // 標題的字：不含 § 編號和課件頁碼的小標籤
 const textOf = (h) => [...h.childNodes].filter((x) => !x.matches?.(".num, .at")).map((x) => x.textContent).join("").trim();
@@ -87,12 +89,15 @@ function spy() {
     if (h.getBoundingClientRect().top <= line) sub = h; else break;
   }
   setCurrent(stop, sub);
-  let mark = null;
+  let mark = null, markTop = 0, after = null, afterTop = 0;
   for (const m of marks) {
     if (!m.getClientRects().length) continue; // 摺起來的、只看重點時收掉的
-    if (m.getBoundingClientRect().top <= line) mark = m; else break;
+    const y = m.getBoundingClientRect().top;
+    if (y <= line) { mark = m; markTop = y; } else { after = m; afterTop = y; break; }
   }
   if (mark) setMark(mark);
+  if (mark) followDeck(deckAt(mark, line - markTop, after, afterTop - markTop));
+  else if (after) followDeck(deckAt(null, GLIDE() - (afterTop - line), after, GLIDE()));
   // 頁眉的線是「這一段讀到多少」；整份的進度在目錄上
   const next = stops.slice(stops.indexOf(stop) + 1).find((s) => s.getClientRects().length);
   const from = stop.getBoundingClientRect().top;
@@ -196,11 +201,55 @@ function closePeek() {
   opener = null;
 }
 // 課件欄。marks 是正文裡講某一頁課件的元素，data-at 是那幾張圖的 id（build.py 寫的）
+const slideTop = (fig) => fig.offsetTop - deckBody.offsetTop - 12;
+const GLIDE = () => innerHeight * 0.3; // 下一塊離閱讀線這麼近時，課件欄開始滑向它的那一頁
+// 一塊講連續的幾頁時，[第一頁, 最後一頁]；用「;」列的別份課件不算進來
+function runOf(m) {
+  const figs = m.dataset.at.split(" ").map((id) => document.getElementById(id));
+  let last = figs[0];
+  for (const f of figs.slice(1)) { if (f && last.nextElementSibling === f) last = f; else break; }
+  return [figs[0], last];
+}
+// 課件欄該捲到哪：into 是閱讀線進了 mark 這一塊多遠，span 是這一塊到下一塊 after 的距離。
+// 這一塊只講一頁就停在那一頁；講連續幾頁就讀到哪、捲到哪。最後 GLIDE 那一段距離滑到下一塊的第一頁
+function deckAt(mark, into, after, span) {
+  const next = after ? slideTop(runOf(after)[0]) : null;
+  if (!mark) return next * Math.max(0, Math.min(1, into / span)); // 還沒到第一塊：從課件欄最上面滑過去
+  const [a, b] = runOf(mark), from = slideTop(a), end = slideTop(b);
+  if (!after) return from;
+  const hold = span - Math.min(span * 0.6, GLIDE()); // 再短的一塊，它的那一頁也先停一下
+  if (into <= hold) return from + (end - from) * (into / hold);
+  return end + (next - end) * ((into - hold) / (span - hold));
+}
+// 朝 goal 追過去，越近越慢：正文一格一格捲，課件欄是連續地滑
+function chase(now) {
+  const gap = goal - deckBody.scrollTop;
+  const k = 1 - Math.exp(-(now - chased) / 70);
+  chased = now;
+  if (Math.abs(gap) < 1.5) { deckBody.scrollTop = goal; chasing = 0; return; }
+  deckBody.scrollTop += Math.sign(gap) * Math.max(1, Math.abs(gap) * k);
+  chasing = requestAnimationFrame(chase);
+}
+function aim(top, smooth = true) {
+  goal = Math.max(0, Math.min(deckBody.scrollHeight - deckBody.clientHeight, Math.round(top)));
+  cancelAnimationFrame(chasing);
+  chasing = 0;
+  if (!smooth || matchMedia("(prefers-reduced-motion: reduce)").matches) { deckBody.scrollTop = goal; return; }
+  chased = performance.now();
+  chasing = requestAnimationFrame(chase);
+}
+// 正文講到的位置變了才動課件欄：停在同一頁的時候，讀者自己把課件欄捲去看別頁，就留在他看的地方
+function followDeck(at) {
+  at = Math.round(at);
+  if (at === followed) return;
+  const first = followed === null;
+  followed = at;
+  if (follow) aim(at, !first);
+}
 function showSlide(id, smooth = true, flash = false) {
   const fig = document.getElementById(id);
-  if (!fig || !fig.getClientRects().length) return; // 只看必記時，正文講到別的頁就留在原地
-  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  deckBody.scrollTo({ top: fig.offsetTop - deckBody.offsetTop - 12, behavior: smooth && !calm ? "smooth" : "auto" });
+  if (!fig) return;
+  aim(slideTop(fig), smooth);
   if (flash) {
     fig.classList.remove("hit");
     void fig.offsetWidth; // 重新觸發動畫
@@ -212,21 +261,14 @@ function setMark(m) {
   onMark?.classList.remove("at-on");
   onMark = m;
   m.classList.add("at-on");
-  const ids = m.dataset.at.split(" ");
   $$(".deck figure.now").forEach((f) => f.classList.remove("now"));
-  ids.forEach((id) => document.getElementById(id)?.classList.add("now"));
-  if (follow) showSlide(ids[0]);
-}
-function setDeckKey(on) {
-  document.body.classList.toggle("deck-key", on);
-  $("[data-act='deck-key']")?.setAttribute("aria-pressed", String(on));
-  if (onMark) showSlide(onMark.dataset.at.split(" ")[0], false);
+  m.dataset.at.split(" ").forEach((id) => document.getElementById(id)?.classList.add("now"));
 }
 // 窄畫面的課件欄是從下面拉上來的一塊；寬螢幕一直都在，這個開關沒有作用
 function setDeck(open) {
   document.body.classList.toggle("deck-open", open);
   $("[data-act='deck']")?.setAttribute("aria-pressed", String(open));
-  if (open && onMark) showSlide(onMark.dataset.at.split(" ")[0], false);
+  if (open && followed !== null) aim(followed, false);
 }
 function paintZoom() {
   const zh = zoomFig.classList.contains("show-zh") && $("img.zh", zoomFig);
@@ -268,7 +310,7 @@ function openZoom(fig) {
   if (!zoom.open) zoom.showModal();
 }
 
-// 只看重點：留下標題、重點框、定義、表格、常見錯誤，其餘的區塊收起來；摺著的做法先打開，裡面的「這題記住」才看得到
+// 只看重點：留下標題、重點框、定義、表格、常見錯誤、講必記那一頁課件的那一塊，其餘的區塊收起來；摺著的做法先打開，裡面的「這題記住」才看得到
 function mark(el) {
   if (el.matches(KEEP)) return;
   if (el.querySelector(KEEP)) {
@@ -350,17 +392,15 @@ document.addEventListener("click", (e) => {
     e.preventDefault(); // 標籤在 <summary> 裡時不要順便開合
     closePeek();
     setDeck(true);
-    if (!document.getElementById(btn.dataset.id)?.classList.contains("key")) setDeckKey(false); // 讀者指名要看這一頁
     showSlide(btn.dataset.id, true, true);
     return;
   }
   if (act === "follow") {
     follow = !follow;
     btn.setAttribute("aria-pressed", String(follow));
-    if (follow && onMark) showSlide(onMark.dataset.at.split(" ")[0]);
+    if (follow && followed !== null) aim(followed);
     return;
   }
-  if (act === "deck-key") { setDeckKey(!document.body.classList.contains("deck-key")); return; }
   if (act === "deck") { setDeck(!document.body.classList.contains("deck-open")); return; }
   if (act === "deck-close") { setDeck(false); return; }
   if (act === "digest-on" || act === "digest-off") { setDigest(act === "digest-on"); return; }
@@ -426,13 +466,19 @@ marks.forEach((m) => {
   b.type = "button"; b.className = "at"; b.dataset.act = "slide"; b.dataset.id = ids[0];
   b.textContent = ids.length === 1 ? first : sameDeck ? `${first}–${last.split(" p.")[1]}` : `${first}…`;
   b.title = "在課件欄看這一頁";
+  if (m.hasAttribute("data-key")) { b.classList.add("key"); b.textContent += " 必記"; }
   host.append(b);
 });
-// 沒有重點框、定義框、表格、常見錯誤的頁，「只看重點」會只剩標題：把開關收起來
-if (!$("main .summary, main .def, main .trap, main table")) {
+// 沒有重點框、定義框、表格、常見錯誤、必記的頁，「只看重點」會只剩標題：把開關收起來
+if (!$("main .summary, main .def, main .trap, main table, main [data-key]")) {
   $$("[data-act^='digest']").forEach((b) => { (b.closest(".seg") || b).hidden = true; });
   store.digest = false;
 }
+// 讀者自己動手捲課件欄時，正在滑的那一下讓給他
+["wheel", "touchstart", "pointerdown"].forEach((type) => deckBody?.addEventListener(type, () => {
+  cancelAnimationFrame(chasing);
+  chasing = 0;
+}, { passive: true }));
 // 上次讀到哪
 if (!location.hash && store.last && $(".resume")) {
   const s = document.getElementById(store.last);

@@ -384,17 +384,15 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
 .deck figure { margin: 0 0 1.1rem; }
 .deck figure img { width: 100%; cursor: zoom-in; outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s; }
 .deck figure.now img { outline-color: var(--blue); }
-.deck figure.idle { opacity: .5; }
-.deck figure.idle:hover, .deck figure.idle.now { opacity: 1; }
 .deck figure.hit img { animation: stroke 1.6s var(--ease) both; }
 .deck figcaption b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .deck figure.key figcaption b::after { content: "必記"; margin-left: .5em; padding: 0 .4em; background: var(--yellow); border-radius: 3px; font-size: .75rem; }
 .deck a.to { font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
 .deck a.to:hover { text-decoration: underline; }
-body.deck-key .deck figure:not(.key), body.deck-key .deck-name { display: none; }
 /* 正文裡講某一頁課件的地方：後面的小標籤寫那一頁，按了課件欄回到那一頁；現在帶著課件欄的那一塊是藍的 */
 button.at { border: 1px solid var(--rule-2); background: var(--paper); border-radius: 999px; padding: 0 .6em; margin-left: .6em; font: 500 .75rem/1.7 var(--sans); letter-spacing: 0; color: var(--ink-2); cursor: pointer; white-space: nowrap; vertical-align: .12em; font-variant-numeric: tabular-nums; }
 button.at:hover { border-color: var(--blue); color: var(--blue); }
+button.at.key { background: var(--yellow); border-color: transparent; color: var(--ink); }
 .at-on > button.at, .at-on > td > button.at, .at-on > th > button.at { background: var(--blue); border-color: var(--blue); color: var(--paper); }
 /* 放大：整個視窗看一頁，左右鍵換頁 */
 dialog.zoom { border: 0; padding: 0; background: none; color: #fff; width: min(96vw, 100rem); max-width: none; max-height: none; }

@@ -236,20 +236,17 @@ class DeckStep(unittest.TestCase):
         out, _ = self.deck("".join(f'<h2 data-slide="L20 p.1">{i}</h2>' for i in range(build.MAX_USES + 3)))
         self.assertEqual(self.fig(out, "L20-1").count('class="to"'), build.MAX_USES)
 
-    def test_key_and_idle_pages_are_marked(self):
+    def test_key_pages_are_marked_and_untaught_pages_are_reported(self):
         out, report = self.deck('<h2>一</h2><p data-slide="L20 p.1" data-key>必記</p><p data-slide="L20 p.2">提到</p>')
         self.assertIn('id="slide-L20-1" class="key"', out)
         self.assertRegex(out, r'<figure id="slide-L20-2">')
-        self.assertIn('id="slide-L20-3" class="idle"', out)
+        self.assertRegex(out, r'<figure id="slide-L20-3">')
         self.assertEqual(report, {"pages": 4, "used": 2, "key": 1, "idle": [("L20", 3), ("L21", 1)]})
 
-    def test_key_filter_only_when_something_is_key(self):
-        with_key, _ = self.deck('<p data-slide="L20 p.1" data-key>x</p>')
-        without, _ = self.deck('<p data-slide="L20 p.1">x</p>')
-        self.assertIn('data-act="deck-key" aria-pressed="false">只看必記 1 頁</button>', with_key)
-        self.assertNotIn("deck-key", without)
-        for out in (with_key, without):
-            self.assertIn('data-act="follow" aria-pressed="true"', out)
+    def test_key_mark_stays_on_the_element_for_the_highlights_view(self):
+        out, _ = self.deck('<p data-slide="L20 p.1" data-key>x</p>')
+        self.assertIn('<p data-key data-at="slide-L20-1">x</p>', out)
+        self.assertIn('data-act="follow" aria-pressed="true"', out)
 
     def test_slide_before_any_heading_still_marks_the_page_used(self):
         out, report = self.deck('<p data-slide="L21 p.1">前言</p><h2>一</h2>')
