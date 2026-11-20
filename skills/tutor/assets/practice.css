@@ -257,6 +257,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   /* 題目代號印在每題和每張作答頁的角落：拍照貼回對話時，批改的人靠它找答案 */
   body[data-mode="mock"] section.q::before { content: attr(data-id); position: absolute; top: 0; right: 0; font: 8pt var(--mono); color: #666; }
   body[data-mode="mock"] section.q h2 { break-after: avoid; padding-right: 11em; }
+  body[data-mode="mock"] section.q p:has(+ :is(figure, table, pre.mtb)) { break-after: avoid; }
   body[data-mode="mock"] section.q :is(figure, table, pre.mtb), body[data-mode="mock"] .rubric li { break-inside: avoid; }
   body[data-mode="mock"] section.q table { overflow: visible; }
   body[data-mode="mock"] section.q figure img { max-height: 110mm; cursor: auto; }
