@@ -12,11 +12,10 @@
 | [diff](skills/diff/SKILL.md) | 說「給我一頁前後對照的 html」「做 diff 頁」，或由其他 skill 呼叫 | 一頁前後對照的 HTML：文件兩版（docx、PDF、HTML、Markdown、文字）逐字比對，或程式改動實跑前後並附證據；改動標記全部由腳本算 |
 | [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西>`（只能手動叫用） | 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭文件、票與閘門的骨架，已有骨架的 repo 逐項對齊最新範本。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement`，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
-| [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <要審的成品>`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 另開新 session 當審查員，主對話查證後修改，最後出一份起點→最終版的總 diff |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或由 coursework 載入 | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、練習頁、模擬卷、考前速查，之後批改、解答和帶著做。導讀頁上有作業的做法和答案；要交的那一份檔由 coursework 做 |
 
-bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），dashboard 的靜態頁、bake-off 和 review-loop 要你看的頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
+bake-off、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），dashboard 的靜態頁、bake-off 要你看的頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 
 ## 安裝
 
@@ -29,9 +28,9 @@ bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者�
 
 plugin 不釘版本，`/plugin update 1morr@1morr-skills` 會更新到最新 commit；也可以在 `/plugin` 的 Marketplaces 分頁打開自動更新。
 
-## 用 Orca 的三個 skill 要知道的事
+## 用 Orca 的 skill 要知道的事
 
-bake-off、review-loop、ticket-coordinator 會用 [Orca](https://www.onorca.dev) 開子 Claude Code session，需要裝好 Orca 和它的 `orca` 指令。
+bake-off、ticket-coordinator 會用 [Orca](https://www.onorca.dev) 開子 Claude Code session，需要裝好 Orca 和它的 `orca` 指令。coursework 只在專案指令檔指定了別家模型的盲讀者時才用 Orca，沒有 Orca 也能跑。
 
 - **子 session 以免確認模式啟動**（`claude --dangerously-skip-permissions`），這樣才能無人值守；它在自己的 worktree 和分支上工作，合併與 push 由協調者照你開工時給的授權做。要換啟動指令，在啟動協調者的環境設 `CHILD_CLAUDE`，例如 `CHILD_CLAUDE="claude --permission-mode acceptEdits"`。
 - **腳本預設主分支是 `main`、CI workflow 是 `ci.yml`**；協調者會在開工時查出來並帶給腳本。

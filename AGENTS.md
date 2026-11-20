@@ -36,7 +36,7 @@ project-init 的範本改動要搬使用者專案裡的資料時：同一個 com
 - 有 Python 腳本的目錄要有 `tests/test_*.py`。測試指令列在 README〈開發〉，CI 跑同一組。
 - tutor 頁面的互動（`skills/tutor/assets/`，和 `build.py`、`practice.py`、`review.py` 產生互動的部分）改過之後，照 `skills/tutor/tests/BROWSER.md` 在瀏覽器走一遍：單元測試只查產出的 HTML。
 - tutor 的 `build.py` 只擋會讓導讀頁或下游的頁壞掉的事（離線打不開、連結斷掉、題型對不回來、溢出）。看到一份教得不好的導讀頁時，改 `SKILL.md`〈教學計畫〉或 `GUIDE.md` 的那一句，再重做那份導讀頁確認有變好；教法不寫成檢查，也不寫成每一段都要有的格式。
-- `orca/scripts/` 由 `bash orca/scripts/selftest.sh` 測，要印 `ALL OK`。md 只引用腳本的參數順序、輸出的鍵（`handle=`、`gate=`）和 `state=` 的值；改到這些時，`COORDINATOR.md`、`TUI.md` 和三個協調者 skill 的 `SKILL.md` 一起改。
+- `orca/scripts/` 由 `bash orca/scripts/selftest.sh` 測，要印 `ALL OK`。md 只引用腳本的參數順序、輸出的鍵（`handle=`、`gate=`）和 `state=` 的值；改到這些時，`COORDINATOR.md`、`TUI.md` 和兩個協調者 skill（bake-off、ticket-coordinator）的 `SKILL.md` 一起改。
 - shell 腳本要在 macOS 內建的 bash 3.2 跑：
   - 變數後面緊貼中文寫 `${var}`。3.2 會把中文吃進變數名，`set -u` 下直接退出。
   - 不用 GNU 專屬的 `stat -c`、`touch -d`、`sed -i`；檔案時間用 `py.sh` 的 `age`。

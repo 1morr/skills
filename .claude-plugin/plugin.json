@@ -4,5 +4,5 @@
   "author": { "name": "1morr", "url": "https://github.com/1morr" },
   "repository": "https://github.com/1morr/skills",
   "license": "MIT",
-  "keywords": ["audit", "bake-off", "checkpoint", "coursework", "dashboard", "explain", "project-init", "scaffold", "variants", "review-loop", "review", "diff", "before-after", "code-review", "orca", "tickets", "tutor", "study"]
+  "keywords": ["audit", "bake-off", "checkpoint", "coursework", "dashboard", "explain", "project-init", "scaffold", "variants", "review", "diff", "before-after", "code-review", "orca", "tickets", "tutor", "study"]
 }
