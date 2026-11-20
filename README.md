@@ -7,14 +7,14 @@
 | [audit](skills/audit/SKILL.md) | `/1morr:audit [要審的 skill、指令檔或路徑]`（只能手動叫用） | 審查 skill 或指令檔（任何 repo，`~/.claude` 底下的也可以），標準是 mattpocock 的 `writing-for-agents`。先列發現，你回答後一步一個 commit 改完；改行為的可以先試跑再決定留不留 |
 | [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <要做的任務>`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），逐版渲染審查後建議用哪一版當基礎；各版讀法不同的地方交給你決定 |
 | [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [剛做完的里程碑，或想問的事]`（只能手動叫用） | 里程碑之間：回顧上一段做了什麼、對不對、遺留什麼，和你對齊下一段的計畫。出一頁臨時回顧頁，定案寫回 repo 原有的文件 |
-| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：先找出題目檔並對課程網站，再用三個沒看過對話的子代理各自只讀老師的原檔（專案指令檔指定了別家模型的 agent 時，用 [Orca](https://www.onorca.dev) 多開一個），和主對話的讀法匿名比對；讀法不同的地方附原文和建議由你決定，再出計畫。成品在主對話做一版，做完由一個只看老師原檔的子代理從頭重算、幾個子代理分角度審查。教學頁還沒做 |
+| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：先找出題目檔並對課程網站，再用三個沒看過對話的子代理各自只讀老師的原檔（專案指令檔指定了別家模型的 agent 時，用 [Orca](https://www.onorca.dev) 多開一個），和主對話的讀法匿名比對；讀法不同的地方附原文和建議由你決定，再出計畫。成品在主對話做一版，做完由一個只看老師原檔的子代理從頭重算、幾個子代理分角度審查；最後把做法寫進 tutor 的導讀頁，並用一個只拿到那一頁的子代理照著重做來確認教得會 |
 | [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：里程碑與票的進度、等你決定的事、決策與變更，可以同時看好幾個 repo；頁面不寫進 repo |
 | [diff](skills/diff/SKILL.md) | 說「給我一頁前後對照的 html」「做 diff 頁」，或由其他 skill 呼叫 | 一頁前後對照的 HTML：文件兩版（docx、PDF、HTML、Markdown、文字）逐字比對，或程式改動實跑前後並附證據；改動標記全部由腳本算 |
 | [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西>`（只能手動叫用） | 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭文件、票與閘門的骨架，已有骨架的 repo 逐項對齊最新範本。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement`，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
 | [review-loop](skills/review-loop/SKILL.md) | `/1morr:review-loop <要審的成品>`（只能手動叫用） | 一輪一輪審一份成品（作業、海報、報告）到可以交：每輪用 Orca 另開新 session 當審查員，主對話查證後修改，最後出一份起點→最終版的總 diff |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、答案紙、練習頁、模擬卷、考前速查，之後批改、解答和帶著做 |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或由 coursework 載入 | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、練習頁、模擬卷、考前速查，之後批改、解答和帶著做。導讀頁上有作業的做法和答案；要交的那一份檔由 coursework 做 |
 
 bake-off、review-loop、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），dashboard 的靜態頁、bake-off 和 review-loop 要你看的頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 
