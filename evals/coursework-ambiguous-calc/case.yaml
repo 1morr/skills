@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: coursework-ambiguous-calc
+description: coursework 作業流程：封存錯誤舊草稿、區分課件慣例（冠詞假歧義）與促銷調整真歧義、並消除顯示算式四捨五入矛盾
+tags: [coursework]
+context:
+  scaffold_script: fixture.sh
