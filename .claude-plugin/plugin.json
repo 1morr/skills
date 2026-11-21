@@ -1,8 +1,8 @@
 {
   "name": "1morr",
-  "description": "1morr 的 Claude Code skills：專案骨架、票的協調、多版比較與審查、解說、前後對照、教學、作業。",
+  "description": "1morr 的跨 harness skills：專案骨架、票的協調、解說、前後對照、教學、作業。",
   "author": { "name": "1morr", "url": "https://github.com/1morr" },
   "repository": "https://github.com/1morr/skills",
   "license": "MIT",
-  "keywords": ["audit", "bake-off", "checkpoint", "coursework", "dashboard", "explain", "project-init", "scaffold", "variants", "review", "diff", "before-after", "code-review", "orca", "tickets", "tutor", "study"]
+  "keywords": ["audit", "checkpoint", "coursework", "dashboard", "explain", "project-init", "scaffold", "variants", "review", "diff", "before-after", "code-review", "orca", "tickets", "tutor", "study"]
 }

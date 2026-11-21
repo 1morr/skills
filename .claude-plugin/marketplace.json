@@ -2,12 +2,12 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "1morr-skills",
   "owner": { "name": "1morr", "url": "https://github.com/1morr" },
-  "description": "1morr 的 Claude Code skills。",
+  "description": "1morr 的跨 harness skills。",
   "plugins": [
     {
       "name": "1morr",
       "source": "./",
-      "description": "1morr 的 Claude Code skills：專案骨架、票的協調、多版比較與審查、解說、前後對照、教學、作業。",
+      "description": "1morr 的跨 harness skills：專案骨架、票的協調、解說、前後對照、教學、作業。",
       "category": "productivity"
     }
   ]

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # 模型可以自己觸發的 skill：加進來之前先看 AGENTS.md〈結構〉
 MODEL_INVOKED = {"diff", "tutor"}
 # md 裡的路徑縮寫指到哪：值是相對 repo 根的路徑，{skill} 換成那份 md 所屬的 skill
-SHORT = {"O": "orca", "P": "pages", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates", "DIFF": "skills/diff"}
+SHORT = {"O": "orca", "P": "pages", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates"}
 # 有 md 要檢查的目錄
 DOC_DIRS = ("skills", "orca", "pages")
 
@@ -100,7 +100,7 @@ def check_paths(root: Path) -> list:
 
 def check_no_cross_links(root: Path) -> list:
     """md 裡沒有 ../：skill 之間不互連，共用的檔放 orca/ 或 pages/。"""
-    return [f"{md.relative_to(root)} 有 ../：共用的檔放 orca/ 或 pages/，或用 Skill 工具載入對方"
+    return [f"{md.relative_to(root)} 有 ../：共用的檔放 orca/ 或 pages/，或改為載入對方 skill"
             for md in docs(root) if "../" in read(md)]
 
 
@@ -137,23 +137,56 @@ def check_tested(root: Path) -> list:
     return out
 
 
-SHORT_DEF = re.compile(r"`<([A-Z]+)>` 是 `\$\{CLAUDE_")
+SHORT_DEF = re.compile(r"`<([A-Z]+)>`\s*是\s*本檔(?:同目錄|往上兩層)的\s*`([A-Za-z0-9_.-]+)/`")
+ANY_SHORT_DEF = re.compile(r"`<([A-Z]+)>`\s*是[^。\n]*`[^`\n]+/`")
 
 
 def check_short_declared(root: Path, short=frozenset(SHORT)) -> list:
-    """SKILL.md 用 ${CLAUDE_…} 定義的縮寫都在 SHORT 裡，check_paths 才查得到它的路徑。"""
+    """SKILL.md 用相對自身位置的路徑（本檔同目錄／往上兩層的 `<目錄>/`）定義路徑縮寫，且縮寫都在 SHORT 裡；skill 內用到的縮寫都要在它的 SKILL.md 定義。"""
     out = []
     for name in skills(root):
-        for key in SHORT_DEF.findall(read(root / "skills" / name / "SKILL.md")):
+        skill_dir = root / "skills" / name
+        skill_text = read(skill_dir / "SKILL.md")
+        declared = dict(SHORT_DEF.findall(skill_text))
+        for key in ANY_SHORT_DEF.findall(skill_text):
             if key not in short:
                 out.append(f"skills/{name}/SKILL.md 定義了 <{key}>，SHORT 裡沒有")
+            elif key not in declared:
+                out.append(f"skills/{name}/SKILL.md 的 <{key}> 要用相對本檔的路徑（本檔同目錄／往上兩層的 `<目錄>/`）定義")
+        for key, tail in declared.items():
+            if key in SHORT and tail != SHORT[key].rsplit("/", 1)[-1]:
+                out.append(f"skills/{name}/SKILL.md 把 <{key}> 定義成 `{tail}/`，應為 `{SHORT[key].rsplit('/', 1)[-1]}/`")
+        used = {key for md in sorted(skill_dir.rglob("*.md"))
+                for key, _ in SHORT_PATH.findall(read(md)) if key in short}
+        for key in sorted(used - set(declared)):
+            out.append(f"skills/{name}/ 用了 <{key}>/，但 skills/{name}/SKILL.md 沒有用相對本檔的路徑定義 <{key}>")
     return out
 
 
-def check_vars_in_skill_md_only(root: Path) -> list:
-    """Claude Code 只替換 SKILL.md 裡的 ${CLAUDE_…}；寫在別的 md 會原樣留著。"""
-    return [f"{md.relative_to(root)} 寫了 ${{CLAUDE_…}}：只有 SKILL.md 會被替換，改用 SKILL.md 定義的縮寫"
-            for md in docs(root) if md.name != "SKILL.md" and "${CLAUDE_" in read(md)]
+FORBIDDEN_VARS = re.compile(r"\$\{CLAUDE_[A-Z0-9_]*\}?|\$ARGUMENTS\b")
+
+
+def check_no_claude_vars(root: Path) -> list:
+    """SKILL.md 與附屬 md 不寫 ${CLAUDE_SKILL_DIR}、${CLAUDE_PLUGIN_ROOT} 或 $ARGUMENTS：改用相對本檔的路徑縮寫與自然語言說明參數。"""
+    out = []
+    for md in docs(root):
+        found = sorted(set(FORBIDDEN_VARS.findall(read(md))))
+        if found:
+            out.append(f"{md.relative_to(root)} 寫了 {'、'.join(found)}：跨 harness 不會替換，改用相對路徑縮寫")
+    return out
+
+
+CLAUDE_ONLY_WORDING = re.compile(r"\bAskUserQuestion\b|\bmodel:\s*[\"']?(?:opus|sonnet)\b", re.I)
+
+
+def check_portable_wording(root: Path) -> list:
+    """md 不寫綁定單一 harness 的工具名與模型欄位（AskUserQuestion、model: \"opus\"、model: \"sonnet\"）。"""
+    out = []
+    for md in docs(root):
+        found = sorted(set(CLAUDE_ONLY_WORDING.findall(read(md))))
+        if found:
+            out.append(f"{md.relative_to(root)} 寫了綁定單一 harness 的 {'、'.join(found)}")
+    return out
 
 
 BARE_VAR_THEN_CJK = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
@@ -232,26 +265,108 @@ def check_orca_keys(root: Path) -> list:
     return out
 
 
-SECTION_REF = re.compile(r"([A-Za-z][A-Za-z0-9_-]*\.md)`?〈([^〉]+)〉")
-HEADING = re.compile(r"^#+\s+(?:\d+\.\s*)?(.+?)\s*$", re.M)
+FENCE = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
+HEADING_RAW = re.compile(r"^#+\s+(.+?)\s*$", re.M)
+FILE_REF_GROUP = re.compile(
+    r"(?:"
+    r"\[[^\]]*\]\((?P<link>[^)#\s]+\.md)(?:#[^)]*)?\)"
+    r"|`(?P<tick>[^`\n]*?\.md)`"
+    r"|(?P<plain>(?:[A-Za-z0-9_.-]+/)*[A-Za-z][A-Za-z0-9_-]*\.md)"
+    r")(?:\s*的)?"
+    r"(?P<secs>(?:〈[^〉]+〉)+(?:[與和](?:〈[^〉]+〉)+)*)"
+)
+EXT_OWNER_GROUP = re.compile(
+    r"(?:學習紀錄|roadmap|(?:專案的?)?指令檔(?:的|有)?|它的|把它)"
+    r"(?P<secs>(?:〈[^〉]+〉)+(?:[與和](?:〈[^〉]+〉)+)*)"
+)
+SECTION_TOKEN = re.compile(r"〈([^〉]+)〉")
+
+
+def has_heading(path: Path, section: str) -> bool:
+    raws = HEADING_RAW.findall(FENCE.sub("", read(path)))
+    if re.match(r"^\d+\.\s*", section):
+        return any(h.startswith(section) for h in raws)
+    norms = [re.sub(r"^\d+\.\s*", "", h) for h in raws]
+    return any(h.startswith(section) for h in norms)
+
+
+def resolve_ref_target(root: Path, md: Path, raw_path: str):
+    m = re.match(r"^<([A-Z]+)>/(.+)$", raw_path)
+    if m and m.group(1) in SHORT:
+        rel = md.relative_to(root)
+        skill = rel.parts[1] if rel.parts[0] == "skills" else ""
+        cand = root / SHORT[m.group(1)].format(skill=skill) / m.group(2)
+        return cand if cand.is_file() else None
+    if "/" in raw_path:
+        cand = (md.parent / raw_path).resolve()
+        return cand if cand.is_file() else None
+    return next((d / raw_path for d in (md.parent, root / "orca", root / "pages", root) if (d / raw_path).is_file()), None)
 
 
 def check_section_refs(root: Path) -> list:
-    """md 裡寫 `X.md〈節名〉` 時，X.md（同一個資料夾、orca/、pages/ 或 repo 根目錄的）要有以節名開頭的標題；標題的編號不算。templates/ 裡的 md 講的是使用者的專案，不查。"""
+    """md 裡寫 `X.md〈節名〉`、`[X.md](X.md)〈節名〉`、連續 `〈節A〉〈節B〉` 或同檔裸 `〈節名〉` 時，目標檔案要有以節名開頭的標題；templates/ 不查。"""
     out = []
     for md in docs(root):
         if "templates" in md.relative_to(root).parts:
             continue
-        for name, section in sorted(set(SECTION_REF.findall(read(md)))):
-            target = next((d / name for d in (md.parent, root / "orca", root / "pages", root) if (d / name).is_file()), None)
-            if target and not any(h.startswith(section) for h in HEADING.findall(read(target))):
-                out.append(f"{md.relative_to(root)} 寫了 {name}〈{section}〉，{target.relative_to(root)} 沒有這個開頭的標題")
+        text = FENCE.sub("", read(md))
+        consumed = []
+        file_checks = []
+        for m in FILE_REF_GROUP.finditer(text):
+            consumed.append((m.start(), m.end()))
+            raw_path = m.group("link") or m.group("tick") or m.group("plain")
+            target = resolve_ref_target(root, md, raw_path)
+            if target:
+                for sec in SECTION_TOKEN.findall(m.group("secs")):
+                    file_checks.append((Path(raw_path).name, target, sec))
+        for m in EXT_OWNER_GROUP.finditer(text):
+            if not any(s <= m.start() < e for s, e in consumed):
+                consumed.append((m.start(), m.end()))
+        for name, target, sec in dict.fromkeys(file_checks):
+            if not has_heading(target, sec):
+                out.append(f"{md.relative_to(root)} 寫了 {name}〈{sec}〉，{target.relative_to(root)} 沒有這個開頭的標題")
+        bare_secs = [m.group(1) for m in SECTION_TOKEN.finditer(text)
+                     if not any(s <= m.start() < e for s, e in consumed)]
+        for sec in dict.fromkeys(bare_secs):
+            if not has_heading(md, sec):
+                out.append(f"{md.relative_to(root)} 寫了〈{sec}〉，本檔沒有這個開頭的標題")
+    return out
+
+
+CW_PART_SNIPPET = re.compile(r"`(<div\b[^`\n]*\bdata-part=[^`\n]*)`")
+
+
+def check_coursework_tutor_contract(root: Path) -> list:
+    """coursework〈教學〉引用 tutor 的 GUIDE.md〈做法導讀〉，且 answer.html 的 data-part 標記格式與 tutor/scripts/fill.py 的 PART 一致。"""
+    cw = root / "skills/coursework/SKILL.md"
+    guide = root / "skills/tutor/GUIDE.md"
+    fill_py = root / "skills/tutor/scripts/fill.py"
+    if not (cw.is_file() and guide.is_file() and fill_py.is_file()):
+        return []
+    out = []
+    cw_text = read(cw)
+    refs = re.findall(r"GUIDE\.md`?〈([^〉]+)〉", cw_text)
+    if "做法導讀" not in refs:
+        out.append("skills/coursework/SKILL.md 沒有引用 GUIDE.md〈做法導讀〉")
+    for sec in dict.fromkeys(refs):
+        if not has_heading(guide, sec):
+            out.append(f"skills/coursework/SKILL.md 引用了 GUIDE.md〈{sec}〉，但 skills/tutor/GUIDE.md 沒有這個標題")
+    m = CW_PART_SNIPPET.search(cw_text)
+    if not m:
+        out.append("skills/coursework/SKILL.md 沒有寫出 answer.html 的 `<div … data-part=…>` 標記範例")
+    else:
+        ns = {}
+        exec(compile(read(fill_py), str(fill_py), "exec"), ns)
+        part_re = ns.get("PART")
+        if part_re is None or not part_re.search(m.group(1)):
+            out.append(f"skills/coursework/SKILL.md 的 `{m.group(1)}` 無法被 skills/tutor/scripts/fill.py 的 PART 解析")
     return out
 
 
 CHECKS = (check_names, check_listed, check_paths, check_no_cross_links, check_invocation, check_tested,
-          check_short_declared, check_vars_in_skill_md_only, check_shell_portable, check_manifests_match,
-          check_usage_header, check_no_opening_for_user, check_orca_keys, check_section_refs)
+          check_short_declared, check_no_claude_vars, check_portable_wording, check_shell_portable,
+          check_manifests_match, check_usage_header, check_no_opening_for_user, check_orca_keys,
+          check_section_refs, check_coursework_tutor_contract)
 
 
 class RepoTest(unittest.TestCase):
@@ -286,12 +401,12 @@ class Fixture(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         r = self.root
         write(r, "skills/diff/SKILL.md", "---\nname: diff\ndescription: 對照頁。使用者要 diff 頁時用。\n---\n\n"
-              "`<S>` 是腳本目錄。跑 `python <S>/diff.py a b`，細節見 [LOOK.md](LOOK.md)。\n")
+              "`<S>` 是本檔同目錄的 `scripts/`，`<P>` 是本檔往上兩層的 `pages/`。跑 `python <S>/diff.py a b`，細節見 [LOOK.md](LOOK.md)。\n")
         write(r, "skills/diff/LOOK.md", "# 外觀\n\n照 `<P>/TOKENS.md`。\n")
         write(r, "skills/diff/scripts/diff.py", DOUBLE + "比對兩個版本。\n\n    python diff.py a b\n" + DOUBLE + "\n")
         write(r, "skills/diff/tests/test_diff.py", "")
         write(r, "skills/notes/SKILL.md", "---\nname: notes\ndescription: 記筆記\ndisable-model-invocation: true\n---\n\n"
-              "先讀 `<O>/COORDINATOR.md`，再跑 `bash <O>/scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
+              "`<O>` 是本檔往上兩層的 `orca/`。先讀 `<O>/COORDINATOR.md`，再跑 `bash <O>/scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
         write(r, "orca/COORDINATOR.md", "# 流程\n")
         write(r, "orca/scripts/wait.sh", "# 用法：bash wait.sh <handle>\necho \"${H}沒有回應\"\n")
         write(r, "orca/scripts/selftest.sh", "# 用法：bash selftest.sh\n")
@@ -385,7 +500,7 @@ class CrossLinksTest(Fixture):
         self.red(check_no_cross_links)
 
     def test_naming_another_skill_is_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "呼叫 Skill 工具載入 `diff`，省略的地方寫 `...`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "載入 `diff` skill，省略的地方寫 `...`。先讀")
         self.clean(check_no_cross_links)
 
 
@@ -449,7 +564,7 @@ class TestedTest(Fixture):
 
 
 class ShortDeclaredTest(Fixture):
-    DEFINE = "`<Z>` 是 `${CLAUDE_SKILL_DIR}/zed`。先讀"
+    DEFINE = "`<Z>` 是本檔同目錄的 `zed/`。先讀"
 
     def test_abbreviation_missing_from_the_list(self):
         sub(self.root, "skills/notes/SKILL.md", "先讀", self.DEFINE)
@@ -457,25 +572,66 @@ class ShortDeclaredTest(Fixture):
 
     def test_the_list_decides(self):
         sub(self.root, "skills/notes/SKILL.md", "先讀", self.DEFINE)
-        self.clean(check_short_declared, short=frozenset({"Z"}))
+        self.clean(check_short_declared, short=frozenset(SHORT) | {"Z"})
+
+    def test_used_shorthand_must_be_declared_with_relative_path(self):
+        sub(self.root, "skills/notes/SKILL.md", "`<O>` 是本檔往上兩層的 `orca/`。", "")
+        self.red(check_short_declared)
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca/`。先讀")
+        self.red(check_short_declared)
+
+    def test_wrong_target_directory_in_declaration(self):
+        sub(self.root, "skills/notes/SKILL.md", "`<O>` 是本檔往上兩層的 `orca/`", "`<O>` 是本檔往上兩層的 `pages/`")
+        self.red(check_short_declared)
 
     def test_placeholders_that_are_not_definitions_do_not_matter(self):
         sub(self.root, "skills/notes/SKILL.md", "先讀", "寫成 `<批次目錄>/r<N>/prompt.md`，`<N>` 是輪次。先讀")
         self.clean(check_short_declared)
 
 
-class VarsInSkillMdOnlyTest(Fixture):
-    def test_variable_in_a_companion_file(self):
-        sub(self.root, "skills/diff/LOOK.md", "# 外觀", "# 外觀\n\n腳本在 `${CLAUDE_SKILL_DIR}/scripts`。")
-        self.red(check_vars_in_skill_md_only)
+class NoClaudeVarsTest(Fixture):
+    def test_claude_skill_dir_in_skill_md_or_companion(self):
+        for rel in ("skills/diff/SKILL.md", "skills/diff/LOOK.md"):
+            with self.subTest(rel):
+                original = read(self.root / rel)
+                write(self.root, rel, original + "\n腳本在 `${CLAUDE_SKILL_DIR}/scripts`。\n")
+                self.red(check_no_claude_vars)
+                write(self.root, rel, original)
 
-    def test_variable_in_a_shared_file(self):
-        sub(self.root, "orca/COORDINATOR.md", "# 流程", "# 流程\n\n`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。")
-        self.red(check_vars_in_skill_md_only)
+    def test_claude_plugin_root_in_skill_or_shared_file(self):
+        for rel in ("skills/notes/SKILL.md", "orca/COORDINATOR.md"):
+            with self.subTest(rel):
+                original = read(self.root / rel)
+                write(self.root, rel, original + "\n`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`。\n")
+                self.red(check_no_claude_vars)
+                write(self.root, rel, original)
 
-    def test_variable_in_skill_md_is_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "`<O>` 是 `${CLAUDE_PLUGIN_ROOT}/orca`，環境變數 `$HOME` 照寫。先讀")
-        self.clean(check_vars_in_skill_md_only)
+    def test_literal_arguments_var_forbidden(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "參數：$ARGUMENTS。先讀")
+        self.red(check_no_claude_vars)
+
+    def test_standard_shell_env_vars_are_fine(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "可用 `SKILLS_ROOT`、`$HOME`、`${XDG_STATE_HOME:-$HOME/.local/state}`。先讀")
+        self.clean(check_no_claude_vars)
+
+
+class PortableWordingTest(Fixture):
+    def test_ask_user_question_is_forbidden(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀", "用 `AskUserQuestion` 問使用者。先讀")
+        self.red(check_portable_wording)
+
+    def test_hardcoded_claude_model_fields_are_forbidden(self):
+        for snippet in ('model: "opus"', 'model: "sonnet"', "model: 'opus'", "model: sonnet"):
+            with self.subTest(snippet):
+                original = read(self.root / "skills/notes/SKILL.md")
+                sub(self.root, "skills/notes/SKILL.md", "先讀", f"開子代理（{snippet}）。先讀")
+                self.red(check_portable_wording)
+                write(self.root, "skills/notes/SKILL.md", original)
+
+    def test_portable_tier_descriptions_are_fine(self):
+        sub(self.root, "skills/notes/SKILL.md", "先讀",
+            "向使用者提問（有互動提問工具就用它）；開高階推理子代理（如 Opus / Pro 級）與快速子代理（如 Sonnet / Flash 級），傳 `--model <模型>`。先讀")
+        self.clean(check_portable_wording)
 
 
 class ShellPortableTest(Fixture):
@@ -597,7 +753,8 @@ class SectionRefsTest(Fixture):
     def setUp(self):
         super().setUp()
         write(self.root, "orca/COORDINATOR.md", "# 流程\n\n## 2. 開工：先查主分支\n\n## 授權\n")
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "照 COORDINATOR.md〈開工〉和 `<O>/COORDINATOR.md`〈授權〉。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先讀",
+            "\n\n## 1. 準備\n\n## 2. 收尾\n\n照 COORDINATOR.md〈開工〉和 `<O>/COORDINATOR.md`〈授權〉，再看〈準備〉。先讀")
 
     def test_section_that_does_not_exist(self):
         sub(self.root, "skills/notes/SKILL.md", "〈開工〉", "〈開公〉")
@@ -611,11 +768,67 @@ class SectionRefsTest(Fixture):
         sub(self.root, "skills/diff/SKILL.md", "細節見", "照 LOOK.md〈文件頁〉。細節見")
         self.red(check_section_refs)
 
-    def test_numbering_quotes_and_unknown_files_do_not_matter(self):
-        sub(self.root, "orca/COORDINATOR.md", "## 2. 開工", "### 7. 開工")
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "回「照你的判斷」，見〈下面那一節〉和專案的 development.md〈全部檢查〉。先讀")
-        write(self.root, "skills/notes/templates/instructions.md", "照 README.md〈使用者專案才有的節〉。\n")
+    def test_markdown_link_section_ref(self):
+        sub(self.root, "skills/diff/SKILL.md", "[LOOK.md](LOOK.md)", "[LOOK.md](LOOK.md)〈外觀〉")
         self.clean(check_section_refs)
+        sub(self.root, "skills/diff/SKILL.md", "[LOOK.md](LOOK.md)〈外觀〉", "[LOOK.md](LOOK.md)〈不存在〉")
+        self.red(check_section_refs)
+
+    def test_consecutive_section_refs_check_all_sections(self):
+        sub(self.root, "skills/notes/SKILL.md", "COORDINATOR.md〈開工〉", "[COORDINATOR.md](COORDINATOR.md)〈開工〉〈授權〉")
+        self.clean(check_section_refs)
+        sub(self.root, "skills/notes/SKILL.md", "〈開工〉〈授權〉", "〈開工〉〈不存在〉")
+        self.red(check_section_refs)
+        sub(self.root, "skills/notes/SKILL.md", "〈開工〉〈不存在〉", "〈開工〉與〈不存在〉")
+        self.red(check_section_refs)
+
+    def test_bare_same_file_section_refs(self):
+        sub(self.root, "skills/notes/SKILL.md", "再看〈準備〉", "再看〈1. 準備〉〈2. 收尾〉")
+        self.clean(check_section_refs)
+        sub(self.root, "skills/notes/SKILL.md", "〈2. 收尾〉", "〈下面沒有的節〉")
+        self.red(check_section_refs)
+        sub(self.root, "skills/notes/SKILL.md", "〈下面沒有的節〉", "〈9. 收尾〉")
+        self.red(check_section_refs)
+
+    def test_numbering_quotes_and_external_files_do_not_matter(self):
+        sub(self.root, "orca/COORDINATOR.md", "## 2. 開工", "### 7. 開工")
+        sub(self.root, "skills/notes/SKILL.md", "先讀",
+            "回「照你的判斷」，見專案的 `docs/development.md`〈全部檢查〉、`issue-tracker.md` 的〈Conventions〉、"
+            "學習紀錄〈讀者〉〈考試形式〉、roadmap〈M0 骨架〉、指令檔的〈UI〉〈視覺化〉。先讀")
+        write(self.root, "skills/notes/templates/instructions.md", "照 README.md〈使用者專案才有的節〉與〈不存在的裸節〉。\n")
+        self.clean(check_section_refs)
+
+
+class CourseworkTutorContractTest(Fixture):
+    def setUp(self):
+        super().setUp()
+        write(self.root, "skills/coursework/SKILL.md",
+              "---\nname: coursework\ndescription: 作業\ndisable-model-invocation: true\n---\n\n"
+              "每一題包成 `<div class=\"part\" data-part=\"a\">…</div><!--/part-->`，照它的 GUIDE.md〈做法導讀〉寫那一節。\n")
+        write(self.root, "skills/tutor/SKILL.md",
+              "---\nname: tutor\ndescription: 教學。\n---\n\n`<S>` 是本檔同目錄的 `scripts/`。見 [GUIDE.md](GUIDE.md)〈做法導讀〉。\n")
+        write(self.root, "skills/tutor/GUIDE.md", "# 導讀頁\n\n## 做法導讀\n")
+        write(self.root, "skills/tutor/scripts/fill.py", DOUBLE + "填值。" + DOUBLE + "\nimport re\n"
+              'PART = re.compile(r"""<div\\b[^>]*\\bdata-part\\s*=\\s*["\']([^"\']+)["\'][^>]*>(.*?)</div>\\s*<!--/part-->""", re.S | re.I)\n')
+        write(self.root, "skills/tutor/tests/test_fill.py", "")
+        sub(self.root, "README.md", "| [notes](skills/notes/SKILL.md) | 筆記 |\n",
+            "| [coursework](skills/coursework/SKILL.md) | 作業 |\n| [notes](skills/notes/SKILL.md) | 筆記 |\n| [tutor](skills/tutor/SKILL.md) | 教學 |\n")
+        sub(self.root, "README.md", "```\n", "```\npython -m unittest discover -s skills/tutor/tests\n")
+        sub(self.root, ".github/workflows/test.yml", "steps:\n", "steps:\n  - run: python -m unittest discover -s skills/tutor/tests -v\n")
+
+    def test_valid_contract_passes(self):
+        self.clean(check_coursework_tutor_contract)
+
+    def test_missing_or_renamed_guide_section_fails(self):
+        sub(self.root, "skills/tutor/GUIDE.md", "## 做法導讀", "## 作業教學")
+        self.red(check_coursework_tutor_contract)
+        sub(self.root, "skills/tutor/GUIDE.md", "## 作業教學", "## 做法導讀")
+        sub(self.root, "skills/coursework/SKILL.md", "GUIDE.md〈做法導讀〉", "GUIDE.md")
+        self.red(check_coursework_tutor_contract)
+
+    def test_mismatched_data_part_marker_fails(self):
+        sub(self.root, "skills/coursework/SKILL.md", "<!--/part-->", "")
+        self.red(check_coursework_tutor_contract)
 
 
 if __name__ == "__main__":

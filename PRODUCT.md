@@ -24,19 +24,19 @@ web
 
 ## Product Purpose
 
-`1morr` 是一組 Claude Code skills。其中 tutor 把老師的課件做成導讀頁、答案紙、練習頁、模擬卷；導讀頁是讀者學這個 topic 的唯一教材，讀完不用打開課件。dashboard 把 repo 裡固定文件（roadmap、票、決定、CHANGELOG、ADR、session 紀錄）讀成一頁專案總覽，頁面不寫任何東西回 repo。
+`1morr` 是一組跨 harness 共用的 skills。其中 tutor 把老師的課件做成導讀頁、答案紙、練習頁、模擬卷；導讀頁是讀者學這個 topic 的唯一教材，讀完不用打開課件。dashboard 把 repo 裡固定文件（roadmap、票、決定、CHANGELOG、ADR、session 紀錄）讀成一頁專案總覽，頁面不寫任何東西回 repo。
 
 ## Operating Context
 
 - 導讀頁是 `build.py` 組出的單一 HTML 檔，離線打開，圖片內嵌；一份約 23 段、近百張截圖，讀完約 4 小時，會分幾次讀。
-- 讀者卡住時回到對話說「卡在 §15」，所以 § 編號是讀者和 Claude 之間的共同座標。
+- 讀者卡住時回到對話說「卡在 §15」，所以 § 編號是讀者和助教之間的共同座標。
 - dashboard 是 `dashboard.py` 起的本機頁，每 3 秒重讀一次 repo 的文件；也能產成一份不會更新的靜態單檔。一頁可以切換好幾個 repo。
 - dashboard 上的內容讀者不能在頁面上改：要改就回對話或下指令，所以頁面給的是能直接貼的指令和 `檔案:行`。
 
 ## Capabilities and Constraints
 
 - 只用系統字和標準函式庫組頁；頁面不連外部資源。
-- 寫法規則（一句 50 字、先舉例再定義、每個術語一個定義框）由 `build.py` 檢查，不過就不產出。
+- `build.py` 只擋會讓頁面或下游壞掉的結構與資源問題（外部資源、找不到的圖片、斷掉的 § 連結、缺 `data-type` / `data-tab` / 無效 `data-slide`、水平溢出），不過就不產出；教學寫法規則寫在 `SKILL.md` 與 `GUIDE.md`，不由腳本強制。
 - 使用者對現行導讀頁的回饋（2026-11-14）：
   - 不知道自己讀到哪、不像課本、框和截圖太多。
   - 題目欄把講義的東西再寫一次，資訊比講義少、又沒有上下文，反而起反作用。

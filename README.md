@@ -1,25 +1,26 @@
 # skills
 
-給 [Claude Code](https://code.claude.com) 用的 skills，打包成一個 plugin。
+跨 harness（[Claude Code](https://code.claude.com)、Antigravity 等）共用的 skills，打包成 plugin `1morr`。
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
-| [audit](skills/audit/SKILL.md) | `/1morr:audit [要審的 skill、指令檔或路徑]`（只能手動叫用） | 審查 skill 或指令檔（任何 repo，`~/.claude` 底下的也可以），標準是 mattpocock 的 `writing-for-agents`。先列發現，你回答後一步一個 commit 改完；改行為的可以先試跑再決定留不留 |
-| [bake-off](skills/bake-off/SKILL.md) | `/1morr:bake-off [版數] <要做的任務>`（只能手動叫用） | 同一個任務用 [Orca](https://www.onorca.dev) 平行做幾版（也可以加進現成版本），逐版渲染審查後建議用哪一版當基礎；各版讀法不同的地方交給你決定 |
+| [audit](skills/audit/SKILL.md) | `/1morr:audit [要審的 skill、指令檔或路徑]`（只能手動叫用） | 審查 skill 或指令檔（任何 repo，本機設定目錄底下的也可以），標準是 mattpocock 的 `writing-for-agents`。先列發現，你回答後一步一個 commit 改完；改行為的可以先試跑再決定留不留 |
 | [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [剛做完的里程碑，或想問的事]`（只能手動叫用） | 里程碑之間：回顧上一段做了什麼、對不對、遺留什麼，和你對齊下一段的計畫。出一頁臨時回顧頁，定案寫回 repo 原有的文件 |
-| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：先找出題目檔並對課程網站，再用三個沒看過對話的子代理各自只讀老師的原檔（專案指令檔指定了別家模型的 agent 時，用 [Orca](https://www.onorca.dev) 多開一個），和主對話的讀法匿名比對；讀法不同的地方附原文和建議由你決定，再出計畫。成品在主對話做一版，做完由一個只看老師原檔的子代理從頭重算、幾個子代理分角度審查；最後把做法寫進 tutor 的導讀頁，並用一個只拿到那一頁的子代理照著重做來確認教得會 |
+| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：盲讀老師原檔並匿名比對讀法由你拍板（開放式或要多版比較時走 [VARIANTS.md](skills/coursework/VARIANTS.md)），成品做完以盲做與分角度審查驗證，再把做法寫進 tutor 導讀頁確認教得會 |
 | [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：里程碑與票的進度、等你決定的事、決策與變更，可以同時看好幾個 repo；頁面不寫進 repo |
 | [diff](skills/diff/SKILL.md) | 說「給我一頁前後對照的 html」「做 diff 頁」，或由其他 skill 呼叫 | 一頁前後對照的 HTML：文件兩版（docx、PDF、HTML、Markdown、文字）逐字比對，或程式改動實跑前後並附證據；改動標記全部由腳本算 |
 | [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西>`（只能手動叫用） | 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
 | [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭文件、票與閘門的骨架，已有骨架的 repo 逐項對齊最新範本。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement`，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
-| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 用 Orca 為每張票開子 session 解票、代答提問、驗收、合併、等 CI，逐張跑完隊列；可設額度門檻與同時上限 |
+| [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [agent/模型] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 用 Orca `orchestration` 為每張票開 worker 解票、代答、驗收、合併、等 CI，逐張跑完隊列；可選 agent/模型、額度門檻與同時上限 |
 | [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或由 coursework 載入 | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、練習頁、模擬卷、考前速查，之後批改、解答和帶著做。導讀頁上有作業的做法和答案；要交的那一份檔由 coursework 做 |
 
-bake-off、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程、Claude Code TUI 的已知行為和腳本。explain、checkpoint、diff 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），dashboard 的靜態頁、bake-off 要你看的頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
+`ticket-coordinator` 使用 [`orca/`](orca/)：Orca `orchestration` 協調者的共同流程、跨平台與 Claude Code 專屬選項和腳本。`explain`、`checkpoint`、`diff` 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），`dashboard` 的靜態頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 
 ## 安裝
 
-在 Claude Code 裡：
+### Claude Code
+
+透過 marketplace 安裝，叫用為 `/1morr:<skill>`：
 
 ```
 /plugin marketplace add 1morr/skills
@@ -28,21 +29,32 @@ bake-off、ticket-coordinator 共用 [`orca/`](orca/)：協調者的共同流程
 
 plugin 不釘版本，`/plugin update 1morr@1morr-skills` 會更新到最新 commit；也可以在 `/plugin` 的 Marketplaces 分頁打開自動更新。
 
+### Antigravity
+
+從本機路徑安裝，叫用為 `/<skill>`：
+
+```
+agy plugin install /Users/roxy/orca/projects/skills
+```
+
+若安裝到別的路徑、需要手動指定共用目錄（`orca/`、`pages/`），可設環境變數 `SKILLS_ROOT`。
+
 ## 用 Orca 的 skill 要知道的事
 
-bake-off、ticket-coordinator 會用 [Orca](https://www.onorca.dev) 開子 Claude Code session，需要裝好 Orca 和它的 `orca` 指令。coursework 只在專案指令檔指定了別家模型的盲讀者時才用 Orca，沒有 Orca 也能跑。
+`ticket-coordinator` 透過 [Orca](https://www.onorca.dev) 的 `orca orchestration` 啟動與管理 worker（支援 `antigravity`、`claude`、`codex` 等 agent），需要裝好 Orca 和 `orca` 指令。`coursework` 只在專案指令檔指定了別家模型的盲讀者時才用 Orca，沒有 Orca 也能跑。
 
-- **子 session 以免確認模式啟動**（`claude --dangerously-skip-permissions`），這樣才能無人值守；它在自己的 worktree 和分支上工作，合併與 push 由協調者照你開工時給的授權做。要換啟動指令，在啟動協調者的環境設 `CHILD_CLAUDE`，例如 `CHILD_CLAUDE="claude --permission-mode acceptEdits"`。
+- **每個 worker 在自己的 worktree 和分支上工作**，合併與 push 由協調者照你開工時給的授權做。
 - **腳本預設主分支是 `main`、CI workflow 是 `ci.yml`**；協調者會在開工時查出來並帶給腳本。
+- **`orca/scripts/quota.sh` 與 `orca/scripts/headsup.py` 是 Claude Code 專屬的可選輔助**：使用非 Claude Code agent（如 Antigravity、Codex）時會自動跳過。
 
 ### 額度門檻
 
-ticket-coordinator 的額度門檻（例如「5h 80%」）要讀得到目前的用量。Claude Code 只把用量交給狀態列指令，所以要在狀態列指令裡多接一段存檔：
+`ticket-coordinator` 的額度門檻（例如「5h 80%」，僅在使用 Claude Code 時適用）要讀得到目前的用量。Claude Code 只把用量交給狀態列指令，所以要在狀態列指令裡多接一段存檔：
 
 1. 把 [`orca/scripts/save-rate-limits.sh`](orca/scripts/save-rate-limits.sh) 複製到 `~/.claude/`（plugin 的安裝路徑每次更新都會變，不要直接指過去）。
 2. 在 `~/.claude/settings.json` 的 `statusLine.command` 前面接上它：`sh ~/.claude/save-rate-limits.sh | <你原本的狀態列指令>`；沒有狀態列指令就寫 `sh ~/.claude/save-rate-limits.sh >/dev/null`。
 
-它把用量存到 `~/.claude/rate-limits.json`。沒設定時，給了門檻的協調者讀不到用量，會停下來問你；沒給門檻就不受影響。
+它把用量存到 `~/.claude/rate-limits.json`。沒設定時，給了門檻的協調者讀不到用量，會停下來問你；沒給門檻或未使用 Claude Code 就不受影響。
 
 ## 開發
 

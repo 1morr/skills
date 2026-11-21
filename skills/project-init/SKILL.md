@@ -38,7 +38,7 @@ argument-hint: "[專案一句話]"
 
 1. `python3 <S>/scaffold.py <專案目錄> --project <專案名稱> --one-line <專案一句話，句號結尾> --main-branch <預設分支>`。它把範本與閘門寫進專案、填好佔位，每個檔印一行。
 2. 印「已存在」的檔沒有被動過：逐個和那一行最後的範本路徑比對，把專案缺的段落補進去，專案自己的內容照舊。
-3. `AGENTS.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪，刪掉〈UI〉〈視覺化〉時連它指到的 `docs/agents/ui.md`、`docs/agents/visual.md` 一起刪；所有 `<!-- -->` 註解都刪掉，只留寫明「技術棧定了之後」或「M0 的第一張票」要補的。
+3. `AGENTS.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪，刪掉指令檔的〈UI〉〈視覺化〉時連它指到的 `docs/agents/ui.md`、`docs/agents/visual.md` 一起刪；所有 `<!-- -->` 註解都刪掉，只留寫明「技術棧定了之後」或「M0 的第一張票」要補的。
 4. 使用 Claude Code 時，擋路檔照第 2 步的回答處理。
 
 完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md ARCHITECTURE.md CHANGELOG.md` 沒有結果；`scaffold.py` 再跑一次，每一行都是「已存在」；使用 Claude Code 時讀得到 `AGENTS.md`（專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`）。
@@ -55,7 +55,7 @@ argument-hint: "[專案一句話]"
 ## 5. 閘門
 
 1. `git config core.hooksPath .githooks`。
-2. 專案已經有檢查指令（lint、test）：填進 `docs/development.md`〈閘門〉對應的列，加進〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就讓整張表留著「待定」，M0 的第一張票會填，roadmap〈M0 骨架〉已經寫了。
+2. 專案已經有檢查指令（lint、test）：填進 `docs/development.md`〈閘門〉對應的列，加進 `docs/development.md`〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就讓整張表留著「待定」，M0 的第一張票會填，roadmap〈M0 骨架〉已經寫了。
 
 完成條件：下面四條都親自跑過、結果如括號所寫。
 
