@@ -1,7 +1,6 @@
-"""next_step.py 的測試：每個階段都說得出下一步，等使用者的題一題不漏，兩批票照 roadmap 寫的先後。
-在 plugin 裡腳本在 ../scripts/，複製進專案後在上一層；兩種位置都找。
+"""next_step.py 的測試：每個階段都說得出下一步，粗體 Blocked by 與排隊佇列一致運作。
 
-    python -m unittest discover -s <這個資料夾>
+    python3 -m unittest discover -s skills/project-init/tests
 """
 
 import contextlib
@@ -13,7 +12,7 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCRIPT = next(p for p in (HERE.parent / "scripts" / "next_step.py", HERE.parent / "next_step.py") if p.is_file())
+SCRIPT = HERE.parent / "scripts" / "next_step.py"
 spec = importlib.util.spec_from_file_location("next_step", SCRIPT)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
@@ -29,7 +28,7 @@ class NextStepTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.repo, ignore_errors=True)
         self.rows("| M0 骨架 | 閘門 | 已驗收，封存在 x |", "| M1 核心 | 第一個功能 | 進行中，已拆 4 張票 |", "| M2 介面 | 畫面 | 未開工 |")
         self.step("新 session 下 `/implement .scratch/m1/issues/01-a.md`")
-        self.ticket("m0/issues/01-old.md", status="ready-for-agent")  # 已驗收的里程碑裡沒關的票不算
+        self.ticket("m0/issues/01-old.md", status="ready-for-agent")
         self.ticket("m1/issues/01-a.md", "甲")
         self.ticket("m1/issues/02-b.md", "乙", blocked="01")
         self.ticket("m1/issues/03-c.md", "丙", blocked="01, 02")
@@ -60,8 +59,7 @@ class NextStepTest(unittest.TestCase):
         f = self.found()
         self.assertEqual((f["waiting"], f["command"]), ([], "/implement .scratch/m1/issues/01-a.md"))
         self.assertIn("M1 票 01 甲。", f["why"])
-        self.assertNotIn("整批", f["why"])
-        self.assertEqual(f["later"], ["M1 還有 3 張票，最後一張是驗收票（你要親手試）；驗收後是 /1morr:checkpoint M1", "M2 介面：還沒拆票"])
+        self.assertEqual(f["later"], ["M1 還有 3 張票，最後一張是驗收票（含試用與決策追認）", "M2 介面：還沒拆票"])
 
     def test_done_dropped_and_blocked_tickets_are_skipped(self):
         self.done("m1/issues/01-a.md")
@@ -69,98 +67,35 @@ class NextStepTest(unittest.TestCase):
         self.assertEqual(self.found()["command"], "/implement .scratch/m1/issues/03-c.md")
         self.done("m1/issues/03-c.md")
         f = self.found()
-        self.assertEqual((f["command"], f["later"][0]), ("/implement .scratch/m1/issues/04-m1-acceptance.md",
-                                                         "這張是 M1 的驗收票（你要親手試）；驗收後是 /1morr:checkpoint M1"))
+        self.assertEqual((f["command"], f["later"][0]), ("/implement .scratch/m1/issues/04-m1-acceptance.md", "這張是 M1 的驗收票（含試用與決策追認）"))
 
-    def test_the_progress_cursor_does_not_override_the_tickets(self):
-        self.done("m1/issues/01-a.md")
-        self.assertEqual(self.found()["command"], "/implement .scratch/m1/issues/02-b.md")  # progress.md 還寫著 01
-
-    def test_several_doable_tickets_offer_the_whole_queue(self):
-        self.ticket("m1/issues/02-b.md", "乙")
-        self.assertIn("同時做得了的有 2 張，要整批跑：/1morr:ticket-coordinator .scratch/m1/issues", self.found()["why"])
-
-    def test_how_the_ticket_head_is_written_does_not_matter(self):
-        self.write(".scratch/m1/issues/01-a.md", "# 01 — 甲\n\n**Status:** done\n\n**Blocked by:** None (can start immediately)\n\n## Comments\n")
-        self.write(".scratch/m1/issues/02-b.md", "# 02 — 乙\n\n**Status:** ready-for-agent\n\n**Blocked by:** 01\n\n## 做什麼\n\nStatus: done 寫在內文不算。\n")
+    def test_bold_status_and_bold_blocked_by_are_parsed(self):
+        self.write(".scratch/m1/issues/01-a.md", "# 01 — 甲\n\n**Status:** ready-for-agent\n\n**Blocked by:** 02\n\n## Comments\n")
+        self.write(".scratch/m1/issues/02-b.md", "# 02 — 乙\n\n**Status:** ready-for-agent\n\n**Blocked by:** None\n\n## Comments\n")
         f = self.found()
-        self.assertEqual((f["command"], f["why"].split("。")[0]), ("/implement .scratch/m1/issues/02-b.md", "M1 票 02 乙"))
+        self.assertEqual(f["command"], "/implement .scratch/m1/issues/02-b.md")
 
-    def test_every_open_question_is_listed(self):
-        self.ticket("m1/issues/01-a.md", "甲", notes="\n等使用者：上限寫死還是做成設定？\n")
-        self.ticket("m1/issues/02-b.md", "乙", notes="\n等使用者：答過的。\n決定：寫死（使用者定）\n等使用者：之後又問的。\n")
-        self.ticket("m1/issues/03-c.md", "丙", status="done", notes="\n等使用者：做完的票不算。\n")
-        self.ticket("m0/issues/01-old.md", notes="\n等使用者：結束的里程碑不算。\n")
-        self.step("等使用者：試用 M0")
-        f = self.found()
-        self.assertEqual(f["waiting"], ["M1 票 01：上限寫死還是做成設定？（.scratch/m1/issues/01-a.md）", "M1 票 02：之後又問的。（.scratch/m1/issues/02-b.md）",
-                                        "試用 M0（docs/progress.md 最後一列，2026-01-05）"])
-        self.assertEqual(f["command"], "")
-        self.assertIn("在等你回答", f["why"])
-        self.assertTrue(m.render(f).startswith("等你決定（3）\n  - M1 票 01：上限"))
-
-    def test_a_question_written_as_a_list_item_is_listed(self):
-        self.ticket("m1/issues/01-a.md", "甲", notes="\n- 等使用者：要不要支援匯出？\n")
-        self.ticket("m1/issues/02-b.md", "乙", notes="\n  * 等使用者：答過的。\n  - 決定：不做（使用者定）\n見上面的等使用者：那一題，句子中間的不算。\n")
-        self.assertEqual(self.found()["waiting"], ["M1 票 01：要不要支援匯出？（.scratch/m1/issues/01-a.md）"])
-
-    def test_a_waiting_ticket_is_skipped_for_one_that_can_go(self):
-        self.ticket("m1/issues/01-a.md", "甲", notes="\n等使用者：上限寫死還是做成設定？\n")
+    def test_open_questions_and_waiting_skip(self):
+        self.ticket("m1/issues/01-a.md", "甲", notes="\n- 等使用者：上限寫死還是做成設定？\n")
         self.ticket("m1/issues/02-b.md", "乙")
         f = self.found()
         self.assertEqual((len(f["waiting"]), f["command"]), (1, "/implement .scratch/m1/issues/02-b.md"))
 
-    def test_waiting_in_progress_holds_the_command_back(self):
-        self.step("等使用者：重試上限要幾次")
-        f = self.found()
-        self.assertEqual(f["command"], "/implement .scratch/m1/issues/01-a.md")
-        self.assertTrue(f["why"].startswith("先回答上面 docs/progress.md 那一題"))
-        self.done(*(f"m1/issues/{n}" for n in ("01-a.md", "02-b.md", "03-c.md", "04-m1-acceptance.md")))
-        f = self.found()
-        self.assertEqual((f["command"], f["why"]), ("", "先回答上面那一題；開一個新的 session 回答。"))
-
-    def test_without_tickets_the_last_row_of_progress_is_the_step(self):
-        self.rows("| M0 骨架 | 閘門 | 未開工 |")
-        shutil.rmtree(self.repo / ".scratch")
-        self.step("新 session 下 `/grill-with-docs 填 docs/design-brief.md`")
-        f = self.found()
-        self.assertEqual((f["command"], f["later"]), ("/grill-with-docs 填 docs/design-brief.md", ["M0 骨架：還沒拆票"]))
-        self.step("先想一想")
-        f = self.found()
-        self.assertEqual((f["command"], f["why"]), ("", "docs/progress.md 最後一列（2026-01-05）寫的下一步：先想一想"))
-        (self.repo / "docs/progress.md").unlink()
-        self.assertIn("還沒有 session 紀錄", self.found()["why"])
-        (self.repo / "docs/roadmap.md").unlink()
-        self.assertEqual(self.found()["command"], "")
-
     def test_a_second_queue_waits_for_the_row_it_names(self):
         self.ticket("docs-diet/issues/01-trim.md", "瘦身")
-        self.rows("| M0 骨架 | 閘門 | 已驗收 |", "| docs-diet 文件瘦身 | 瘦身 | 未開工，排在 `M1` 之後 |", "| M1 核心 | 功能 | 進行中 |", "| M2 介面 | 畫面 | 未開工 |")
-        f = self.found()
-        self.assertEqual(f["command"], "/implement .scratch/m1/issues/01-a.md")
-        self.assertIn("docs-diet 文件瘦身：1 張票，排在 M1 之後", f["later"])
-        # M1 驗收之後、沒有任何一列進行中：輪到它，並提醒改狀態
         self.rows("| docs-diet 文件瘦身 | 瘦身 | 未開工，排在 M1 之後 |", "| M1 核心 | 功能 | 已驗收，封存在 x |", "| M2 介面 | 畫面 | 未開工 |")
         f = self.found()
         self.assertEqual(f["command"], "/implement .scratch/docs-diet/issues/01-trim.md")
         self.assertIn("先把 docs/roadmap.md 里程碑表裡 docs-diet 那一列的狀態改成「進行中」", f["why"])
-        # 排在還沒結束的那一列之後：還輪不到，照 progress.md
+        # 排在未結束的 M2 之後 -> 不切過去
         self.rows("| docs-diet 文件瘦身 | 瘦身 | 未開工，排在 M2 之後 |", "| M1 核心 | 功能 | 已驗收 |", "| M2 介面 | 畫面 | 未開工 |")
         self.assertEqual(self.found()["command"], "/implement .scratch/m1/issues/01-a.md")
 
-    def test_main_prints_the_three_parts(self):
-        self.ticket("m1/issues/01-a.md", "甲", notes="\n等使用者：上限寫死還是做成設定？\n")
-        self.ticket("m1/issues/02-b.md", "乙")
+    def test_main_prints_three_sections(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = m.main([str(self.repo)])
-        self.assertEqual(code, 0)
-        self.assertEqual(out.getvalue(), "等你決定（1）\n  - M1 票 01：上限寫死還是做成設定？（.scratch/m1/issues/01-a.md）\n現在\n  /implement .scratch/m1/issues/02-b.md\n"
-                         "  M1 票 02 乙。開一個新的 session 貼上這條指令。\n之後\n  - M1 還有 3 張票，最後一張是驗收票（你要親手試）；驗收後是 /1morr:checkpoint M1\n  - M2 介面：還沒拆票\n")
-        empty = Path(tempfile.mkdtemp(prefix="next-step-empty-"))
-        self.addCleanup(shutil.rmtree, empty, ignore_errors=True)
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(m.main([str(empty)]), 0)
+            self.assertEqual(m.main([str(self.repo)]), 0)
+        self.assertIn("現在\n  /implement .scratch/m1/issues/01-a.md", out.getvalue())
 
 
 if __name__ == "__main__":

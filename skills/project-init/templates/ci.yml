@@ -5,16 +5,20 @@ on:
     branches: [{{MAIN_BRANCH}}]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/{{MAIN_BRANCH}}' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: docs
-        run: python scripts/check_docs.py
-      - name: script tests
-        run: python -m unittest discover -s scripts/tests -v
-      # M0 的第一張票：這個技術棧的 lint、typecheck 與 test 加在這裡，和 docs/development.md〈全部檢查〉同一組
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: skeleton check
+        run: uvx --from git+https://github.com/1morr/skills 1morr-skel check
+      # M0 的第一張票：將本技術棧的 format、lint、typecheck 與 test 接在這裡，與 docs/development.md〈全部檢查〉保持同一組

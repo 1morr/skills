@@ -1,75 +1,71 @@
 ---
 name: project-init
-description: 替新專案搭好文件、票與閘門的骨架，或把已有的骨架對齊最新範本
+description: 替新專案搭通用基礎工程護欄與選配本機跑票骨架，零 Python 腳本拷貝
 disable-model-invocation: true
 argument-hint: "[專案一句話]"
 ---
 
-替一個新專案搭**骨架**：指令檔 `AGENTS.md`、brief / 架構 / roadmap / progress / decisions / CHANGELOG 的空殼、票的慣例、文件與 commit message 的檢查（pre-commit、commit-msg 兩個 hook 與 CI）。骨架只定流程和格式；需求、技術選型、架構由之後的 session 填。
+替專案搭兩層解耦的工程骨架：
+- **通用基礎工程層**（預設寫入 12 個檔，相容 GitHub Issues、Linear 等任意 tracker）：`AGENTS.md`、`ARCHITECTURE.md`、`docs/` 基礎文件、`.gitignore`、`.gitattributes`、零 Python 依賴的純 POSIX `.githooks/`（`pre-commit`、`commit-msg`）與 GitHub Actions `ci.yml`。業務 repo 內寫入 0 行 Python 腳本。
+- **選配 `.scratch/` 跑票層**（`--with-scratch`）：額外寫入 `docs/agents/milestone.md`、`ticket-template.md`、`issue-tracker.md`、`triage-labels.md`、`domain.md` 與 `CHANGELOG.md`。狀態檢查、下一步查詢、票面封存與專案總覽頁統一由共用 CLI `1morr-skel`（或本目錄 `scripts/skel.py`）執行。
 
-參數：使用者呼叫本 skill 時附帶的內容。
-
-`<T>` 是本檔同目錄的 `templates/`，`<S>` 是本檔同目錄的 `scripts/`。
+本技能的腳本位於同目錄 `scripts/`，範本位於同目錄 `templates/`。
 
 ## 1. 探查
 
-1. 目前目錄不是 git repo：問使用者要不要 `git init`。查預設分支名。
-2. 已經有 `docs/progress.md`、`ARCHITECTURE.md`、`docs/roadmap.md` 或 `.scratch/`：這是已有骨架的 repo，改讀 [SYNC.md](SYNC.md) 照它做；下面第 2–6 步只做它指到的那幾項。
-3. 已有的 `AGENTS.md`、README、程式碼：讀過，記下專案名稱、技術棧、現有的檢查指令。
-4. 找**擋路檔**（使用 Claude Code 時；其他 harness 原生讀取 `AGENTS.md`）：專案目錄和它上面每一層的 `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`（`~/.claude/CLAUDE.md` 不算）。有任何一個，Claude Code 就只讀它們、不讀 `AGENTS.md`。
-5. `docs/agents/` 在不在：在就是使用者已經跑過 `/setup-matt-pocock-skills`，記下它選的 issue tracker。
+1. 若目前目錄不是 git repo：詢問使用者是否執行 `git init`，並確認預設分支名（如 `main`）。
+2. 檢查既有專案狀態：
+   - 讀已有的 `AGENTS.md`、`README.md` 與設定檔，記下專案名稱、技術棧與現有檢查指令。
+   - **專屬指紋識別**：只有同時或任一存在 `.scratch/`（含 `spec.md` 或 `issues/`）或 `docs/agents/milestone.md` 時，才判定為已啟用 `.scratch/` 跑票層的既有專案（僅有 `ARCHITECTURE.md` 或 `docs/roadmap.md` 的普通專案不算）。既有專案執行 `scaffold.py` 時已存在的檔不會被覆寫，只按需補齊缺漏段落或替換輕量 `.githooks/`，不強制改寫歷史紀錄。
+3. 檢查**外部外掛可用性**：確認目前環境是否已安裝 `mattpocock-skills`（查看可用 skills 清單，或檢查 `~/.claude/plugins/`、`~/.gemini/config/plugins/` 是否存在 `mattpocock-skills`）。**若未安裝，後續寫入任何文件與交付訊息時，一律改用自然語言工作流描述，禁止寫入 `/grill-with-docs`、`/to-tickets`、`/implement` 等外部斜線指令死連結**。
+4. 檢查 `docs/agents/issue-tracker.md` 是否已存在，記下已選定的 issue tracker。
+5. 使用 Claude Code 時，檢查專案目錄與上層目錄是否存在擋住 `AGENTS.md` 的 `CLAUDE.md`、`.claude/CLAUDE.md` 或 `CLAUDE.local.md`（`~/.claude/CLAUDE.md` 除外）。
 
-完成條件：說得出預設分支、有沒有技術棧、`docs/agents/` 在不在，以及（使用 Claude Code 時）每個擋路檔的位置和內容。
+完成條件：明確掌握預設分支、技術棧與現有檢查指令、是否已有 `.scratch/` 專屬指紋、`mattpocock-skills` 是否已安裝，以及（Claude Code 下）擋路檔位置。
 
 ## 2. 問一次
 
-向使用者提問（有互動提問工具就用它，否則在對話列點詢問），一次問完，探查已經知道的不問：
+向使用者一次問齊探查尚未得知的項目（已知的不重複問）：
 
-- 專案一句話（參數沒給時）。
-- 專案裡的擋路檔（使用 Claude Code 時）：只有 `@AGENTS.md` 一行的直接刪，不用問；其餘的問要把內容併進 `AGENTS.md` 後刪掉，還是保留它並在第一行加 `@AGENTS.md`。
-- 專案外（上層目錄）的擋路檔不動（使用 Claude Code 時）。問使用者要在專案根目錄放一個只有 `@AGENTS.md` 一行的 `CLAUDE.md`，還是自己把 `~/.claude/settings.json` 的 `pluginConfigs` → `cc-plugin-agents-md@builtin` → `options.instructionFiles` 設成 `claude-md-and-agents-md`。
-- repo 公開還是私有。
-- 有沒有 UI。
-- 要不要用 `visual-explainer` 把架構草稿、里程碑的計劃、票對程式碼的審查、方案比較做成一頁，讓他在頁上作答。skill 清單裡沒有它時，附上安裝指令：`/plugin marketplace add nicobailon/visual-explainer`、`/plugin install visual-explainer@visual-explainer-marketplace`。
+- 專案一句話定位（呼叫參數未附時）。
+- **Issue tracker 選擇**：使用外部 tracker（GitHub Issues、Linear 等，僅搭通用基礎工程層），或啟用本機 `.scratch/` Markdown 跑票層（`--with-scratch`）。
+- repo 為公開或私有（決定是否保留 `AGENTS.md`〈公開 repo〉段）。
+- 使用 Claude Code 且有擋路檔時：只有 `@AGENTS.md` 的直接刪除；其餘詢問要併入 `AGENTS.md` 後刪除，或在首行加上 `@AGENTS.md`。
 
-完成條件：上面每一項不是探查已經知道，就是有使用者的回答。
+完成條件：上述每項皆有探查依據或使用者明確回覆。
 
 ## 3. 寫骨架
 
-1. `python3 <S>/scaffold.py <專案目錄> --project <專案名稱> --one-line <專案一句話，句號結尾> --main-branch <預設分支>`。它把範本與閘門寫進專案、填好佔位，每個檔印一行。
-2. 印「已存在」的檔沒有被動過：逐個和那一行最後的範本路徑比對，把專案缺的段落補進去，專案自己的內容照舊。
-3. `AGENTS.md` 裡標了「只在…時保留」的段落照第 2 步的回答留或刪，刪掉指令檔的〈UI〉〈視覺化〉時連它指到的 `docs/agents/ui.md`、`docs/agents/visual.md` 一起刪；所有 `<!-- -->` 註解都刪掉，只留寫明「技術棧定了之後」或「M0 的第一張票」要補的。
-4. 使用 Claude Code 時，擋路檔照第 2 步的回答處理。
+1. 依第 2 步的選擇執行 `scripts/scaffold.py`：
+   - **通用基礎工程層**：`python3 scripts/scaffold.py <專案目錄> --project <專案名稱> --one-line <一句話，句號結尾> --main-branch <預設分支>`（若需 `CHANGELOG.md` 加 `--with-changelog`）。
+   - **含選配 `.scratch/` 跑票層**：加上 `--with-scratch`。
+2. 輸出標示 `已存在` 的檔案未被覆寫：比對該行附的 `templates/` 範本路徑，將專案缺漏的必要段落補入，保留專案既有內容。
+3. 清理 `AGENTS.md`、基礎文件：
+   - 依 repo 公開／私有與所選 issue tracker 裁剪條件段落，移除範本引導註解（保留標註待技術棧或 M0 第一張票補齊的提示）。
+   - 若環境**未安裝 `mattpocock-skills`**，將 `AGENTS.md`、`docs/progress.md`、`docs/roadmap.md`（及選配的 `docs/agents/milestone.md`）中的外部斜線指令替換為自然語言步驟（例如將 `` `/grill-with-docs 填 docs/design-brief.md` `` 改為 `` `訪談填寫 docs/design-brief.md` ``）。
+4. 使用 Claude Code 時，依使用者選擇處理擋路檔，確保 `AGENTS.md` 可被載入。
 
-完成條件：專案裡 `grep -rn '{{' docs .github .githooks AGENTS.md ARCHITECTURE.md CHANGELOG.md` 沒有結果；`scaffold.py` 再跑一次，每一行都是「已存在」；使用 Claude Code 時讀得到 `AGENTS.md`（專案裡沒有擋路檔，或擋路檔第一行是 `@AGENTS.md`）。
+完成條件：`grep -rnE '\{\{(PROJECT|ONE_LINE|DATE|MAIN_BRANCH)\}\}' <專案目錄>/docs <專案目錄>/.github <專案目錄>/.githooks <專案目錄>/AGENTS.md <專案目錄>/ARCHITECTURE.md` 無未替換佔位符；未裝 `mattpocock-skills` 時無外部死連結；重跑一次 `scaffold.py` 全部印 `已存在`。
 
-## 4. 票的慣例
+## 4. 閘門
 
-探查時 `docs/agents/issue-tracker.md` 就在的（使用者跑過 `/setup-matt-pocock-skills`），照它選的 tracker：
+1. 在專案目錄執行 `git config core.hooksPath .githooks`。
+2. 若專案已有現成 lint / typecheck / test 指令：填入 `docs/development.md`〈閘門〉與〈全部檢查〉，並同步寫入 `.github/workflows/ci.yml`（幾秒內跑完的快檢查可接進 `.githooks/pre-commit`）。尚未決定技術棧則保留「待定」交由 M0 第一張票補齊。
+3. 實跑驗證所有護欄與狀態檢查：
 
-- local markdown：把它〈Conventions〉底下的清單換成 `<T>/issue-tracker.md` 同一段的清單，其餘不動。
-- GitHub 或別的 tracker：停下來告訴使用者，這套流程和 `ticket-coordinator` 只讀 `.scratch/` 裡的票，問他要改用 local markdown 還是到此為止。
-
-完成條件：`docs/agents/issue-tracker.md` 寫著 `.scratch/<milestone>/issues/`、驗收票和 `Status: done`。
-
-## 5. 閘門
-
-1. `git config core.hooksPath .githooks`。
-2. 專案已經有檢查指令（lint、test）：填進 `docs/development.md`〈閘門〉對應的列，加進 `docs/development.md`〈全部檢查〉和 `ci.yml`，幾秒內跑得完的也接進 `.githooks/pre-commit`。還沒有技術棧就讓整張表留著「待定」，M0 的第一張票會填，roadmap〈M0 骨架〉已經寫了。
-
-完成條件：下面四條都親自跑過、結果如括號所寫。
-
-```
-python3 scripts/check_docs.py                                  # exit 0
-python3 -m unittest discover -s scripts/tests                  # OK
-python3 scripts/check_commit_msg.py --subject "Add stuff"      # exit 1
+```sh
 sh .githooks/pre-commit                                        # exit 0
+python3 scripts/skel.py check <專案目錄>                        # exit 0
 ```
 
-## 6. 交付
+並以暫存訊息檔測試 `.githooks/commit-msg`：驗證 `"Add stuff"` 被攔截（`exit 1`），`"docs: init skeleton"`、`Merge branch 'x'` 與 `Revert "docs: init"` 均放行（`exit 0`）。
 
-1. commit：`docs: scaffold agent workflow, brief and architecture skeletons`（這一筆會經過剛裝的 commit-msg hook）。push 前先問。
-2. 告訴使用者建了哪些檔，以及之後隨時可以跑 `python3 scripts/next_step.py` 看下一步。現在就跑一次，把它印的訪談指令放進 code block 給使用者，後面接上「：<專案一句話>。<使用者在這次對話提過的平台、限制、參考產品>」，`<…>` 換成實際內容。
-3. 告訴使用者：之後要用額度門檻跑整批票，先照本檔往上兩層的 `README.md`〈額度門檻〉設定一次。
+完成條件：`core.hooksPath` 設為 `.githooks`，`pre-commit`、`commit-msg` 與 `scripts/skel.py check` 實測結果全數符合預期。
 
-完成條件：commit 在預設分支上；`next_step.py` 印的訪談指令給了使用者，後面接的 `<…>` 都換成了實際內容；對話裡提了額度門檻的設定在哪。
+## 5. 交付
+
+1. 在專案目錄 commit：`docs: scaffold project engineering guardrails`（通過剛啟用的 `pre-commit` 與 `commit-msg` hooks）；push 前先詢問使用者。
+2. 執行 `python3 scripts/skel.py next <專案目錄>`，將下一步指令（替換實際專案一句話與背景限制）放進 code block 交給使用者。
+3. 告知使用者已建立的檔案清單，以及後續可透過 `1morr-skel check|next|notes|dashboard`（或 `python3 <本目錄>/scripts/skel.py ...`）檢查狀態、查詢佇列與開啟專案總覽頁（`1morr-skel dashboard <專案目錄> --serve`）。
+
+完成條件：預設分支完成 commit、`git status` 乾淨，且對話已附上立即可用的下一步指令與 `1morr-skel` 用法。

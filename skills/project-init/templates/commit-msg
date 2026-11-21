@@ -1,6 +1,8 @@
 #!/bin/sh
-# commit message 規則見 docs/development.md〈Commit message〉。
-for py in python3 python; do
-  "$py" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1 && exec "$py" scripts/check_commit_msg.py "$1"
-done
-echo "commit-msg: 找不到 Python 3，沒檢查 commit message" >&2
+git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 && exit 0
+subj=$(sed -n -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' -e 's/[[:space:]]*$//' -e 'p' -e 'q' "$1")
+case "$subj" in "Merge "*|'Revert "'*) exit 0 ;; esac
+[ $(printf '%s' "$subj" | wc -m) -le 72 ] || { echo "commit-msg: subject > 72 chars" >&2; exit 1; }
+printf '%s\n' "$subj" | LC_ALL=C grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: [^A-Z[:space:]]' && [ "${subj%.}" = "$subj" ] && exit 0
+echo "commit-msg: invalid Conventional Commits subject: $subj" >&2
+exit 1

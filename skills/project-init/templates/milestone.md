@@ -1,49 +1,50 @@
-# 里程碑：規劃、開工與驗收
+# 里程碑：規劃、開工、交接與驗收
 
-寫架構的 session、里程碑開工的 session、做驗收票的 session 照這份做。其餘的票照 `AGENTS.md`〈每個 session 的流程〉。
+寫架構的 session、里程碑開工的 session、做驗收票的 session 照這份做。一般票的欄位與紀錄語法見 `docs/agents/ticket-template.md`。
 
 ## 寫架構與 roadmap
 
-在 brief 訪談之後、第一個里程碑開工之前，一個 session 做完。這個 session 不寫 spec、不拆票。
+在 brief 訪談之後、第一個里程碑開工之前，一個 session 做完（不寫 spec、不拆票）：
 
-1. 讀 brief 全文。〈待決〉裡會影響架構或順序的，先問使用者定下來。
-2. 寫 `ARCHITECTURE.md` 各節，照它檔頭的寫法；技術選型先查成熟產品與套件的現況，在那一節寫明採用了誰的做法；難回頭、不看脈絡會覺得奇怪、而且真的有取捨的選型另寫一篇 ADR。
-3. 寫 `docs/roadmap.md`：里程碑表，每個里程碑一小節（目標、範圍要點、驗收的方向）。M0 是 tracer bullet；有 UI 的專案把設計稿排成一個只產出文件的階段，在表裡佔一列（`AGENTS.md`〈UI〉）。
-4. 每節的草稿先給使用者看，確認後才寫入（`AGENTS.md`〈使用者確認〉）；定下的每個選擇在 `docs/decisions.md` 記一條。`AGENTS.md` 有〈視覺化〉時，架構的草稿照它畫成一頁。
+1. 讀 brief 全文；〈待決〉裡影響架構或順序的題目先問使用者拍板。
+2. 寫 `ARCHITECTURE.md` 各節；技術選型先查成熟產品與套件現況，有重大取捨的另寫 ADR。
+3. 寫 `docs/roadmap.md`：里程碑表與各里程碑小節（M0 為端到端 tracer bullet）。
+4. 草稿經使用者確認後寫入，每個決定在 `docs/decisions.md` 記一條。
 
-完成條件：brief 的每個功能都落在某個里程碑或 roadmap〈不排里程碑〉；`python3 scripts/check_docs.py` 通過；progress.md 加了一列，「下一步」是 `/to-tickets docs/roadmap.md 拆 M0 的票`。
+完成條件：brief 每個功能皆有歸屬；`1morr-skel check` 通過；`docs/progress.md` 加一列，「下一步」是 `/to-tickets docs/roadmap.md 拆 M0 的票`。
 
 ## 開工
 
-入口是使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`。依序做完四步，第 4 步 commit 後才算完成：
+入口是在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`。依序完成四步並 commit：
 
-1. **spec**：把 roadmap 裡它的那一節，依最新的 brief、架構與上一個里程碑的結果細化成 `.scratch/<里程碑>/spec.md`，段落是〈目標〉〈範圍〉〈共同規則〉〈驗收〉〈票序〉。`AGENTS.md` 有〈視覺化〉、而且這個里程碑要改的程式碼已經存在時，動筆前先照它出一頁計劃，使用者在頁上作答、貼回來之後才寫。roadmap 那一節縮成一行連結，里程碑表的狀態改成「進行中」；別的列還有票沒做完時，問使用者哪一批先做，另一批的狀態寫明排在誰之後（roadmap 檔頭）。文件不足以寫出 spec 時，問使用者並補進文件。
-   - 〈驗收〉分兩組，各用 `###` 標題：**Agent 驗**是測試、指令輸出、截圖對得到的；**使用者試**是使用者親手用才知道的（手感、聲音、真實帳號、實機），每條寫明怎麼啟動、試什麼。沒有就寫「無」和理由。
-2. **票**：照 `/to-tickets` 提出切法，使用者同意後寫票，每張票照 `docs/agents/ticket-template.md` 寫明 `讀: architecture〈節名〉；brief §y` 與驗收條件。最後一張固定是驗收票 `NN-<里程碑>-acceptance`，被其他所有票擋。
-3. **對程式碼**（要改的程式碼已經存在時；還沒有程式碼的里程碑略過）：拿 spec 和每張票對現在的程式碼，找出已經不成立的前提。票上講到現有程式碼的每一樣（路徑、函式、型別、列舉值、資料表欄位、設定、數字、「現在怎麼運作」的描述）逐一查：在不在、現在的行為和票假設的一不一樣、這個改動還會牽動哪些票沒提到的地方（呼叫端、登記表、斷言舊行為的測試）。票多就分給子代理，只回報對不上的，每條附票的原句和程式碼的 `檔案:行`；要拿給使用者的那幾條，你先自己開程式碼核對。每條附修法給使用者接受或拒絕：`AGENTS.md` 有〈視覺化〉時照它做成一頁，否則在對話裡一題一行。接受的改進 spec 和票，各記一條決定；修法會改掉 brief、架構或 ADR 已經寫定的事時，連同那一條原文一起給使用者看。
-4. **收尾**：票序寫回 spec〈票序〉，progress.md 加一列 session 紀錄，「下一步」寫第一張票的指令。
+1. **spec**：將 `docs/roadmap.md` 對應小節細化為 `.scratch/<里程碑>/spec.md`，包含〈目標〉〈範圍〉〈共同規則〉〈驗收〉（分 `### Agent 驗` 與 `### 使用者試`）〈票序〉；roadmap 原小節縮成連結，狀態改為「進行中」（若有另一批未完票，標明 `排在 <誰> 之後`）。
+2. **票**：經使用者同意切法後，照 `docs/agents/ticket-template.md` 建立 `.scratch/<里程碑>/issues/NN-slug.md`；最後一張固定為驗收票 `NN-<里程碑>-acceptance.md`，被其他所有票擋。
+3. **對程式碼**（已有程式碼時必做）：逐一核對 spec 與每張票提到的路徑、函式、型別與現況假設，不符處附 `檔案:行` 與修法請使用者確認後更新。
+4. **收尾**：填妥 spec〈票序〉，`docs/progress.md` 加一列，「下一步」寫第一張票的指令。
 
-完成條件：spec 的五段都有內容；票上講到現有程式碼的每一樣都查過，對不上的每一條使用者都接受或拒絕了（還沒有程式碼的里程碑寫明略過）；`python3 scripts/check_docs.py` 通過；progress.md 最後一列的「下一步」是第一張票的指令。
+完成條件：spec 五段齊備、既有程式碼假設皆已核對、`1morr-skel check` 通過、`docs/progress.md` 最後一列指向第一張票。
+
+## 平行分支撞號與所有 session 的結尾
+
+- **遞增編號撞號處理**：事實編號、ADR 編號、資料庫 migration 等全專案遞增號，平行票在分支上先取當時下一號；合併到主分支若撞號，由合併者把後合併的那張改為下一個空號並同步更新引用處。
+- **合併職責**：單張手動 session 做完後在主分支執行 `git merge --no-ff <票分支>`（訊息 `merge: ticket NN <slug>`）；協調者（`/1morr:ticket-coordinator`）派發的 worker 只在票分支 commit，合併留給協調者。
+- **Session 結尾交接**：
+  1. 非做票 session 在 `docs/progress.md` 加一列，「下一步」寫下一個 session 的完整指令（或 `等使用者：<題目>`）。
+  2. commit 後執行 `1morr-skel next`，將待決問題與下一條指令交給使用者。
 
 ## 驗收票
 
-依序做，前一步成立才做下一步：
+依序執行，前一步成立才往下：
 
-1. 從里程碑開工的 commit 起跑 `mattpocock-skills:code-review`。
-2. 用 `git log --first-parent` 核對這一段的主線（排除不屬於本里程碑的並行合併）與計畫偏差（spec 有但沒做的、做了計畫外的、推翻計畫卻沒記決定的）；查證現況附 `檔案:行`，發現設計文件／ADR 與程式不符時單列「文件與程式對不上」問修哪邊，不自行挑一邊當真。spec〈驗收〉的 Agent 驗逐條對到證據；在乾淨的 checkout 跑全部檢查。
-3. 各票 Comments 沒處理的發現逐條歸位：修掉、延後（寫進 roadmap 接手的那個里程碑的小節，沒人接的進〈不排里程碑〉）或不做。
-4. **使用者試與追認**：把啟動方式、spec 的使用者試清單，連同本段所有 `（Agent 定）` 決策、未接手遺留（標「沒人接」的項目）與計畫偏差／文件對不上的題目一併攤出來請使用者追認，progress.md 的「下一步」寫 `等使用者：試用 <里程碑>`，結束 session。使用者回覆後在新 session 接著做這張票：
-   - 不滿意的項目各開一張修復票（`NNb-<slug>`，排在驗收票之前），修完再請使用者試。
-   - 使用者追認或改定的決定、遺留歸屬與偏差補記，寫回對應文件（spec、票、brief、ADR、roadmap 或 `docs/decisions.md`）並標決定者。
-   - 使用者要 agent 代測：照做，並在 `docs/decisions.md` 記一條（使用者定），寫明哪幾項沒有人親手試過。
-   - 使用者說可以了才往下。
-5. **封存**：建 `docs/archive/<里程碑>.md`，三段：
-   - `## Session 紀錄`：progress.md 裡這個里程碑的整張表連表頭搬過來，後面接 `python3 scripts/ticket_notes.py <里程碑的目錄名> --archive` 印的列。
-   - `## 決定`：`docs/decisions.md` 裡標著這個里程碑的條目搬過來，後面接同一個指令印的條目。
-   - `## 使用者試`：spec 的使用者試清單逐項寫結果；代測的寫誰測、哪幾項沒有人親手試過。
+1. 從里程碑開工 commit 起執行 `mattpocock-skills:code-review`。
+2. 用 `git log --first-parent` 核對主線變更與計畫偏差；查證現況必附 `檔案:行`，若發現設計文件／ADR 與程式不符，單列「文件與程式對不上」問使用者修哪邊。逐條核實 `### Agent 驗` 並在乾淨環境跑過 `docs/development.md`〈全部檢查〉。
+3. 將各票 `## Comments` 未處理發現逐條歸位（修掉、寫入後續里程碑或〈不排里程碑〉）。
+4. **使用者試與追認**：攤出啟動方式、`### 使用者試` 清單、本段所有 `（Agent 定）` 決策（跑 `1morr-skel notes <里程碑>` 檢視）、未接手遺留與偏差題目請使用者追認，`docs/progress.md`「下一步」寫 `等使用者：試用 <里程碑>` 後結束 session。使用者回覆後：
+   - 不滿意處開修復票（`NNb-<slug>`）修完重試；
+   - 追認或改定的決策寫回對應文件並標決定者；代測項目記明誰測與哪幾項未經親手試用。
+5. **封存**：
+   - 執行 `1morr-skel notes --archive <里程碑> --user-trial "<試用結果逐項紀錄>"`，自動將 `docs/progress.md`、`docs/decisions.md` 與各票紀錄無損彙整寫出至 `docs/archive/<里程碑>.md`，並清理原檔已封存列。
+   - 若有 `CHANGELOG.md`，將 `1morr-skel notes --changelog <里程碑>` 輸出的條目併入 `## [Unreleased]`（先問使用者是否發版）。
+   - 同一個 commit 將 `docs/roadmap.md` 狀態改為「已驗收，封存在 `docs/archive/<里程碑>.md`」，並在 `docs/progress.md` 加一列指向下一階段（`/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`）。
 
-   `python3 scripts/ticket_notes.py <里程碑的目錄名> --changelog` 印的條目併進 `CHANGELOG.md` 的 `## [Unreleased]`，同一個分類的接在一起；同一個功能在這個里程碑裡先 Added 又 Changed 的，併成一條 Added。要不要發版先問使用者。
-
-   票檔留在 `.scratch/` 不動。commit 之前跑 `python3 scripts/docs_moved_lines.py HEAD docs/progress.md docs/decisions.md -- docs/archive/<里程碑>.md`。同一個 commit 把 `docs/roadmap.md` 里程碑表的狀態改成「已驗收，封存在 `docs/archive/<里程碑>.md`」，progress.md 加一列，「下一步」寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`。
-
-完成條件：spec〈驗收〉每一條都有證據或使用者的回覆；本段所有 `（Agent 定）` 決策、計畫偏差與每個發現都經追認寫回或歸了位；`docs_moved_lines.py` 印「遺失 0」；`ticket_notes.py --archive` 印的每一行都在封存檔裡，`--changelog` 印的每個功能都在 `CHANGELOG.md`；progress.md 與 decisions.md 只剩下一個里程碑的。
+完成條件：spec〈驗收〉每條皆有證據或回覆；所有 `（Agent 定）` 決策與發現皆已追認歸位；`docs/archive/<里程碑>.md` 完整產出且 `1morr-skel check` 通過。

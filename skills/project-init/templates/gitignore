@@ -1,0 +1,29 @@
+# 環境變數與憑證（保留 .env.example 進版控）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 作業系統與編輯器雜訊
+.DS_Store
+Thumbs.db
+*.swp
+
+# 常見語言執行期、虛擬環境與建置快取
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+dist/
+build/
+coverage/
+
+# 若本專案不將 .scratch/ 本機跑票檔納入版控，可取消下行註解：
+# .scratch/
