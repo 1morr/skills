@@ -1,95 +1,61 @@
-"""印出一個里程碑各張票留在 `## Comments` 之後的紀錄：`Session 紀錄：`、`決定：`、`變更：`，以及還沒回答的 `等使用者：`。票是這些紀錄唯一的來源。
+"""印出與封存一個里程碑各張票留在 `## Comments` 之後的紀錄（共用 skeleton_parser）。
 
-    python ticket_notes.py <里程碑的目錄名，例如 m0> [repo 根目錄，預設目前目錄]
-    python ticket_notes.py <里程碑的目錄名> [repo 根目錄] --archive
-    python ticket_notes.py <里程碑的目錄名> [repo 根目錄] --changelog
+    python3 ticket_notes.py <里程碑目錄名，如 m0> [repo 根目錄]
+    python3 ticket_notes.py --archive <里程碑目錄名> [repo 根目錄] [-o <輸出檔>] [--user-trial <文字>] [--stdout]
+    python3 ticket_notes.py --changelog <里程碑目錄名> [repo 根目錄]
 
-四種行寫成清單（`- 決定：…`）或縮排的也認。
-不加參數：每張留了紀錄的票一段，第一行 `<里程碑> <票號> <標題>（<日期>）`，底下每條紀錄縮排兩格。做票前用它看先前的票定過什麼。
-  還沒回答的 `等使用者：<題目>`（它後面沒有 `決定：` 行）也印，`--archive`、`--changelog` 不印。
-`--archive`：里程碑封存時用，印兩段照貼進 `docs/archive/<里程碑>.md`：
-  `## Session 紀錄` 底下是表格的列 `| <日期> | <里程碑> <票號> | <做了什麼> | |`，接在搬過去的那張表後面；
-  `## 決定` 底下是 `- <日期> <里程碑> 票 <票號>（<決定者>）：<決定>`。
-`--changelog`：里程碑驗收時用，印要併進 `CHANGELOG.md`〈[Unreleased]〉的條目：依 Keep a Changelog 的分類分段
-  （`### Added` …），每條 `- **<功能>**：<一句>`，來自票上的 `變更：<分類>｜<功能>｜<一句>`；`變更：無` 與格式不對的行不印。
-日期取 `Session 紀錄：<YYYY-MM-DD> …` 開頭的那一個，同一張票的決定用同一天；沒寫日期的舊票用票檔最後一次 commit 的日期，
-不在 git 裡就用檔案的修改日期。里程碑寫成目錄名大寫（`m1.5` → `M1.5`），不是里程碑的工作照目錄名。依日期、票號排序。
-找不到 `.scratch/<目錄名>/issues/` exit 1。只用標準函式庫。
+`--archive` 預設直接把 `docs/progress.md`、`docs/decisions.md` 裡屬於該里程碑（及首個封存時的「框架」）的紀錄連同票面紀錄彙整寫出至
+`docs/archive/<M>.md`（並從原檔移走已封存的列），取代手動剪貼；加 `--stdout` 則只印出封存區塊不改檔。
+只用標準函式庫。
 """
 
-import datetime
+from __future__ import annotations
+
+import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
-SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
-CHANGE_NOTE = "變更："
-WAITING = "等使用者："
-KINDS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
-CHANGE = re.compile(r"^變更：(%s)｜([^｜]+)｜(.+)$" % "|".join(KINDS))
-COMMENTS = "## Comments"
-ITEM = re.compile(r"^\s*(?:[-*+]\s+)?")
-DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
-DECIDER = re.compile("（(使用者定|使用者同意|Agent 定)）")
-MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$", re.I)
-NUMBER = re.compile(r"^(\d+[a-z]?)-")
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 
+import skeleton_parser as sp  # noqa: E402
 
-def label_of(name: str) -> str:
-    return name.upper() if MILESTONE_DIR.match(name) else name
-
-
-def committed_on(path: Path) -> str:
-    """票檔最後一次 commit 的日期；不在 git 裡就是檔案的修改日期。"""
-    try:
-        r = subprocess.run(["git", "-C", str(path.parent), "log", "-1", "--format=%as", "--", path.name],
-                           capture_output=True, text=True, timeout=10)
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
+SESSION_NOTE = sp.SESSION_NOTE
+DECISION_NOTE = sp.DECISION_NOTE
+CHANGE_NOTE = sp.CHANGE_NOTE
+WAITING = sp.WAITING
+KINDS = sp.KINDS
+label_of = sp.label_of
 
 
 def ticket_notes(path: Path) -> dict:
-    """一張票的紀錄：{number, title, date, sessions: [一句], decisions: [(一句, 決定者)], changes: [(分類, 功能, 一句)], waiting: [還沒回答的題目]}。
-    只讀 `## Comments` 之後的行。"""
-    text = path.read_text(encoding="utf-8")
-    title = next((l.lstrip("# ").strip() for l in text.split("\n") if l.startswith("# ")), path.stem)
-    number = NUMBER.match(path.name)
-    out = {"number": number.group(1) if number else path.stem, "title": re.sub(r"^\S+[:：]\s*", "", title), "date": "",
-           "sessions": [], "decisions": [], "changes": [], "waiting": []}
-    for line in text.split("\n" + COMMENTS, 1)[1].split("\n") if "\n" + COMMENTS in text else []:
-        line = ITEM.sub("", line)  # 寫成清單（`- 決定：…`）或縮排的也認
-        if line.startswith(SESSION_NOTE):
-            rest = line[len(SESSION_NOTE):].strip()
-            dated = DATE.match(rest)
-            if dated:
-                out["date"], rest = out["date"] or dated.group(1), dated.group(2)
-            out["sessions"].append(rest)
-        elif line.startswith(DECISION_NOTE):
-            rest = line[len(DECISION_NOTE):].strip()
-            decider = DECIDER.search(rest)
-            out["decisions"].append((DECIDER.sub("", rest).strip(), decider.group(1) if decider else ""))
-            out["waiting"] = []  # 回答寫成一行「決定：」，它前面的題就算答了
-        elif line.startswith(WAITING) and line[len(WAITING):].strip():
-            out["waiting"].append(line[len(WAITING):].strip())
-        elif CHANGE.match(line.strip()):
-            out["changes"].append(tuple(part.strip() for part in CHANGE.match(line.strip()).groups()))
-    if not out["date"] and (out["sessions"] or out["decisions"] or out["waiting"]):
-        out["date"] = committed_on(path)
-    return out
+    t = sp.parse_ticket(path, git_date_fallback=True)
+    return {
+        "number": t["number"],
+        "title": t["bare_title"],
+        "date": t["date"],
+        "sessions": t["sessions"],
+        "decisions": [(said, "" if decider == sp.UNMARKED else decider) for said, decider, _ in t["decisions"]],
+        "changes": t["changes"],
+        "waiting": t["open_questions_even_if_closed"],
+    }
 
 
 def notes(root: Path, name: str) -> list:
-    """里程碑裡留了紀錄的票，依日期、票號排序。"""
-    found = [ticket_notes(p) for p in sorted((root / ".scratch" / name / "issues").glob("*.md"))]
-    return sorted((t for t in found if t["sessions"] or t["decisions"] or t["changes"] or t["waiting"]), key=lambda t: (t["date"], t["number"]))
+    issues = root / sp.SCRATCH_DIR / name / "issues"
+    if not issues.is_dir():
+        return []
+    found = [ticket_notes(p) for p in sorted(issues.glob("*.md"))]
+    return sorted(
+        (t for t in found if t["sessions"] or t["decisions"] or t["changes"] or t["waiting"]),
+        key=lambda t: (t["date"], t["number"]),
+    )
 
 
 def archive(root: Path, name: str) -> tuple:
-    """(session 表的列, 〈決定〉的條目)，照貼進封存檔。"""
+    """回傳 (票面 session 表格列, 票面〈決定〉條目)。"""
     label, rows, decided = label_of(name), [], []
     for t in notes(root, name):
         for said in t["sessions"]:
@@ -99,8 +65,122 @@ def archive(root: Path, name: str) -> tuple:
     return rows, decided
 
 
+def _belongs_to_milestone(tag: str, label: str, include_framework: bool) -> bool:
+    clean = sp.plain(tag)
+    if not clean:
+        return False
+    first = re.split(r"[\s（(]", clean)[0]
+    if first.lower() == label.lower():
+        return True
+    if include_framework and first == "框架":
+        return True
+    return False
+
+
+def write_archive(root: Path, name: str, output: Path | None = None, user_trial: str = "", stdout_only: bool = False) -> tuple:
+    """彙整 progress.md、decisions.md 與票面紀錄，產生 docs/archive/<Label>.md（stdout_only=True 時不寫檔）。"""
+    label = label_of(name)
+    archive_dir = root / "docs" / "archive"
+    target = output or (archive_dir / f"{label}.md")
+    existing_archives = [p for p in archive_dir.glob("*.md") if p.resolve() != target.resolve()] if archive_dir.is_dir() else []
+    include_framework = len(existing_archives) == 0
+
+    ticket_rows, ticket_decisions = archive(root, name)
+    if stdout_only and not (root / sp.PROGRESS_REL).is_file() and not (root / sp.DECISIONS_REL).is_file():
+        text = "\n".join([f"## {sp.SESSIONS_HEADING}", *ticket_rows, "", f"## {sp.ARCHIVED_DECISIONS_HEADING}", *ticket_decisions])
+        return target, text
+
+    # 1. 擷取並過濾 docs/progress.md
+    table_header = ["| 日期 | 票 | 結果 | 下一步 |", "| --- | --- | --- | --- |"]
+    moved_rows = []
+    progress_path = root / sp.PROGRESS_REL
+    new_progress_text = None
+    if progress_path.is_file():
+        prog_text = sp.read_text(progress_path)
+        secs = sp.numbered_sections(prog_text)
+        rows = sp.table_rows(secs.get(sp.SESSIONS_HEADING, []), unescape_pipe=False)
+        if len(rows) >= 2:
+            head = rows[0][1]
+            ticket_col = head.index("票") if "票" in head else 1
+            table_header = [
+                "| " + " | ".join(head) + " |",
+                "| " + " | ".join("---" for _ in head) + " |",
+            ]
+            remove_line_nos = set()
+            for line_no, cells in rows[1:]:
+                if sp.is_separator_row("|" + "|".join(cells) + "|"):
+                    continue
+                tag = cells[ticket_col] if len(cells) > ticket_col else ""
+                if _belongs_to_milestone(tag, label, include_framework):
+                    moved_rows.append("| " + " | ".join(cells) + " |")
+                    remove_line_nos.add(line_no)
+            if remove_line_nos:
+                kept_lines = [l for i, l in enumerate(prog_text.split("\n"), 1) if i not in remove_line_nos]
+                new_progress_text = "\n".join(kept_lines)
+
+    # 避免已存在於 progress.md 的票重複列入
+    existing_tickets = set()
+    for r in moved_rows:
+        parts = sp.split_cells(r)
+        if len(parts) >= 2:
+            existing_tickets.add(sp.plain(parts[1]).upper())
+    dedup_ticket_rows = []
+    for r in ticket_rows:
+        parts = sp.split_cells(r)
+        if len(parts) < 2 or sp.plain(parts[1]).upper() not in existing_tickets:
+            dedup_ticket_rows.append(r)
+
+    # 2. 擷取並過濾 docs/decisions.md
+    moved_decisions = []
+    decisions_path = root / sp.DECISIONS_REL
+    new_decisions_text = None
+    if decisions_path.is_file():
+        dec_text = sp.read_text(decisions_path)
+        secs = sp.numbered_sections(dec_text)
+        remove_dec_nos = set()
+        for line_no, line in secs.get(sp.DECISIONS_HEADING, []):
+            m = re.match(r"^- \d{4}-\d{2}-\d{2}\s+(.*)$", line)
+            if not m:
+                continue
+            head_part = m.group(1).partition("：")[0]
+            if _belongs_to_milestone(sp.strip_decider(head_part), label, include_framework):
+                moved_decisions.append(line)
+                remove_dec_nos.add(line_no)
+        if remove_dec_nos:
+            kept_lines = [l for i, l in enumerate(dec_text.split("\n"), 1) if i not in remove_dec_nos]
+            new_decisions_text = "\n".join(kept_lines)
+
+    # 3. 決定〈使用者試〉內容
+    trial_body = user_trial.strip()
+    if not trial_body and target.is_file():
+        old_secs = sp.sections(sp.read_text(target))
+        existing_trial = "\n".join(old_secs.get(sp.USER_TRIAL_HEADING, [])).strip()
+        if existing_trial:
+            trial_body = existing_trial
+    if not trial_body:
+        trial_body = "- 待填寫試用結果。"
+
+    session_block = "\n".join(table_header + moved_rows + dedup_ticket_rows)
+    decision_block = "\n".join(moved_decisions + ticket_decisions)
+    blocks = [
+        f"# {label} 封存",
+        f"## {sp.SESSIONS_HEADING}\n\n{session_block}",
+        f"## {sp.ARCHIVED_DECISIONS_HEADING}" + (f"\n\n{decision_block}" if decision_block else ""),
+        f"## {sp.USER_TRIAL_HEADING}\n\n{trial_body}",
+    ]
+    archive_content = "\n\n".join(blocks) + "\n"
+
+    if not stdout_only:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(archive_content, encoding="utf-8")
+        if new_progress_text is not None:
+            progress_path.write_text(new_progress_text, encoding="utf-8")
+        if new_decisions_text is not None:
+            decisions_path.write_text(new_decisions_text, encoding="utf-8")
+    return target, archive_content
+
+
 def changelog(root: Path, name: str) -> list:
-    """要併進 CHANGELOG.md〈[Unreleased]〉的行：有條目的分類各一段，段與段之間空一行。"""
     found = [change for t in notes(root, name) for change in t["changes"]]
     out = []
     for kind in KINDS:
@@ -110,26 +190,48 @@ def changelog(root: Path, name: str) -> list:
     return out
 
 
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog, description="查詢或封存里程碑各張票的 Comments 紀錄")
+    parser.add_argument("milestone", help="里程碑目錄名（例如 m0）")
+    parser.add_argument("repo", nargs="?", type=Path, default=Path.cwd(), help="repo 根目錄（預設目前目錄）")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--archive", action="store_true", help="彙整票面與進度／決策紀錄至 docs/archive/<M>.md")
+    group.add_argument("--changelog", action="store_true", help="印出要併入 CHANGELOG.md [Unreleased] 的條目")
+    parser.add_argument("-o", "--output", type=Path, help="封存輸出路徑（預設 docs/archive/<M>.md）")
+    parser.add_argument("--user-trial", default="", help="封存檔〈使用者試〉段落內容")
+    parser.add_argument("--stdout", action="store_true", help="搭配 --archive 時只印出內容、不寫入檔案")
+    return parser
+
+
 def main(argv) -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
-    flags = [a for a in argv if a.startswith("--")]
-    args = [a for a in argv if not a.startswith("--")]
-    if not 1 <= len(args) <= 2 or len(flags) > 1 or any(f not in ("--archive", "--changelog") for f in flags):
-        print(__doc__.split("\n\n")[1], file=sys.stderr)
-        return 2
-    name, root = args[0], Path(args[1]) if len(args) == 2 else Path.cwd()
-    if not (root / ".scratch" / name / "issues").is_dir():
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 2
+
+    name, root = args.milestone, args.repo
+    if not (root / sp.SCRATCH_DIR / name / "issues").is_dir():
         print(f"找不到 .scratch/{name}/issues/", file=sys.stderr)
         return 1
-    if flags == ["--changelog"]:
+    if args.changelog:
         print("\n".join(changelog(root, name)))
         return 0
-    if flags:
-        rows, decided = archive(root, name)
-        print("\n".join(["## Session 紀錄", *rows, "", "## 決定", *decided]))
+    if args.archive:
+        target, content = write_archive(root, name, output=args.output, user_trial=args.user_trial, stdout_only=args.stdout)
+        if args.stdout:
+            print(content, end="" if content.endswith("\n") else "\n")
+        else:
+            try:
+                shown = target.relative_to(root.resolve())
+            except ValueError:
+                shown = target
+            print(shown)
         return 0
+
     found = notes(root, name)
     for t in found:
         print(f"{label_of(name)} {t['number']} {t['title']}（{t['date']}）")
