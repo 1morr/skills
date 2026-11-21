@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給 Claude 批改）、填答格在頁面上對答案、卡住時一次看一個提示再看逐步詳解、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給助教批改）、填答格在頁面上對答案、卡住時一次看一個提示再看逐步詳解、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -46,12 +46,12 @@
     return (r.ok ? "第 " + r.tries.length + " 次答對" : "錯 " + r.tries.length + " 次") +
       (wrong.length ? "，答錯過：" + wrong.join("、") : "");
   }
-  // 重做不丟掉之前的紀錄：第一次錯在哪才是 Claude 要記的
+  // 重做不丟掉之前的紀錄：第一次錯在哪才是助教要記的
   function describe(f) {
     const past = (f.rounds || []).map(round);
     return past.length ? "重做第 " + past.length + " 次：" + round(f) + "；之前：" + past.join("；") : round(f);
   }
-  // 小題錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給 Claude 批改
+  // 小題錯兩次就公布答案和原因；整題的填答格只說對不對，步驟要貼給助教批改
   function makeFills(section) {
     const id = section.dataset.id;
     const drill = section.classList.contains("drill");
@@ -114,7 +114,7 @@
         else if (!f.tries.length) out.textContent = "";
         else if (done) out.textContent = "答案是 " + answers[0].trim() + "。" + why;
         else if (drill || f.tries.length < 2) out.textContent = "不對，再想一次。";
-        else out.textContent = "還是不對：寫完打開下面的範本答案對步驟，或按「複製給 Claude」貼到對話。";
+        else out.textContent = "還是不對：寫完打開下面的範本答案對步驟，或按「複製給助教」貼到對話。";
         mark(section);
       }
       function check() {
@@ -307,7 +307,7 @@
       '<button type="button" data-act="undo">復原</button>' +
       '<button type="button" data-act="grow">加長</button>' +
       '<button type="button" data-act="clear" class="danger">清空</button>' +
-      '<button type="button" data-act="send" class="send">複製給 Claude</button>' +
+      '<button type="button" data-act="send" class="send">複製給助教</button>' +
       '<span class="status" aria-live="polite"></span></div>' +
       '<div class="board"><canvas></canvas></div>';
     const board = host.querySelector(".board");
@@ -431,7 +431,7 @@
     canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointercancel", finish);
 
-    // 複製給 Claude：題目名稱、題目代號和這張畫布合成一張圖，只裁到寫過的高度
+    // 複製給助教：題目名稱、題目代號和這張畫布合成一張圖，只裁到寫過的高度
     function snapshot() {
       const notes = fillLines[id] ? fillLines[id]().map(function (s) { return "填答：" + s; }) : [];
       const k = 2, head = 58 + notes.length * 20;
@@ -573,7 +573,7 @@
     if (location.hash === "#answers") answerKey(true);  // practice.py 印答案 PDF 時開這個網址
   }
 
-  // 複製填答結果：每題一行字，貼到對話讓 Claude 記進學習紀錄
+  // 複製填答結果：每題一行字，貼到對話讓助教記進學習紀錄
   const report = document.getElementById("report");
   if (report) report.addEventListener("click", async function () {
     const status = report.parentNode.querySelector(".status");

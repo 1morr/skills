@@ -613,8 +613,11 @@ class Build(Case):
             return practice.build(src(inner), self.dir).split('<details class="howto">')[1].split("</details>")[0]
 
         full = howto(DRILLS + FULL)
-        for word in ("小題", "看提示", "逐步詳解", "畫布", "範本答案", "複製填答結果"):
+        for word in ("小題", "看提示", "逐步詳解", "畫布", "範本答案", "複製給助教", "助教會記下", "複製填答結果"):
             self.assertIn(word, full)
+        self.assertNotIn("Claude", full)
+        self.assertNotIn("Claude", practice.build(src(DRILLS + FULL), self.dir))
+        self.assertNotIn("Claude", practice.build(src(MQ, MOCK_BODY), self.dir))
         drills = howto(DRILLS)
         for word in ("看提示", "逐步詳解", "畫布", "範本答案"):
             self.assertNotIn(word, drills)

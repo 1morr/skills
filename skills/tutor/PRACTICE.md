@@ -33,7 +33,7 @@ tutor 做材料的分支：讀者在練習頁上自己做題，模擬卷印出�
 ```html
 <body data-title="STAT101 Topic 4 練習" data-key="stat101-topic4"
       data-guide="topic4-guide.html" data-answers="practice/topic4/answers.md">
-<aside class="panel" data-label="查表">   右下角按鈕打開：統計表、要對照的課件截圖
+<aside class="panel" data-label="查表"><!-- 右下角按鈕打開：統計表、要對照的課件截圖 -->
   <figure data-tab="Z 表"><img src="assets/z.png"><figcaption>Statistical Tables p.1</figcaption></figure>
 </aside>
 <section class="q drill" data-id="df-one-sample"><h2>小題 1</h2>
