@@ -36,7 +36,7 @@
 - 做票時要推翻已定的決定（brief、`ARCHITECTURE.md`、ADR、spec、`docs/decisions.md` 裡的）：停下來問使用者。同意後，同一個 commit 改文件，並記一條決定。
 - 問使用者決定（對話裡，或留給下一個 session 的 `等使用者：`）：每題寫成沒讀過票也看得懂的話，依序是背景一句、選項、你的建議、不決定會卡住什麼；票號、函式名、章節號後面跟一句它是什麼。
 - 使用者回「照建議」，只算同意這一則訊息裡列出來的那幾題。
-- 每個決定佔一行並標**決定者**，做票時定的記在票上（見〈每個 session 的流程〉），其餘記在 `docs/decisions.md`：`（使用者定）` 使用者自己定的、`（使用者同意）` agent 提議而使用者同意的、`（Agent 定）` 使用者沒看過的。做票時在兩種做法之間選了一種，就是一個 `（Agent 定）` 的決定；協調者（`/1morr:ticket-coordinator`）代答的題也是，不算使用者的；`/1morr:checkpoint` 會把它們拿給使用者看。
+- 每個決定佔一行並標**決定者**，做票時定的記在票上（見〈每個 session 的流程〉），其餘記在 `docs/decisions.md`：`（使用者定）` 使用者自己定的、`（使用者同意）` agent 提議而使用者同意的、`（Agent 定）` 使用者沒看過的。做票時在兩種做法之間選了一種，就是一個 `（Agent 定）` 的決定；協調者（`/1morr:ticket-coordinator`）代答的題也是，不算使用者的；里程碑驗收時會把它們攤出來請使用者追認。
 
 ## 每個 session 的流程
 
@@ -57,7 +57,7 @@
 
 做票、訪談、寫架構、里程碑開工都算，依序：
 
-1. 不是做票的 session 在 progress.md 加一列，「下一步」寫下一個 session 要下的完整指令：里程碑做完是 `/1morr:checkpoint <剛做完的里程碑>`（它結束時寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`），拆完票是第一張票的 `/implement <票路徑>`。
+1. 不是做票的 session 在 progress.md 加一列，「下一步」寫下一個 session 要下的完整指令：里程碑做完驗收封存後是 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`，拆完票是第一張票的 `/implement <票路徑>`。
 2. 要使用者先決定才能繼續：做票的 session 在票的 `## Comments` 加一行 `等使用者：<要決定什麼>`，票留著不改 `done`；其他 session 把它寫進 progress.md 的「下一步」。使用者回答後，接手的 session 在那一行下面記 `決定：<一句>（使用者定）`，那一題就結了。
 3. commit 之後跑 `python3 scripts/next_step.py`，照它的結果告訴使用者下一步：等使用者決定的每一題用你的話講（寫法照〈使用者確認〉），下一條指令照它印的放進 code block；它說的和你剛做的對不上時，說明差在哪。協調者開的 session 只回報做完了，下一步由協調者報。
 
@@ -65,7 +65,7 @@
 
 - 外部服務、平台框架、程式庫的行為只信兩處：`docs/research/` 各檔的〈事實〉段，以及現查（context7、官方文件）。沒寫的先查再用，查到的補進對應主題的檔，給編號、附來源；新開的檔加進 brief〈事實索引〉。
 - 程式碼、測試與註解要指向文件時，引 ADR 編號或事實編號；brief 的章節號只寫在文件與票裡，節才能搬動（`scripts/check_docs.py` 擋）。
-- 現況以指令為準：`git log`、`git status`、測試輸出。progress.md 與 repo 不符時以 repo 為準並修 progress.md。
+- 現況以指令與原始碼為準：`git log`、`git status`、測試輸出，查證現況附 `檔案:行`。progress.md 與 repo 不符時以 repo 為準並修 progress.md；發現設計文件／ADR 與程式不符時單列「文件與程式對不上」問修哪邊，不自行挑一邊當真。
 
 ## 上下文紀律
 
@@ -99,7 +99,7 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 里程碑開工（使用者在新 session 下 `/to-tickets docs/roadmap.md 拆 <里程碑> 的票`）、做驗收票 `NN-<里程碑>-acceptance`：先讀 `docs/agents/milestone.md`，照它的步驟做。
 - 寫架構與 roadmap（訪談之後、第一個里程碑開工之前）：照 `docs/agents/milestone.md`〈寫架構與 roadmap〉。之後的里程碑留在 roadmap，開工時才有 spec。
 - 做票：一張票一個 session，`/implement`；整批跑票：`/1morr:ticket-coordinator`。
-- 里程碑之間：`/1morr:checkpoint`；想看懂某樣東西現在怎麼運作：`/1morr:explain`；里程碑、票、決定的總覽頁：`/1morr:dashboard`。
+- 里程碑、票、決定的總覽頁：`/1morr:dashboard`。
 - 新功能與修 bug：`mattpocock-skills:tdd`。設計模組邊界：`mattpocock-skills:codebase-design`。
 - 用實驗回答設計問題：`mattpocock-skills:prototype`，決定寫回 brief，量到的數字寫進 `docs/research/`。實驗腳本留在 `scripts/experiments/`，換版本時要重量。
 - 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論寫成那個檔的〈事實〉段。

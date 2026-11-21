@@ -1,11 +1,11 @@
 # 交給使用者
 
-使用者要當場看的 HTML 頁交付時都照這份，不論它放在本次對話的暫存目錄（沒有就用 `mktemp -d` 建在 repo 外）、repo 還是 worktree：使用者自己決定在哪裡打開，你給網址和路徑。在瀏覽器存進度的頁（tutor 的導讀頁、練習頁、模擬卷）只給完整路徑：這裡的網址每次換一個 port，換了 port 讀者存的進度和筆跡就讀不到。
+交付單一自包含 HTML 頁時照這份非阻塞流程：不替使用者開瀏覽器或分頁，也不停下來等使用者看完才結束或關 server。路徑一律寫從根目錄算起的完整絕對路徑（worktree 與暫存目錄也一樣，避免相對路徑被對到使用者主目錄）。
 
-路徑從根目錄寫起。worktree 和批次目錄裡的檔也一樣：相對路徑會被對到使用者的主目錄去。
+- **本機桌面環境（預設）**：直接在對話給檔案的完整路徑，使用者可直接離線打開。若使用者要求網址或環境不便直接開本機檔，才走下方背景 server。
+- **遠端／無桌面環境**（SSH、容器、遠端工作站，需透過本機 port forwarding 檢視）：在背景起 `http.server` 綁 `127.0.0.1`，在對話同時給網址 `http://127.0.0.1:<port>/<檔名>`（中文或空白做 URL 編碼）與完整路徑：
+  - **在瀏覽器 `localStorage` 存進度與筆跡的頁**（如 `tutor` 的導讀頁、練習頁、模擬卷）：`localStorage` 綁定 origin（含 port），隨機換 port 會讓既有進度與筆跡讀不到。以頁面所在資料夾規範化絕對路徑算 deterministic hash port（例如 `python3 -c 'import hashlib,os,sys; p=os.path.realpath(sys.argv[1]); print(40000 + int(hashlib.sha256(p.encode()).hexdigest()[:8], 16) % 20000)' "<資料夾>"`），該 port 已在服務同一資料夾就直接沿用，否則背景執行 `python3 -u -m http.server <port> --bind 127.0.0.1 --directory <資料夾>`（Windows 無 `python3` 用 `python`）。
+  - **不存 `localStorage` 進度的檢視頁**（如 `diff`、`dashboard` 靜態頁）：同樣可用 deterministic port，或傳 `0` 由系統挑空埠並從輸出取 `port <n>`。
+- 頁面所在資料夾將被移除前（例如清理 worktree），先把對應的背景 server 停掉，再從新位置交付。
 
-1. 用背景模式開 `python3 -u -m http.server 0 --bind 127.0.0.1 --directory <頁面所在的資料夾>`（Windows 沒有 `python3` 就用 `python`），從它印的 `port <n>` 取 port。
-2. 在對話給網址 `http://127.0.0.1:<n>/<檔名>` 和檔案的完整路徑。檔名有中文或空白時，網址照 URL 編碼寫。
-3. server 開著讓使用者讀，使用者說看完了再關。頁面所在的資料夾要被移走時（例如收掉 worktree），先關 server，再從檔案的新位置重開、給新的網址。
-
-完成條件：`curl -sI <網址>` 回 200；對話裡有網址和檔案的完整路徑。
+完成條件：檔案已寫出且對話裡有完整絕對路徑；若起了背景 server，`curl -sI <網址>` 回 200 且對話裡附有網址。給出即完成。

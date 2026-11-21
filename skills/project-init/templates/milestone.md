@@ -30,10 +30,11 @@
 依序做，前一步成立才做下一步：
 
 1. 從里程碑開工的 commit 起跑 `mattpocock-skills:code-review`。
-2. spec〈驗收〉的 Agent 驗逐條對到證據；在乾淨的 checkout 跑全部檢查。
+2. 用 `git log --first-parent` 核對這一段的主線（排除不屬於本里程碑的並行合併）與計畫偏差（spec 有但沒做的、做了計畫外的、推翻計畫卻沒記決定的）；查證現況附 `檔案:行`，發現設計文件／ADR 與程式不符時單列「文件與程式對不上」問修哪邊，不自行挑一邊當真。spec〈驗收〉的 Agent 驗逐條對到證據；在乾淨的 checkout 跑全部檢查。
 3. 各票 Comments 沒處理的發現逐條歸位：修掉、延後（寫進 roadmap 接手的那個里程碑的小節，沒人接的進〈不排里程碑〉）或不做。
-4. **使用者試**：把啟動方式與 spec 的使用者試清單給使用者，progress.md 的「下一步」寫 `等使用者：試用 <里程碑>`，結束 session。使用者回覆後在新 session 接著做這張票：
+4. **使用者試與追認**：把啟動方式、spec 的使用者試清單，連同本段所有 `（Agent 定）` 決策、未接手遺留（標「沒人接」的項目）與計畫偏差／文件對不上的題目一併攤出來請使用者追認，progress.md 的「下一步」寫 `等使用者：試用 <里程碑>`，結束 session。使用者回覆後在新 session 接著做這張票：
    - 不滿意的項目各開一張修復票（`NNb-<slug>`，排在驗收票之前），修完再請使用者試。
+   - 使用者追認或改定的決定、遺留歸屬與偏差補記，寫回對應文件（spec、票、brief、ADR、roadmap 或 `docs/decisions.md`）並標決定者。
    - 使用者要 agent 代測：照做，並在 `docs/decisions.md` 記一條（使用者定），寫明哪幾項沒有人親手試過。
    - 使用者說可以了才往下。
 5. **封存**：建 `docs/archive/<里程碑>.md`，三段：
@@ -43,6 +44,6 @@
 
    `python3 scripts/ticket_notes.py <里程碑的目錄名> --changelog` 印的條目併進 `CHANGELOG.md` 的 `## [Unreleased]`，同一個分類的接在一起；同一個功能在這個里程碑裡先 Added 又 Changed 的，併成一條 Added。要不要發版先問使用者。
 
-   票檔留在 `.scratch/` 不動。commit 之前跑 `python3 scripts/docs_moved_lines.py HEAD docs/progress.md docs/decisions.md -- docs/archive/<里程碑>.md`。同一個 commit 把 `docs/roadmap.md` 里程碑表的狀態改成「已驗收，封存在 `docs/archive/<里程碑>.md`」、下一個里程碑標成進行中，progress.md 加一列，「下一步」寫 `/1morr:checkpoint <封存的里程碑>`。
+   票檔留在 `.scratch/` 不動。commit 之前跑 `python3 scripts/docs_moved_lines.py HEAD docs/progress.md docs/decisions.md -- docs/archive/<里程碑>.md`。同一個 commit 把 `docs/roadmap.md` 里程碑表的狀態改成「已驗收，封存在 `docs/archive/<里程碑>.md`」，progress.md 加一列，「下一步」寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`。
 
-完成條件：spec〈驗收〉每一條都有證據或使用者的回覆；每個發現都歸了位；`docs_moved_lines.py` 印「遺失 0」；`ticket_notes.py --archive` 印的每一行都在封存檔裡，`--changelog` 印的每個功能都在 `CHANGELOG.md`；progress.md 與 decisions.md 只剩下一個里程碑的。
+完成條件：spec〈驗收〉每一條都有證據或使用者的回覆；本段所有 `（Agent 定）` 決策、計畫偏差與每個發現都經追認寫回或歸了位；`docs_moved_lines.py` 印「遺失 0」；`ticket_notes.py --archive` 印的每一行都在封存檔裡，`--changelog` 印的每個功能都在 `CHANGELOG.md`；progress.md 與 decisions.md 只剩下一個里程碑的。

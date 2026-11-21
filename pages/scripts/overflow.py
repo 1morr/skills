@@ -8,7 +8,7 @@
 算溢出的是「直向捲動的容器」被撐寬：整頁，或自己上下捲動的欄。摺疊的 <details> 會先全部打開再量。
 表格、算式、程式碼放在自己橫向捲動的容器裡（overflow-x: auto）不算。
 
-組頁腳本用這裡的函式：pages/scripts/build.py 用 render()、problems()，tutor 的 build.py 和 practice.py 用 measure()、deliverable()；
+組頁腳本（如 diff 的 fill.py、tutor 的 build.py 與 practice.py）呼叫 measure()、deliverable()；
 量的程式是加在暫存的副本上，不會留在交付的頁裡。只用標準函式庫。
 """
 
@@ -190,7 +190,8 @@ def deliverable(out: Path, src, found) -> bool:
 
 def main(argv=None) -> int:
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
         print(__doc__, file=sys.stderr)

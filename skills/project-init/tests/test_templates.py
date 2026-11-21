@@ -91,7 +91,7 @@ class SkeletonTest(unittest.TestCase):
 
     def test_instruction_sections_the_other_skills_read(self):
         text = fill("instructions.md")
-        for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/1morr:checkpoint", "/1morr:ticket-coordinator",
+        for needle in ("docs/progress.md", "Status:", "/implement <票路徑>", "/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票", "/1morr:ticket-coordinator",
                        "完成標準", "NN-<里程碑>-acceptance", check_docs.SESSION_NOTE, check_docs.DECISION_NOTE,
                        check_docs.DECISIONS):
             self.assertIn(needle, text)

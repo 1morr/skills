@@ -4,17 +4,14 @@
 
 | Skill | 叫用 | 做什麼 |
 |---|---|---|
-| [audit](skills/audit/SKILL.md) | `/1morr:audit [要審的 skill、指令檔或路徑]`（只能手動叫用） | 審查 skill 或指令檔（任何 repo，本機設定目錄底下的也可以），標準是 mattpocock 的 `writing-for-agents`。先列發現，你回答後一步一個 commit 改完；改行為的可以先試跑再決定留不留 |
-| [checkpoint](skills/checkpoint/SKILL.md) | `/1morr:checkpoint [剛做完的里程碑，或想問的事]`（只能手動叫用） | 里程碑之間：回顧上一段做了什麼、對不對、遺留什麼，和你對齊下一段的計畫。出一頁臨時回顧頁，定案寫回 repo 原有的文件 |
-| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：盲讀老師原檔並匿名比對讀法由你拍板（開放式或要多版比較時走 [VARIANTS.md](skills/coursework/VARIANTS.md)），成品做完以盲做與分角度審查驗證，再把做法寫進 tutor 導讀頁確認教得會 |
+| [coursework](skills/coursework/SKILL.md) | `/1morr:coursework <哪一科的哪一份作業>`（只能手動叫用） | 做學校的作業或 project：盲讀老師原檔並匿名比對讀法由你拍板（開放式或要多版比較時走 [VARIANTS.md](skills/coursework/VARIANTS.md)），成品做完以盲做與分角度審查驗證 |
 | [dashboard](skills/dashboard/SKILL.md) | `/1morr:dashboard [repo 路徑…] [static]`（只能手動叫用） | 開一頁會自動更新的專案總覽：里程碑與票的進度、等你決定的事、決策與變更，可以同時看好幾個 repo；頁面不寫進 repo |
 | [diff](skills/diff/SKILL.md) | 說「給我一頁前後對照的 html」「做 diff 頁」，或由其他 skill 呼叫 | 一頁前後對照的 HTML：文件兩版（docx、PDF、HTML、Markdown、文字）逐字比對，或程式改動實跑前後並附證據；改動標記全部由腳本算 |
-| [explain](skills/explain/SKILL.md) | `/1morr:explain <要解說的東西>`（只能手動叫用） | 解說 repo 裡某樣東西現在怎麼運作：一頁附圖、每句附來源的臨時 HTML，加上對話追問；不寫進 repo |
-| [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭文件、票與閘門的骨架，已有骨架的 repo 逐項對齊最新範本。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement`，格式和 checkpoint、ticket-coordinator、dashboard 共用 |
+| [project-init](skills/project-init/SKILL.md) | `/1morr:project-init [專案一句話]`（只能手動叫用） | 替新專案搭文件、票與閘門的骨架，已有骨架的 repo 逐項對齊最新範本。票的設定含 mattpocock 的 `/setup-matt-pocock-skills` 會寫的那些，不必另外跑；之後的流程用他的 `/to-tickets`、`/implement`，格式和 ticket-coordinator、dashboard 共用 |
 | [ticket-coordinator](skills/ticket-coordinator/SKILL.md) | `/1morr:ticket-coordinator [票的位置] [agent/模型] [額度門檻] [同時最多 N 張]`（只能手動叫用） | 用 Orca `orchestration` 為每張票開 worker 解票、代答、驗收、合併、等 CI，逐張跑完隊列；可選 agent/模型、額度門檻與同時上限 |
-| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`，或由 coursework 載入 | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、練習頁、模擬卷、考前速查，之後批改、解答和帶著做。導讀頁上有作業的做法和答案；要交的那一份檔由 coursework 做 |
+| [tutor](skills/tutor/SKILL.md) | `/1morr:tutor [作業 \| topic \| 考試]`（只能手動叫用） | 照老師的課件把課程、作業或考試教會：旁邊跟著課件的導讀頁、練習頁、模擬卷、考前速查，之後批改、解答和帶著做。導讀頁上有作業的做法和答案；要交的那一份檔由 coursework 做 |
 
-`ticket-coordinator` 使用 [`orca/`](orca/)：Orca `orchestration` 協調者的共同流程、跨平台與 Claude Code 專屬選項和腳本。`explain`、`checkpoint`、`diff` 共用 [`pages/`](pages/)：頁面的寫法、配色字體、組頁與量水平溢出的腳本，以及把頁面交給你的方式（開本機 server，在對話給網址和完整路徑，不替你開瀏覽器），`dashboard` 的靜態頁也照這個方式交；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
+`ticket-coordinator` 使用 [`orca/`](orca/)：Orca `orchestration` 協調者的共同流程與腳本。`diff`、`tutor`、`dashboard` 共用 [`pages/`](pages/)：工程檢視頁的配色字體、量水平溢出的腳本，以及把 HTML 頁交給你的非阻塞方式（本機直接給完整路徑，遠端無桌面環境起背景 server 給網址與完整路徑，不替你開瀏覽器）；每個檔是什麼見 [`AGENTS.md`](AGENTS.md)〈結構〉。
 
 ## 安裝
 
@@ -69,15 +66,15 @@ claude plugin install 1morr@1morr-skills
 
 clone 之後設一次 `git config core.hooksPath .githooks`：每次 commit 前會跑第一條（repo 規則，不到一秒）。
 
-測試（CI 跑的就是這幾條）：
+測試（各目錄單元測試與腳本自檢由 `.github/workflows/test.yml` 在 CI 執行）：
 
-```
-python -m unittest discover -s tests
-uv run --no-project --with python-docx --with pymupdf python -m unittest discover -s skills/diff/tests
-python -m unittest discover -s pages/tests
-python -m unittest discover -s skills/project-init/tests
-python -m unittest discover -s skills/dashboard/tests
+```sh
+python3 -m unittest discover -s tests
+python3 -m unittest discover -s pages/tests
+python3 -m unittest discover -s skills/project-init/tests
+python3 -m unittest discover -s skills/dashboard/tests
 bash orca/scripts/selftest.sh
+uv run --no-project --with python-docx --with pymupdf python -m unittest discover -s skills/diff/tests
 uv run --no-project --with pymupdf --with pillow python -m unittest discover -s skills/tutor/tests
 ```
 

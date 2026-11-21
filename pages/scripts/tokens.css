@@ -1,5 +1,5 @@
-/* 配色與字體的唯一來源；用法見 pages/TOKENS.md。
-   pages/scripts/build.py 內嵌它（接著是 page.css），diff 的 fill.py 把它接上 diff.css 內嵌。 */
+/* 工程檢視頁（如 diff）共用的配色與字體變數；用法見 pages/TOKENS.md。
+   diff 的 fill.py 把它接上 diff.css 內嵌。 */
 :root {
   color-scheme: light dark;
   --paper: oklch(0.985 0.004 85);   --panel: oklch(0.962 0.006 85);   --rule: oklch(0.88 0.008 85);

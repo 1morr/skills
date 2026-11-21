@@ -1,6 +1,7 @@
 ---
 name: tutor
-description: 照老師的課件把課程、作業或考試教會（導讀頁、練習頁、模擬卷、考前速查、批改和帶著做）。只在使用者點名呼叫 tutor，或 coursework 做完成品要補教學時載入
+description: 照老師的課件把課程、作業或考試教會：導讀頁、練習頁、模擬卷、考前速查、批改和帶著做
+disable-model-invocation: true
 argument-hint: "[作業 | topic | 考試]"
 ---
 
