@@ -83,6 +83,10 @@ dfn, .mk-blue { --hl: var(--blue-hl); }
 .status { margin: .6rem 0 0; font-variant-numeric: tabular-nums; }
 .status b { font-weight: 600; }
 .status span { color: var(--ink-2); white-space: nowrap; }
+.quiz-tools { margin: .45rem 0 0; display: flex; flex-wrap: wrap; gap: .35rem .5rem; align-items: center; }
+.quiz-tools .btn { padding: .18rem .55rem; font-size: .78rem; font-weight: 600; }
+.quiz-tools .quiz-status { color: var(--ink-2); font-size: .78rem; }
+.quiz-tools textarea { width: 100%; font: .78rem/1.4 ui-monospace, "SF Mono", Consolas, monospace; }
 .strip { display: flex; gap: 2px; margin: .5rem 0 .7rem; }
 .strip i { flex: 1; height: .375rem; background: var(--rule); border-radius: 1px; }
 .strip i.gap { flex: 0 0 .25rem; background: none; }
@@ -388,6 +392,11 @@ body.digest .digest-note { display: block; color: var(--ink-2); font-size: .9375
 .deck figure.hit img { animation: stroke 1.6s var(--ease) both; }
 .deck figcaption b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .deck figure.key figcaption b::after { content: "必記"; margin-left: .5em; padding: 0 .4em; background: var(--yellow); border-radius: 3px; font-size: .75rem; }
+.deck figure.skip { opacity: .62; }
+.deck figure.skip figcaption b::after { content: "過場略過"; margin-left: .5em; color: var(--ink-2); font-weight: 400; font-size: .75rem; }
+.deck .deck-zh { display: none; margin-top: .45rem; padding: .55rem .75rem; background: var(--paper); border: 1px solid var(--rule-2); border-radius: 4px; font-size: .875rem; line-height: 1.6; }
+.deck figure.show-zh .deck-zh { display: block; }
+.deck .deck-zh p { margin: .25rem 0; }
 .deck a.to { font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
 .deck a.to:hover { text-decoration: underline; }
 /* 正文裡講某一頁課件的地方：後面的小標籤寫那一頁，按了課件欄回到那一頁；現在帶著課件欄的那一塊是藍的 */
@@ -399,6 +408,9 @@ button.at.key { background: var(--yellow); border-color: transparent; color: var
 dialog.zoom { border: 0; padding: 0; background: none; color: #fff; width: min(96vw, 100rem); max-width: none; max-height: none; }
 dialog.zoom::backdrop { background: oklch(0.14 0.02 265 / .86); }
 dialog.zoom img { display: block; width: 100%; max-height: calc(100dvh - 5rem); object-fit: contain; background: #fff; }
+dialog.zoom:has(.zoom-zh:not([hidden])) img { max-height: calc(68dvh - 3rem); }
+.zoom-zh { margin-top: .5rem; max-height: 24dvh; overflow-y: auto; padding: .65rem 1rem; background: var(--paper); color: var(--ink); border-radius: 6px; font-size: .9375rem; line-height: 1.65; }
+.zoom-zh p { margin: .25rem 0; }
 .zoom-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem 0; font-size: .9375rem; }
 .zoom-bar span { display: flex; gap: .4rem; }
 .zoom-bar .btn { background: none; color: #fff; border-color: oklch(1 0 0 / .5); font-weight: 500; padding: .2rem .8rem; }

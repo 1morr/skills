@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: tutor-zero-prereq
+description: tutor 零先備知識導讀頁：從課件 PDF 與歷史考題逆向補齊前置符號與辨別矩陣（Seeing X vs Y），經閉卷讀圖引用 §N 驗收後產出離線導讀頁
+tags: [tutor]
+context:
+  scaffold_script: fixture.sh
