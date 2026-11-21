@@ -62,9 +62,14 @@ argument-hint: "[票來源] [agent/模型] [同時最多 N 張]"
        `"$ORCA" orchestration deny --dispatch <dispatch_id> --prompt <approval_id> --reason "<拒絕原因與改走做法>" --json`
      - **無 `approval_id` 的本地互動等待**：執行 `"$ORCA" orchestration worker-show --dispatch <dispatch_id> --json` 檢查 `observation.agentWait`（代表 worker 停在僅真人可答的本地互動提示，`deny` 不適用；等待中的 worker 屬健康狀態而非失敗，依使用者在不在場通知處理或 `worker-stop` 重派）。
      - **未送 `worker_done` 即停下（`stopReason`）**：跑 `worker-read --dispatch <dispatch_id> --source auto --json` 看最後輸出，再用 `send --to dispatch:<dispatch_id>` 指引補完並回報 `worker_done`。
-     - **`exited` 或 `lost`**：跑 `worker-show` 核實後依 `references/recovery-and-cleanup.md` 處置。若在同一張 Task 重試，**`--retry-of` 必須搭配 `--task <task_id>`**（不可傳 `--spec` 或 `--spec-file`，否則會誤建新 Task），且須重申 `--worktree` 與 `--agent`（先對可回收的前次失敗端執行 `worker-release`）：
-       `"$ORCA" orchestration worker-start --run <run_id> --task <task_id> --retry-of <dispatch_id> --worktree new-top-level --name t<NN>-r1 --base-branch <主分支> --agent <agent> [--model <model>] --json`
-       連續 3 次啟動失敗觸發斷路器（breaker）時立即停下回報使用者，不另開新 Task / Run 繞過斷路器。
+     - **`exited` 或 `lost`**：只憑證據行動（沉默、逾時或 `unverifiable` 都不算已退出），依序：
+       1. `"$ORCA" orchestration worker-show --dispatch <dispatch_id> --json` 核實狀態；
+       2. 前次失敗端仍持有可回收終端時，先 `"$ORCA" orchestration worker-release --dispatch <dispatch_id> --json`；
+       3. 同一張 Task 重派：**`--retry-of` 必須搭配 `--task <task_id>`**（不可傳 `--spec` 或 `--spec-file`，否則會誤建新 Task），placement 不繼承，須重申 `--worktree` 與 `--agent`：
+          `"$ORCA" orchestration worker-start --run <run_id> --task <task_id> --retry-of <dispatch_id> --worktree new-top-level --name t<NN>-r1 --base-branch <主分支> --agent <agent> [--model <model>] --json`
+       4. 放棄這張票時改走 `"$ORCA" orchestration worker-stop --dispatch <dispatch_id> --json`（回 `stop_unknown` 就再看 `worker-show`，不盲目重複），確認停止後跑 `python3 scripts/land_ticket.py cleanup --repo <repo> --worktree <worktree 路徑> --dispatch <dispatch_id> --orca "$ORCA"`。
+
+       同一條 `--retry-of` 鏈連續 3 次啟動失敗會觸發斷路器（breaker），Task 轉為失敗：立即停下回報使用者，不另開新 Task / Run 繞過；版本細節可用 `"$ORCA" skills get orchestration --reference references/recovery-and-cleanup.md` 查 Orca 內建指引。
    - **`worker_done`**：檢查 `outcome` 為 `succeeded` 才進入驗收；`failed` 則跑 `worker-read --source auto` 診斷根因，可修的透過 `send --to dispatch:<dispatch_id>` 指示修正，無法解決的依〈5. 異常與停機〉處理。
    - **後續追問或要求補做**：本地 worker（含已結算自動關閉者）統一呼叫 `"$ORCA" orchestration send --to dispatch:<dispatch_id> --subject "<主題>" --body "<指示>" --json` 喚醒續做；**注意 paired server（`--on <server>`）上已結算的 worker 不接受 `send`**，遠端補做須改用 `worker-start --on <server>` 開新派發。
 
