@@ -7,16 +7,16 @@ argument-hint: "[repo 路徑…] [static]"
 
 開一頁專案總覽給使用者看自己正在做什麼。頁面的內容全部由腳本從 repo 的固定文件讀出來（讀哪些檔、各取什麼，列在 `<S>/dashboard.py` 開頭），你不寫、不改頁面，也不改 repo。
 
-參數：$ARGUMENTS
+參數：使用者呼叫本 skill 時附帶的內容。
 
-`<S>` 是 `${CLAUDE_SKILL_DIR}/scripts`，`<P>` 是 `${CLAUDE_PLUGIN_ROOT}/pages`。
+`<S>` 是本檔同目錄的 `scripts/`，`<P>` 是本檔往上兩層的 `pages/`（可用環境變數 `SKILLS_ROOT` 指定 repo 根目錄）。
 
 ## 1. 開頁面
 
 `<repo>…` 是參數給的路徑，可以好幾個，頁面上方切換；沒給就是目前的 repo。
 
-- **預設**：用 Bash 的 `run_in_background` 跑 `python3 <S>/dashboard.py --serve <repo>…`。它印出的第一行是網址。埠被佔用（`Address already in use`）就加 `--port 0` 重跑，讓系統挑一個。
-- **參數有 `static`**：`python3 <S>/dashboard.py <repo>… -o <scratchpad>/dashboard.html`，照 `<P>/HANDOFF.md` 交付。它不會自動更新。
+- **預設**：在背景執行 `python3 <S>/dashboard.py --serve <repo>…`。它印出的第一行是網址。埠被佔用（`Address already in use`）就加 `--port 0` 重跑，讓系統挑一個。
+- **參數有 `static`**：`python3 <S>/dashboard.py <repo>… -o <暫存目錄>/dashboard.html`（`<暫存目錄>` 是本次對話的暫存目錄，沒有就用 `mktemp -d` 建在 repo 外），照 `<P>/HANDOFF.md` 交付。它不會自動更新。
 
 伺服器只綁 `127.0.0.1`。使用者說要從手機或別台機器看時才加 `--host 0.0.0.0`，並先告訴他：同一個網路上的人都看得到這些決策和進度。這時它印的網址是 `http://0.0.0.0:<埠>/`，給使用者的那一條把 `0.0.0.0` 換成這台機器的區網 IP。
 
@@ -26,7 +26,7 @@ argument-hint: "[repo 路徑…] [static]"
 
 - 網址（或檔案的完整路徑），以及頁面每 3 秒重讀一次文件、票合併或文件一改就會跟著變；他上次按「標為看過」之後變的東西會標紅，紀錄存在那個瀏覽器。
 - 怎麼關：伺服器是這個 session 的背景工作，session 結束就停；要先關就說一聲。
-- 頁面出現「讀不到的檔」時，照它列的轉告：那個 repo 還沒照 project-init 的骨架，在那個 repo 下 `/1morr:project-init` 會走同步。
+- 頁面出現「讀不到的檔」時，照它列的轉告：那個 repo 還沒照 project-init 的骨架，在那個 repo 執行 `project-init` skill 會走同步。
 - 頁面出現「讀不到的行」時，轉告有幾條、在哪幾個檔，以及頁面在每一行底下寫的原因：照那個寫法改，它就會列進去。
 
 完成條件：對話裡有網址（或檔案的完整路徑）和怎麼關；`data.json` 裡哪個 project 的 `missing`、`unreadable` 不是空的，各轉告了。

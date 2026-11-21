@@ -1,6 +1,6 @@
 # 解說頁的寫法
 
-`explain` 和 `checkpoint` 的 HTML 頁共用這份。`<P>` 是這個資料夾（plugin 根目錄的 `pages/`）。頁面是一次性的：放 scratchpad，不進 repo。
+`explain` 和 `checkpoint` 的 HTML 頁共用這份。`<P>` 是這個資料夾（repo 根目錄的 `pages/`）。頁面是一次性的：放本次對話的暫存目錄（沒有就用 `mktemp -d` 建在 repo 外），不進 repo。
 
 ## 來源
 
@@ -67,11 +67,11 @@ python <P>/scripts/build.py <名稱>-src.html
 
 ## 交出前
 
-1. **核對**：把整頁和頁上引到的來源交給一個沒看過你結論的子代理（Agent 工具，`model: "opus"`），回報兩種句子：附了來源卻和來源對不上的；講了事實、預估或因果，卻沒附來源也沒標 `推斷` 的。改掉、補來源，或改標 `推斷`。頁尾寫核對紀錄：核對幾句、改了幾句、改標 `推斷` 幾句。
+1. **核對**：把整頁和頁上引到的來源交給一個沒看過你結論的高階推理子代理（如 Opus / Pro 級），回報兩種句子：附了來源卻和來源對不上的；講了事實、預估或因果，卻沒附來源也沒標 `推斷` 的。改掉、補來源，或改標 `推斷`。頁尾寫核對紀錄：核對幾句、改了幾句、改標 `推斷` 幾句。
 2. **渲染**：`build.py` 退出碼 0 就算過（有圖時它印出「N 張圖都畫出來了」）。它說找不到 Chrome 或 Edge、或它開不起來時，先照第 3 步開 server，再用瀏覽器自動化工具（下面以 playwright 為例）打開那個網址：
    - 寬螢幕和手機寬（`scripts/overflow.py` 的 `WIDTHS`）各看一次：`document.documentElement.scrollWidth` 不大於 `innerWidth`。
    - 確認每張圖都畫成 svg、圖裡掛上了縮放按鈕列（`.dz-bar`）、畫面文字（`document.body.innerText`）沒有 `Syntax error`。查畫面文字，不查原始碼：圖的原始碼和頁上的說明都可能含這個字串。
-   - 截圖的檔名用 scratchpad 的完整路徑。
+   - 截圖的檔名用本次對話暫存目錄的完整路徑。
    - 檢查完關掉 playwright 的頁；它在工作目錄建了 `.playwright-mcp/` 的話刪掉。
 3. **交給使用者**：照 [HANDOFF.md](HANDOFF.md)。
 
