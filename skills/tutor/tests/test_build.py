@@ -10,7 +10,10 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,10 +36,15 @@ def page(body="<h2>一</h2><p>內容</p>", cheat=CHEAT, attrs="", tail=""):
 
 
 def slides(*keys):
-    """load_slides() 的結果：keys 是 (代號, 頁)，第三項是 True 的那一頁有翻譯圖。"""
-    return {(k[0], k[1]): {"src": Path(f"/x/slides/{k[0]}-{k[1]}.png"),
-                           "zh": Path(f"/x/slides/{k[0]}-{k[1]}.zh.png") if len(k) > 2 and k[2] else None,
-                           "w": 1000, "h": 563} for k in keys}
+    """load_slides() 的結果：keys 是 (代號, 頁)，第三項若為 list/True 則帶 HTML 譯文層，第四項 True 為 skip。"""
+    out = {}
+    for k in keys:
+        zh = k[2] if len(k) > 2 else []
+        if zh is True:
+            zh = ["<b>平穩序列（stationary series）</b>", "資料大致水平。"]
+        skip = bool(k[3]) if len(k) > 3 else False
+        out[(k[0], k[1])] = {"src": Path(f"/x/slides/{k[0]}-{k[1]}.png"), "zh": zh or [], "w": 1000, "h": 563, "skip": skip}
+    return out
 
 
 DECK = slides(("L20", 1), ("L20", 2, True), ("L20", 3), ("L21", 1))
@@ -91,8 +99,8 @@ class RefRule(unittest.TestCase):
     def test_existing_refs_pass(self):
         self.assertTrue(ok(page("<h2>一</h2><h3>甲</h3><h2>二</h2><p>見 §1、§1.1、§2</p>")))
 
-    def test_section_sign_in_a_script_is_not_a_ref(self):
-        self.assertTrue(ok(page('<h2>一</h2><script>const s = "§9";</script>')))
+    def test_section_sign_in_script_code_pre_or_comment_is_not_a_ref(self):
+        self.assertTrue(ok(page('<h2>一</h2><script>const s = "§9";</script><code>§9</code><pre>§8</pre><!-- §7 -->')))
 
 
 class CheatRule(unittest.TestCase):
@@ -140,43 +148,60 @@ class PanelRule(unittest.TestCase):
 
 
 class SlideRule(unittest.TestCase):
-    """data-slide 指到的每一頁都要在課件清單上。"""
+    """data-slide 與 data-skip 指到的每一頁都要在課件清單上。"""
 
     def test_slide_without_a_declared_deck_fails(self):
         self.assertTrue(has(page('<h2 data-slide="L20 p.1">一</h2>'), "沒有 data-slides"))
+        self.assertTrue(has(page("<h2>一</h2>", attrs=' data-skip="L20 p.1"'), "沒有 data-slides"))
 
     def test_page_not_on_the_list_fails(self):
         for ref in ("L20 p.4", "L22 p.1", "L20 p.2-4", "L20 p.1; L21 p.2"):
             with self.subTest(ref=ref):
                 self.assertTrue(has(page(f'<h2 data-slide="{ref}">一</h2>'), "課件清單沒有", DECK))
+        self.assertTrue(has(page("<h2>一</h2>", attrs=' data-skip="L20 p.9"'), "課件清單沒有", DECK))
 
     def test_unreadable_ref_fails(self):
         for ref in ("L20", "p.3", "L20 p.3-1", "Lecture 20 第 3 頁", ""):
             with self.subTest(ref=ref):
                 self.assertTrue(has(page(f'<h2 data-slide="{ref}">一</h2>'), "看不懂", DECK))
 
-    def test_pages_ranges_and_lists_pass(self):
+    def test_pages_ranges_lists_and_skip_pass(self):
         for ref in ("L20 p.1", "L20 p.1-3", "L20 p. 2 – 3", "L20 p.3; L21 p.1", " L21  p.1 "):
             with self.subTest(ref=ref):
                 self.assertEqual(build.lint(page(f'<p data-slide="{ref}" data-key>x</p>'), DECK), [])
+        self.assertEqual(build.lint(page("<h2>一</h2>", attrs=' data-skip="L20 p.1; L20 p.3"'), DECK), [])
 
     def test_deck_without_any_slide_ref_passes(self):
         self.assertTrue(ok(page(), DECK))
 
 
 class Slides(unittest.TestCase):
-    def test_manifest_gives_absolute_paths_in_deck_order(self):
+    def test_manifest_resolves_zh_from_zh_json_and_skip_flags(self):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "slides" / "slides.json"
             path.parent.mkdir()
-            path.write_text(json.dumps({"decks": [{"id": "B", "pages": [
-                {"n": 1, "src": "B-01.png", "zh": None, "w": 10, "h": 5},
-                {"n": 2, "src": "B-02.jpg", "zh": "B-02.zh.jpg", "w": 10, "h": 5}]},
-                {"id": "A", "pages": [{"n": 1, "src": "A-01.png", "zh": None, "w": 10, "h": 5}]}]}), encoding="utf-8")
+            (path.parent / "zh.json").write_text(json.dumps({
+                "Title": "<b>標題（Title）</b>",
+                "Formula y = a + bx": "線性式 y = a + bx",
+                "Untranslated": "",
+            }, ensure_ascii=False), encoding="utf-8")
+            path.write_text(json.dumps({"skip": ["A p.1"], "decks": [
+                {"id": "B", "pages": [
+                    {"n": 1, "src": "B-01.png", "w": 10, "h": 5, "blocks": ["Untranslated"], "skip": True},
+                    {"n": 2, "src": "B-02.jpg", "w": 10, "h": 5, "blocks": ["Title", "Formula y = a + bx"]},
+                ]},
+                {"id": "A", "pages": [{"n": 1, "src": "A-01.png", "w": 10, "h": 5, "blocks": []}]},
+            ]}), encoding="utf-8")
             got = build.load_slides(path)
             self.assertEqual(list(got), [("B", 1), ("B", 2), ("A", 1)])
-            self.assertEqual(got[("B", 2)], {"src": path.parent / "B-02.jpg", "zh": path.parent / "B-02.zh.jpg", "w": 10, "h": 5})
-            self.assertIsNone(got[("A", 1)]["zh"])
+            self.assertEqual(got[("B", 2)], {
+                "src": path.parent / "B-02.jpg",
+                "zh": ["<b>標題（Title）</b>", "線性式 y = a + bx"],
+                "w": 10, "h": 5, "skip": False,
+            })
+            self.assertEqual(got[("B", 1)]["zh"], [])
+            self.assertTrue(got[("B", 1)]["skip"])
+            self.assertTrue(got[("A", 1)]["skip"])
 
     def test_missing_or_broken_manifest_stops(self):
         with tempfile.TemporaryDirectory() as d:
@@ -196,11 +221,11 @@ class Slides(unittest.TestCase):
 
 
 class DeckStep(unittest.TestCase):
-    """add_deck：課件欄每頁一張圖；正文的 data-slide 換成 data-at。"""
+    """add_deck：課件欄每頁一張原圖，有譯文時渲染 .deck-zh HTML 譯文層；skip 頁不進 idle。"""
 
-    def deck(self, body):
-        src, anchors = build.number_headings(f"<html><body>{body}</body></html>")
-        return build.add_deck(src, DECK, anchors, Path("/x"))
+    def deck(self, body, slides_dict=DECK, body_attrs=""):
+        src, anchors = build.number_headings(f"<html><body{body_attrs}>{body}</body></html>")
+        return build.add_deck(src, slides_dict, anchors, Path("/x"))
 
     def fig(self, out, key):
         return re.search(rf'<figure id="slide-{key}"[^>]*>.*?</figure>', out, re.S).group(0)
@@ -213,10 +238,14 @@ class DeckStep(unittest.TestCase):
         self.assertEqual(order, sorted(order))
         self.assertTrue(out.endswith("</aside></body></html>"))
 
-    def test_image_paths_are_relative_to_the_source_and_carry_their_size(self):
+    def test_single_image_plus_html_translation_layer_below(self):
         out, _ = self.deck("<h2>一</h2>")
         self.assertIn('<img src="slides/L20-1.png" width="1000" height="563" alt="" loading="lazy">', self.fig(out, "L20-1"))
-        self.assertIn('<img src="slides/L20-2.png" data-zh="slides/L20-2.zh.png" width="1000"', self.fig(out, "L20-2"))
+        self.assertNotIn("deck-zh", self.fig(out, "L20-1"))
+        fig2 = self.fig(out, "L20-2")
+        self.assertIn('<img src="slides/L20-2.png" width="1000" height="563" alt="" loading="lazy">', fig2)
+        self.assertNotIn(".zh.png", fig2)
+        self.assertIn('<div class="deck-zh"><p><b>平穩序列（stationary series）</b></p><p>資料大致水平。</p></div>', fig2)
 
     def test_slide_attr_becomes_the_figure_ids(self):
         out, _ = self.deck('<h2 class="a" data-slide="L20 p.1-2">一</h2><p data-slide=\'L20 p.3; L21 p.1\' id="p">x</p>')
@@ -242,6 +271,18 @@ class DeckStep(unittest.TestCase):
         self.assertRegex(out, r'<figure id="slide-L20-3">')
         self.assertEqual(report, {"pages": 4, "used": 2, "key": 1, "idle": [("L20", 3), ("L21", 1)]})
 
+    def test_skipped_slides_in_manifest_or_html_are_excluded_from_idle(self):
+        custom = slides(("L20", 1, [], True), ("L20", 2), ("L20", 3), ("L21", 1))
+        out, report = self.deck(
+            '<h2 data-slide="L20 p.2">一</h2><span data-slide="L21 p.1" data-skip></span>',
+            slides_dict=custom,
+            body_attrs=' data-skip="L20 p.3"',
+        )
+        self.assertEqual(report, {"pages": 4, "used": 1, "key": 0, "idle": []})
+        self.assertIn('id="slide-L20-1" class="skip"', out)
+        self.assertNotIn("data-skip", out)
+        self.assertNotIn("slide-L21-1\"", out.split('<aside class="deck"')[0])
+
     def test_key_mark_stays_on_the_element_for_the_highlights_view(self):
         out, _ = self.deck('<p data-slide="L20 p.1" data-key>x</p>')
         self.assertIn('<p data-key data-at="slide-L20-1">x</p>', out)
@@ -265,16 +306,28 @@ class Numbering(unittest.TestCase):
         self.assertIn("<h3 id='keep'><span class=\"num\">§1.2</span> 丙</h3>", out)
         self.assertEqual(anchors, {"1": "s1", "1.1": "s1-1", "1.2": "keep", "2": "s2"})
 
-    def test_refs_become_links_but_not_inside_links_or_numbers(self):
-        src, anchors = build.number_headings("<h2>甲</h2><h3>乙</h3><p>見 §1.1，沒有 §9</p><p><a href='#x'>§1</a></p>")
+    def test_refs_become_links_but_not_inside_links_numbers_code_pre_script_or_comments(self):
+        src, anchors = build.number_headings(
+            "<h2>甲</h2><h3>乙</h3>"
+            "<p title='§1'>見 §1.1，沒有 §9，程式碼 <code>§1 與 §1.1</code></p>"
+            "<pre>def f():\n    return '§1'</pre>"
+            "<!-- 註解裡的 §1 -->"
+            "<script>const r = '§1';</script>"
+            "<p><a href='#x'>§1</a></p>"
+        )
         out = build.link_refs(src, anchors)
         self.assertIn('見 <a class="ref" href="#s1-1">§1.1</a>，沒有 §9', out)
+        self.assertIn("<code>§1 與 §1.1</code>", out)
+        self.assertIn("<pre>def f():\n    return '§1'</pre>", out)
+        self.assertIn("<!-- 註解裡的 §1 -->", out)
+        self.assertIn("<script>const r = '§1';</script>", out)
+        self.assertIn("<p title='§1'>", out)
         self.assertIn("<a href='#x'>§1</a>", out)
         self.assertIn('<span class="num">§1</span> 甲', out)
 
 
 class MetaStep(unittest.TestCase):
-    """add_meta：每個編號的 h2 帶 data-n 和目錄用的短標題；頁面上不寫閱讀時間。total_minutes：給寫頁的人看的估計。"""
+    """add_meta：每個編號的 h2 帶 data-n 和目錄用的短標題；total_minutes 以 UNITS_PER_MIN=110 與動手權重估算。"""
 
     def run_meta(self, body):
         src, _ = build.number_headings(body)
@@ -300,6 +353,10 @@ class MetaStep(unittest.TestCase):
         self.assertEqual(self.h2_tag(out, "s1").count("data-short"), 1)
         self.assertIn('data-short="自相關"', out)
 
+    def test_units_per_min_is_lowered_for_zero_prereq_readers(self):
+        self.assertEqual(build.UNITS_PER_MIN, 110)
+        self.assertGreater(build.WORK_MIN, 0.5)
+
     def test_minutes_follow_text_units_section_by_section(self):
         src = f"<h2>短</h2><p>{'字' * 10}</p><h2>長</h2><p>{'字' * build.UNITS_PER_MIN * 3}</p>"
         self.assertEqual(build.total_minutes(src), 1 + 3)
@@ -310,8 +367,9 @@ class MetaStep(unittest.TestCase):
 
     def test_each_calculation_and_self_check_adds_working_time(self):
         work = ('<div class="calc"><p>x</p></div><details class="check big"><summary>問</summary></details>'
-                '<div class="quiz"><p>問</p></div>') * 2
-        self.assertEqual(build.total_minutes(f"<h2>甲</h2>{work}<details><summary>不是自測</summary></details>"), 3)
+                '<div class="quiz"><p>問</p></div><details class="answer"><summary>獨立題</summary></details>')
+        expected = round(4 * build.WORK_MIN)
+        self.assertEqual(build.total_minutes(f"<h2>甲</h2>{work}<details><summary>不是自測</summary></details>"), expected)
 
 
 class CheatStep(unittest.TestCase):
@@ -396,7 +454,7 @@ class PanelStep(unittest.TestCase):
 
 class ShellStep(unittest.TestCase):
     """outline / rail / add_shell：左邊目錄、頁眉、正文、課件欄、旁邊打開的那一段。"""
-    ASIDE = '<aside class="deck" aria-label="課件"><div class="deck-body"><figure id="slide-L20-1"><img src="a.png" data-zh="a.zh.png"></figure></div></aside>'
+    ASIDE = '<aside class="deck" aria-label="課件"><div class="deck-body"><figure id="slide-L20-1"><img src="a.png"><div class="deck-zh"><p>譯文</p></div></figure></div></aside>'
 
     @staticmethod
     def shell(body, head="", attrs=""):
@@ -429,9 +487,14 @@ class ShellStep(unittest.TestCase):
         out = self.shell(self.ASIDE, attrs=' data-x="1" class="mine"')
         self.assertIn('<body data-x="1" class="has-deck mine">', out)
 
-    def test_translated_slides_alone_bring_the_language_switch(self):
+    def test_html_translation_layer_brings_the_language_switch(self):
         self.assertIn('data-act="lang-zh"', self.rail_of(self.shell(f"<p>x</p>{self.ASIDE}")))
         self.assertNotIn("lang-zh", self.rail_of(self.shell("<p>x</p>")))
+
+    def test_quiz_in_body_adds_quiz_wrong_copy_tool_in_rail(self):
+        with_quiz = self.rail_of(self.shell('<div class="quiz"><p>問</p><ul><li data-ok>對</li><li>錯</li></ul></div>'))
+        self.assertIn('data-act="quiz-report"', with_quiz)
+        self.assertNotIn('data-act="quiz-report"', self.rail_of(self.shell("<p>無點選題</p>")))
 
     def test_h1_gets_an_id_digest_note_and_a_hidden_resume(self):
         out = self.shell("<h1>書名</h1><p>x</p>")
@@ -476,12 +539,11 @@ class ShellStep(unittest.TestCase):
 class Output(unittest.TestCase):
     def built(self, body="<h2>一</h2><p>內容</p>", deck=None, **kw):
         with tempfile.TemporaryDirectory() as d:
-            for name in ("a.png", "a.zh.png", "slides/L20-1.png", "slides/L20-2.png", "slides/L20-2.zh.png"):
+            for name in ("a.png", "a.zh.png", "slides/L20-1.png", "slides/L20-2.png"):
                 (Path(d) / name).parent.mkdir(exist_ok=True)
                 (Path(d) / name).write_bytes(PNG + (b"zh" if ".zh." in name else b""))
             if deck:
-                deck = {k: {**v, "src": Path(d) / "slides" / v["src"].name, "zh": Path(d) / "slides" / v["zh"].name if v["zh"] else None}
-                        for k, v in deck.items()}
+                deck = {k: {**v, "src": Path(d) / "slides" / v["src"].name} for k, v in deck.items()}
             return build.build(page(body, **kw), Path(d), deck)
 
     def test_inlines_numbers_and_styles(self):
@@ -510,15 +572,22 @@ class Output(unittest.TestCase):
             with self.subTest(img=img), self.assertRaises(SystemExit):
                 self.built(f"<h2>甲</h2><figure>{img}</figure>")
 
-    def test_deck_pictures_are_inlined_beside_the_text(self):
+    def test_deck_pictures_inlined_once_with_html_zh_layer(self):
         out, report = self.built('<h2 data-slide="L20 p.2" data-key>甲</h2>', deck=slides(("L20", 1), ("L20", 2, True)))
         body = out.split("</style>", 1)[1]
         self.assertEqual(report["idle"], [("L20", 1)])
         self.assertIn('<body class="has-deck">', body)
-        self.assertRegex(body, r'<figure id="slide-L20-2" class="key"><img class="en" src="data:image/png;base64,[^"]+" width="1000" '
-                               r'height="563" alt="" loading="lazy"><img class="zh" src="data:image/png;base64,')
+        self.assertRegex(body, r'<figure id="slide-L20-2" class="key"><img src="data:image/png;base64,[^"]+" width="1000" '
+                               r'height="563" alt="" loading="lazy"><figcaption>.*?</figcaption><div class="deck-zh"><p><b>平穩序列')
         self.assertLess(body.index("</main>"), body.index('<aside class="deck"'))
         self.assertIn('data-act="lang-zh"', body)
+
+    def test_skills_root_env_resolves_pages_scripts(self):
+        repo_root = Path(__file__).resolve().parents[3]
+        env = {**os.environ, "SKILLS_ROOT": str(repo_root)}
+        r = subprocess.run([sys.executable, "-c", f'import runpy; m = runpy.run_path({str(SCRIPT)!r}); assert hasattr(m["overflow"], "measure")'],
+                           env=env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_page_declares_a_viewport_once_and_reads_the_theme_before_the_style(self):
         out, _ = self.built()
@@ -558,15 +627,19 @@ class Main(unittest.TestCase):
         self.assertIn("讀完大約 5 分鐘", said)
         self.assertNotIn("課件欄", said)
 
-    def test_deck_report_names_the_pages_the_text_never_reaches(self):
-        manifest = {"decks": [{"id": "L20", "pages": [{"n": n, "src": "L20-01.png", "zh": None, "w": 10, "h": 5} for n in (1, 2, 3)]}]}
+    def test_deck_report_names_the_pages_the_text_never_reaches_excluding_skip(self):
+        manifest = {"decks": [{"id": "L20", "pages": [
+            {"n": 1, "src": "L20-01.png", "w": 10, "h": 5, "skip": True},
+            {"n": 2, "src": "L20-01.png", "w": 10, "h": 5},
+            {"n": 3, "src": "L20-01.png", "w": 10, "h": 5},
+        ]}]}
         code, _, said, _ = self.run_main('<h2 data-slide="L20 p.2" data-key>一</h2>', attrs=' data-slides="slides/slides.json"',
                                          manifest=manifest)
         self.assertEqual(code, 0)
-        self.assertIn("課件欄 3 頁：正文講到 1 頁，必記 1 頁；沒講到：L20 p.1、3", said)
+        self.assertIn("課件欄 3 頁：正文講到 1 頁，必記 1 頁；沒講到：L20 p.3", said)
 
     def test_slide_ref_off_the_manifest_writes_nothing(self):
-        manifest = {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.png", "zh": None, "w": 10, "h": 5}]}]}
+        manifest = {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.png", "w": 10, "h": 5}]}]}
         code, out, _, err = self.run_main('<h2 data-slide="L20 p.2">一</h2>', attrs=' data-slides="slides/slides.json"', manifest=manifest)
         self.assertEqual(code, 1)
         self.assertFalse(out.exists())
@@ -588,7 +661,6 @@ class Main(unittest.TestCase):
 
     @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
     def test_formula_wider_than_the_column_is_refused(self):
-        # 比正文欄寬的公式在自己那一行橫向捲動，不撐寬整頁，但寬螢幕上右邊看起來被切掉：不產出
         wide = '<div class="formula" style="white-space:nowrap">' + "MAD = Σ|e| ÷ n；" * 40 + "</div>"
         code, out, _, err = self.run_main(f"<h2>一</h2>{wide}", measure=build.measure)
         self.assertEqual(code, 1)
@@ -598,7 +670,7 @@ class Main(unittest.TestCase):
 
     @unittest.skipUnless(build.overflow.find_browser(), "本機沒有 Chrome 或 Edge")
     def test_ordinary_page_with_a_deck_is_delivered(self):
-        manifest = {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.png", "zh": None, "w": 1000, "h": 563}]}]}
+        manifest = {"decks": [{"id": "L20", "pages": [{"n": 1, "src": "L20-01.png", "zh": ["譯文"], "w": 1000, "h": 563}]}]}
         code, out, _, err = self.run_main('<h2 data-slide="L20 p.1">一</h2><div class="formula">MAD = Σ|e| ÷ n</div>',
                                           attrs=' data-slides="slides/slides.json"', manifest=manifest, measure=build.measure)
         self.assertEqual((code, err), (0, ""))

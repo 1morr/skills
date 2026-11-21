@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "1morr-skel"
+version = "0.1.0"
+description = "Shared project skeleton parser, checker, queue advisor, notes archiver, and dashboard CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = []
+
+[project.scripts]
+1morr-skel = "skel:cli"
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+  "skills/project-init/scripts/skeleton_parser.py",
+  "skills/project-init/scripts/check_docs.py",
+  "skills/project-init/scripts/next_step.py",
+  "skills/project-init/scripts/ticket_notes.py",
+  "skills/project-init/scripts/dashboard.py",
+  "skills/project-init/scripts/skel.py",
+  "skills/project-init/scripts/scaffold.py",
+]
+
+[tool.hatch.build.targets.wheel.sources]
+"skills/project-init/scripts" = ""

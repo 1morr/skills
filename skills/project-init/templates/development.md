@@ -1,26 +1,32 @@
 # 開發
 
-開發指令的單一來源。README 只給使用者看。
+開發指令與工程護欄的單一來源。README 只給使用者看。
 
 ## 環境
 
-- Python 3.8 以上（只給 `scripts/` 的腳本用，標準函式庫）。
-- clone 或新 worktree 後執行一次：`git config core.hooksPath .githooks`。之後每次 commit，`.githooks/pre-commit` 跑下面〈全部檢查〉裡快的那幾條，`.githooks/commit-msg` 檢查訊息格式。
+- clone 或新建 worktree 後執行一次：`git config core.hooksPath .githooks`。每次 commit 時，純 POSIX `sh` 的 `.githooks/pre-commit` 擋衝突標記、私鑰與 >2MB 大檔案，`.githooks/commit-msg` 檢查 Conventional Commits 標題格式。
 
-<!-- 技術棧定了之後（M0 的第一張票）補：語言與工具的版本、安裝與建置指令。在裝置或真實服務上怎麼驗、常見故障怎麼排除，也寫在本檔，不寫進 ARCHITECTURE.md。 -->
+<!-- 技術棧定了之後（M0 的第一張票）補：語言與工具版本、安裝與建置指令、常見故障排除。 -->
 
 ## 全部檢查
 
-```
-python3 scripts/check_docs.py
-python3 -m unittest discover -s scripts/tests
+```sh
+sh .githooks/pre-commit
+1morr-skel check
 ```
 
-<!-- M0 的第一張票把這個技術棧的 lint、format、typecheck 與 test 加在這裡，CI 跑同一組；其中幾秒內跑得完的也接進 .githooks/pre-commit，慢的（完整測試、建置）只留在這裡與 CI。 -->
+<!-- M0 的第一張票把這個技術棧的 lint、format、typecheck 與 test 加在這裡，CI 跑同一組；幾秒內跑完的也接進 .githooks/pre-commit。 -->
+
+## 驗證原則（雙 checkout 防快取誤跑）
+
+- 比對修改前後（如 base 與 head 雙 worktree／checkout）實跑驗證時，在採信任何輸出前，先查驗兩邊實際載入的程式碼出處。
+- editable install、共用 virtualenv、快取 bundle 或舊程序佔用的監聽 port，常讓某一邊默默跑到另一邊的程式碼。
+- 檢查程序實際載入的模組路徑、建置產物目錄、監聽 port 對應的真實 PID，或本次改動獨有的字串標記。
+- 每一邊皆出現只可能來自該 checkout 的獨有標記後，實跑結果與截圖才算有效證據；收尾僅依記錄的 PID 關閉背景程序。
 
 ## 閘門
 
-成熟專案從第一天就有的幾道檢查。M0 的第一張票把每一列的「待定」換成指令或設定檔的路徑（寫成行內程式碼），用不到的寫「不適用：<理由>」；有指令的同時加進〈全部檢查〉與 CI。工具照這個技術棧現在的主流選，先查證再定（`AGENTS.md`〈事實與查證〉）；依賴的 lockfile 進版控。有票做完之後還留著「待定」，`scripts/check_docs.py` 會擋。
+成熟專案從第一天就有的幾道檢查。M0 的第一張票把每一列的「待定」換成指令或設定檔路徑（行內程式碼），不適用的寫「不適用：<理由>」；有票做完之後還留著「待定」，`1morr-skel check` 會擋。
 
 | 閘門 | 指令或設定檔 | 擋什麼 |
 | --- | --- | --- |
@@ -35,4 +41,4 @@ python3 -m unittest discover -s scripts/tests
 
 ## Commit message
 
-Conventional Commits：`<type>(<scope>): <subject>`，英文祈使句、小寫開頭、無句號，標題不超過 72 字元。type 是 feat、fix、docs、style、refactor、perf、test、build、ci、chore、revert。commit-msg hook 跑 `scripts/check_commit_msg.py` 擋不合格的；照收的例外：git 預設的合併與 revert 訊息，以及合併票用的 `merge: ticket NN <slug>`（正在合併時的訊息一律放行）。
+Conventional Commits：`<type>(<scope>): <subject>`，英文祈使句、小寫開頭、無句號，標題不超過 72 字元。type 是 feat、fix、docs、style、refactor、perf、test、build、ci、chore、revert。`.githooks/commit-msg` 放行 git 預設的 `Merge …`、`Revert "…"` 與合併中的 `merge: ticket NN <slug>`。

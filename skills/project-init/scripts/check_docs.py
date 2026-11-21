@@ -1,219 +1,107 @@
-"""檢查 docs/progress.md、docs/decisions.md、docs/roadmap.md、里程碑 spec 與票的格式。
+"""檢查專案骨架的狀態機與工程閘門硬契約（瘦身版，共用 skeleton_parser）。
 
-    python check_docs.py [repo 根目錄，預設目前目錄]
+    python3 check_docs.py [repo 根目錄，預設目前目錄]
 
-全部通過 exit 0；否則每條違規印一行到 stderr、exit 1。規則：
-  progress.md
-    - `##` 段依序各一次：寫法與封存、Session 紀錄
-    - 〈Session 紀錄〉整段是一張表（表外沒有別的字），每列不超過 200 字元
-    - 最後一列的「下一步」給得出指令（含 `/…` 的行內程式碼），或以「等使用者：」開頭
-  decisions.md
-    - 有〈紀錄〉段，每條一行、以 `- YYYY-MM-DD ` 開頭、不超過 200 字元、標一個決定者：（使用者定）（使用者同意）（Agent 定）
-  roadmap.md
-    - 有〈里程碑〉段，裡面的表有「里程碑」「目標」「狀態」三欄；每列的狀態以這四個詞之一開頭：未開工、進行中、已驗收、不做，
-      後面可以接說明；以「進行中」開頭的最多一個
-    - 不是「進行中」、也還沒結束的列，它的目錄裡有票沒做完時，狀態要寫「排在 <表裡另一列的第一個詞> 之後」（`未開工，排在 M1 之後`）：
-      同時有兩批票可以做，`scripts/next_step.py` 靠這一句排先後
-  docs/archive/*.md、docs/adr/
-    - 封存檔有〈Session 紀錄〉段，並有〈決定〉或舊名〈偏差與決定〉；〈決定〉每條的格式同 decisions.md
-    - 用〈決定〉的封存檔還要有〈使用者試〉段，裡面至少一行字：使用者試了什麼、結果如何，或誰代測、哪幾項沒有人親手試過；
-      用舊名的封存檔不查
-    - ADR 的檔名是 `NNNN-<小寫英數與連字號>.md`，第一行是 `# ` 標題；template.md、README.md 不查
-  大小與寫法
-    - 字元上限（Python `len`）：AGENTS.md 8,000、ARCHITECTURE.md 15,000、docs/progress.md 20,000、docs/design-brief.md 30,000；不存在的檔不查
-    - docs/design-brief.md、ARCHITECTURE.md 不寫票號（「票 12」「票12」）；程式碼區塊裡的不算
-  CHANGELOG.md（不存在就不查）
-    - 有 `## [Unreleased]`；`##` 標題是 `[Unreleased]` 或 `[<版號>] - YYYY-MM-DD`；版本底下的 `###` 是 Keep a Changelog 的六個分類：
-      Added、Changed、Deprecated、Removed、Fixed、Security
-    - 〈[Unreleased]〉裡每個頂格的條目在某個分類底下，以 `- **<功能>**：` 開頭（續行縮排）；已發版的段落只查標題
-  docs/ 的結構
-    - docs/ 第一層的每個檔與資料夾，名字都出現在指令檔（AGENTS.md，沒有就看 CLAUDE.md）裡；兩個都沒有就不查
-    - docs/research/ 第一層：檔名裡有日期的，日期在最後（`<主題>-YYYY-MM-DD`）；`facts-*.md` 有〈事實〉段
-  程式碼
-    - git 追蹤的檔，除了 Markdown、docs/、.scratch/ 與本腳本和它的測試，不引用 brief 或架構文檔的章節號（「brief §4」「architecture §3」「plan §3.2」，文件名和 § 之間隔了反引號或節名也算；研究筆記與 ADR 的節號可以引）；
-      不是 git repo 就不查
-  .scratch/
-    - 有 issues/ 的目錄都列在 roadmap.md 的里程碑表（表的「里程碑」欄第一個詞，小寫後就是目錄名）；不是里程碑的工作（文件瘦身、審計）也佔一列
-    - 有 issues/ 的目錄要有 spec.md，`##` 段含：目標、範圍、共同規則、驗收、票序（標題後面可以加括號說明）
-    - 里程碑目錄（m 加數字，例如 m0、m1.5）的 issues/ 要有一張 -acceptance.md 結尾的驗收票（早期專案叫收尾票的 -close.md 也算）
-    - 每張票在第一個 `##` 之前有一行 `Status:`
-    - 還沒結束的里程碑（roadmap.md 的狀態不是「已驗收」「不做」開頭）每張票有 `## 驗收` 段，裡面至少一個勾選框
-    - roadmap.md 標「進行中」的里程碑（表的「里程碑」欄第一個詞，小寫後就是目錄名），Status 是 done 的票在 `## Comments` 之後
-      有一行 `Session 紀錄：<YYYY-MM-DD> <做了什麼>`，以 `決定：` 開頭的行都標一個決定者、不超過 160 字元
-      （票是這兩種紀錄唯一的來源，封存時加上日期與票號仍在 200 字元內）；spec 的〈驗收〉底下有 `### 使用者試`。
-      `Session 紀錄：`、`決定：`、`變更：`、`等使用者：` 這四種行寫成清單（`- 決定：…`）或縮排的也認，長度從這幾個字算起
-    - 上一條那些 done 的票，`## Comments` 之後沒有還沒回答的「等使用者：」行（它後面要有一行「決定：」）
-    - 有 CHANGELOG.md 的 repo，上一條那些 done 的票還要至少一行 `變更：`：`變更：<分類>｜<功能>｜<一句>`（分類是上面六個之一），
-      或沒有使用者看得到的改動時 `變更：無`
-  docs/development.md（不存在就不查）
-    - 有〈閘門〉段，裡面的表有「閘門」「指令或設定檔」兩欄，而且這幾列都在（「閘門」欄以它開頭）：
-      格式、Lint、型別、單元測試、端到端冒煙、密鑰掃描、依賴漏洞、依賴更新
-    - .scratch/ 裡有任何一張票的 Status 是 done 之後，每一列的「指令或設定檔」都要有行內程式碼（指令或設定檔的路徑），
-      或以「不適用：」開頭並接理由；在那之前可以寫「待定」
+硬契約違規印到 stderr、回傳 exit 1；字元上限超標僅印 `WARN:` 軟警告、不擋 exit code（無硬違規時 exit 0）。
+接納半形 `|` 與半形括號 `(...)`，不檢查 `docs/` 逐檔寫入指令檔、`docs/research/` 日期位置或單行排版字數。
 只用標準函式庫。
 """
 
 import re
-import subprocess
 import sys
 from pathlib import Path
 
-PROGRESS = "docs/progress.md"
-ROADMAP = "docs/roadmap.md"
-DECISIONS = "docs/decisions.md"
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+import skeleton_parser as sp  # noqa: E402
+
+PROGRESS = sp.PROGRESS_REL
+ROADMAP = sp.ROADMAP_REL
+DECISIONS = sp.DECISIONS_REL
 BRIEF, ARCHITECTURE = "docs/design-brief.md", "ARCHITECTURE.md"
 BUDGETS = {"AGENTS.md": 8000, ARCHITECTURE: 15000, PROGRESS: 20000, BRIEF: 30000}
-TICKET_NUMBER = re.compile(r"票\s*\d")
-# 文件名到 `§<數字>` 之間可以隔反引號或節名（`plan〈資料流〉 的後處理、§4.4`），但不跨過別的 `.md` 或 ADR，
-# 研究筆記與 ADR 的節號可以引；只看 40 字內，免得同一行後面不相干的 § 被算進來。
-SECTION_REF = re.compile(r"(?:architecture|plan|brief)(?:\.md)?(?:(?!\.md|ADR)[^§\n]){0,40}§\s*\d", re.I)
-NOT_CODE = ("docs/", ".scratch/", "scripts/check_docs.py", "scripts/tests/test_check_docs.py")
-MAX_SCANNED_BYTES = 1_000_000
-INSTRUCTIONS = ("AGENTS.md", "CLAUDE.md")
-DATED = re.compile(r"\d{4}-\d{2}-\d{2}")
-DATED_LAST = re.compile(r"-\d{4}-\d{2}-\d{2}$")
-FACTS = "事實"
-SCRATCH = ".scratch"
-MILESTONES, SESSIONS, LOG = "里程碑", "Session 紀錄", "紀錄"
-STATE = "狀態"
-ROADMAP_COLUMNS = ("里程碑", "目標", STATE)
-ARCHIVED, OLD_ARCHIVED = "決定", "偏差與決定"
-ADR_NAME = re.compile(r"^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
-ADR_EXEMPT = ("template.md", "README.md")
-PROGRESS_SECTIONS = ("寫法與封存", SESSIONS)
+
+SCRATCH = sp.SCRATCH_DIR
+MILESTONES = sp.MILESTONES_HEADING
+SESSIONS = sp.SESSIONS_HEADING
+LOG = sp.DECISIONS_HEADING
+ARCHIVED = sp.ARCHIVED_DECISIONS_HEADING
+ACCEPTANCE = sp.ACCEPTANCE_HEADING
+USER_TRIAL = sp.USER_TRIAL_HEADING
 SPEC_SECTIONS = ("目標", "範圍", "共同規則", "驗收", "票序")
-MAX_CHARS = 200
-WAITING = "等使用者："
-ACTIVE = "進行中"
-STATES = ("未開工", ACTIVE, "已驗收", "不做")
 
-COMMAND = re.compile(r"`/[^`\s][^`]*`")
-DEVIATION = re.compile(r"^- \d{4}-\d{2}-\d{2} \S")
-DECIDERS = ("使用者定", "使用者同意", "Agent 定")
-DECIDER = re.compile("（(?:%s)）" % "|".join(DECIDERS))
+WAITING = sp.WAITING
+ACTIVE = sp.ACTIVE_WORD
+STATES = tuple(sp.STATES.keys())
+CLOSED = sp.CLOSED_WORDS
+DECIDERS = sp.DECIDERS
 DECIDER_LIST = "".join(f"（{d}）" for d in DECIDERS)
-MILESTONE_DIR = re.compile(r"^m\d+(\.\d+)?$")
-STATUS = re.compile(r"^\**Status:?\**:?\s*\S", re.I)
-DONE = re.compile(r"^\**Status:?\**:?\s*done\b", re.I)
-SESSION_NOTE, DECISION_NOTE = "Session 紀錄：", "決定："
-DATED_SESSION_NOTE = re.compile(r"^Session 紀錄：\d{4}-\d{2}-\d{2} \S")
-MAX_NOTE_CHARS = 160
-CHANGELOG, UNRELEASED = "CHANGELOG.md", "[Unreleased]"
-KINDS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
-CHANGE_NOTE, NO_CHANGE = "變更：", "變更：無"
-CHANGE = re.compile(r"^變更：(?:%s)｜[^｜]*\S[^｜]*｜\s*\S" % "|".join(KINDS))
-VERSION = re.compile(r"^\[[^\]\s]+\] - \d{4}-\d{2}-\d{2}(?:\s.*)?$")
-ENTRY = re.compile(r"^- \*\*[^*]+\*\*[：:]")
-ACCEPTANCE, USER_TRIAL = "驗收", "使用者試"
-ACCEPTANCE_SUFFIXES = ("-acceptance.md", "-close.md")
-CELL_SPLIT = re.compile(r"(?<!\\)\|")
-CLOSED = ("已驗收", "不做")
-CHECKBOX = re.compile(r"^\s*[-*] \[[ xX]\]")
-DROPPED = re.compile(r"^\**Status:?\**:?\s*(?:wontfix|cancelled|canceled)", re.I)
-AFTER = re.compile(r"排在\s*`?([^\s`，。；、]+)`?\s*之後")
-ITEM = re.compile(r"^\s*(?:[-*+]\s+)?")
-DEVELOPMENT, GATE_SECTION, GATE_COLUMNS = "docs/development.md", "閘門", ("閘門", "指令或設定檔")
+SESSION_NOTE = sp.SESSION_NOTE
+DECISION_NOTE = sp.DECISION_NOTE
+CHANGE_NOTE = sp.CHANGE_NOTE
+NO_CHANGE = sp.NO_CHANGE
+KINDS = sp.KINDS
+CHANGELOG, UNRELEASED = sp.CHANGELOG_REL, "[Unreleased]"
+
+DEVIATION_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} \S")
+DATED_SESSION_NOTE_RE = re.compile(r"^Session 紀錄：\d{4}-\d{2}-\d{2} \S")
+VERSION_RE = re.compile(r"^\[[^\]\s]+\] - \d{4}-\d{2}-\d{2}(?:\s.*)?$")
+ENTRY_RE = re.compile(r"^- \*\*[^*]+\*\*[：:]")
+
+DEVELOPMENT = sp.DEVELOPMENT_REL
+GATE_SECTION = "閘門"
+GATE_COLUMNS = ("閘門", "指令或設定檔")
 GATE_ROWS = ("格式", "Lint", "型別", "單元測試", "端到端冒煙", "密鑰掃描", "依賴漏洞", "依賴更新")
-NOT_APPLICABLE = re.compile(r"^不適用[：:]\s*\S")
-INLINE_CODE = re.compile(r"`[^`\s][^`]*`")
+NOT_APPLICABLE_RE = re.compile(r"^不適用[：:]\s*\S")
+INLINE_CODE_RE = re.compile(r"`[^`\s][^`]*`")
+ROADMAP_COLUMNS = ("里程碑", "目標", "狀態")
 
 
-def sections(text: str) -> list:
-    """[(標題, [(行號, 內容), …])]；程式碼區塊裡的 ## 不算標題，第一個 ## 之前的內容不屬於任何段。"""
-    out, fenced = [], False
-    for number, line in enumerate(text.split("\n"), 1):
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-        if not fenced and line.startswith("## "):
-            out.append((line[3:].strip(), []))
-        elif out:
-            out[-1][1].append((number, line))
-    return out
-
-
-def cells(row: str) -> list:
-    return [c.strip() for c in CELL_SPLIT.split(row.strip().strip("|"))]
-
-
-def is_row(line: str) -> bool:
-    return line.strip().startswith("|")
-
-
-def is_separator(line: str) -> bool:
-    return bool(re.fullmatch(r"\|?[\s:|-]+\|?", line.strip())) and "-" in line
-
-
-def table(lines) -> tuple:
-    """(表頭欄位, [(行號, 欄位), …])；沒有表就是 ([], [])。"""
-    rows = [(n, l) for n, l in lines if is_row(l)]
+def _table(lines) -> tuple:
+    rows = sp.table_rows(lines, unescape_pipe=False)
     if not rows:
         return [], []
-    return cells(rows[0][1]), [(n, cells(l)) for n, l in rows[1:] if not is_separator(l)]
+    head = rows[0][1]
+    data = [(n, c) for n, c in rows[1:] if not sp.is_separator_row("|" + "|".join(c) + "|")]
+    return head, data
 
 
 def check_progress(text: str) -> list:
-    out = []
-    secs = sections(text)
-    titles = [t for t, _ in secs]
-    order = "、".join(f"〈{t}〉" for t in PROGRESS_SECTIONS)
-    for title in PROGRESS_SECTIONS:
-        if titles.count(title) == 0:
-            out.append(f"{PROGRESS}：缺〈{title}〉段。## 段依序是{order}")
-        elif titles.count(title) > 1:
-            out.append(f"{PROGRESS}：〈{title}〉段出現 {titles.count(title)} 次，只能一次")
-    known = [t for t in titles if t in PROGRESS_SECTIONS]
-    if sorted(set(known), key=PROGRESS_SECTIONS.index) != list(dict.fromkeys(known)):
-        out.append(f"{PROGRESS}：## 段的順序不對，依序是{order}")
-    extra = [t for t in titles if t not in PROGRESS_SECTIONS]
-    if extra:
-        out.append(f"{PROGRESS}：多了〈{'〉〈'.join(extra)}〉段。細節放票與 spec，這裡只有{order}")
-    by_title = {}
-    for title, lines in secs:
-        by_title.setdefault(title, lines)
-
-    if SESSIONS in by_title:
-        lines = by_title[SESSIONS]
-        for n, l in lines:
-            if l.strip() and not is_row(l):
-                out.append(f"{PROGRESS}:{n}：〈{SESSIONS}〉整段是一張表，表外不放別的字")
-            if len(l) > MAX_CHARS:
-                out.append(f"{PROGRESS}:{n}：這一列 {len(l)} 字元，上限 {MAX_CHARS}。細節放票的 Comments")
-        head, rows = table(lines)
-        if "下一步" not in head:
-            out.append(f"{PROGRESS}：〈{SESSIONS}〉的表要有「下一步」欄")
-        elif not rows:
-            out.append(f"{PROGRESS}：〈{SESSIONS}〉沒有任何一列")
-        else:
-            n, last = rows[-1]
-            step = last[head.index("下一步")] if len(last) > head.index("下一步") else ""
-            if not (COMMAND.search(step) or step.startswith(WAITING)):
-                out.append(f"{PROGRESS}:{n}：最後一列的「下一步」要給下一個 session 的完整指令（寫成 `/指令 …`），"
-                           f"或以「{WAITING}」開頭")
-
-    return out
+    secs = sp.numbered_sections(text)
+    if SESSIONS not in secs:
+        return [f"{PROGRESS}：缺〈{SESSIONS}〉段"]
+    head, rows = _table(secs[SESSIONS])
+    if "下一步" not in head:
+        return [f"{PROGRESS}：〈{SESSIONS}〉的表要有「下一步」欄"]
+    if not rows:
+        return [f"{PROGRESS}：〈{SESSIONS}〉沒有任何一列"]
+    n, last = rows[-1]
+    idx = head.index("下一步")
+    step = last[idx] if len(last) > idx else ""
+    if not (sp.COMMAND_RE.search(step) or INLINE_CODE_RE.search(step) or step.startswith(WAITING)):
+        return [f"{PROGRESS}:{n}：最後一列的「下一步」要給下一個 session 的指令（行內程式碼），或以「{WAITING}」開頭"]
+    return []
 
 
-def decision_lines(rel: str, title: str, lines) -> list:
+def _decision_lines(rel: str, title: str, lines) -> list:
     out = []
     for n, l in lines:
         if not l.strip():
             continue
-        if not DEVIATION.match(l):
+        if not DEVIATION_RE.match(l):
             out.append(f"{rel}:{n}：〈{title}〉每條一行，寫成「- YYYY-MM-DD <里程碑>（<決定者>）：…」")
-        elif len(DECIDER.findall(l)) != 1:
-            out.append(f"{rel}:{n}：這一條要標一個決定者：{DECIDER_LIST}")
-        if len(l) > MAX_CHARS:
-            out.append(f"{rel}:{n}：這一條 {len(l)} 字元，上限 {MAX_CHARS}。細節放票、brief、ADR，這裡連過去")
+        elif len(sp.DECIDER_RE.findall(l)) != 1:
+            out.append(f"{rel}:{n}：這一條要標一個決定者（全半形括號皆可）：{DECIDER_LIST}")
     return out
 
 
 def check_decisions(text: str) -> list:
-    by_title = {}
-    for title, lines in sections(text):
-        by_title.setdefault(title, lines)
-    if LOG not in by_title:
+    secs = sp.numbered_sections(text)
+    if LOG not in secs:
         return [f"{DECISIONS}：缺〈{LOG}〉段"]
-    return decision_lines(DECISIONS, LOG, by_title[LOG])
+    return _decision_lines(DECISIONS, LOG, secs[LOG])
 
 
 def check_archive(root: Path) -> list:
@@ -221,18 +109,15 @@ def check_archive(root: Path) -> list:
     archive = root / "docs" / "archive"
     for p in sorted(archive.glob("*.md")) if archive.is_dir() else []:
         rel = f"docs/archive/{p.name}"
-        by_title = {}
-        for title, lines in sections(p.read_text(encoding="utf-8")):
-            by_title.setdefault(title, lines)
-        if SESSIONS not in by_title:
+        secs = sp.numbered_sections(sp.read_text(p))
+        if SESSIONS not in secs:
             out.append(f"{rel}：缺〈{SESSIONS}〉段")
-        if ARCHIVED in by_title:
-            out += decision_lines(rel, ARCHIVED, by_title[ARCHIVED])
-            if not any(l.strip() for _, l in by_title.get(USER_TRIAL, [])):
-                out.append(f"{rel}：缺〈{USER_TRIAL}〉段，或段裡沒有字。寫使用者試了什麼、結果如何；代測的寫誰測、哪幾項沒有人親手試過；"
-                           f"沒有可試的寫「無」和理由")
-        elif OLD_ARCHIVED not in by_title:
-            out.append(f"{rel}：缺〈{ARCHIVED}〉段（這個里程碑沒有決定就留空段）")
+        if ARCHIVED not in secs:
+            out.append(f"{rel}：缺〈{ARCHIVED}〉段（沒有決定就留空段）")
+        else:
+            out += _decision_lines(rel, ARCHIVED, secs[ARCHIVED])
+        if not any(l.strip() for _, l in secs.get(USER_TRIAL, [])):
+            out.append(f"{rel}：缺〈{USER_TRIAL}〉段，或段裡沒有字")
     return out
 
 
@@ -240,7 +125,8 @@ def check_changelog(root: Path) -> list:
     if not (root / CHANGELOG).is_file():
         return []
     out, version, kind, fenced, seen = [], None, None, False, False
-    for n, line in enumerate((root / CHANGELOG).read_text(encoding="utf-8").split("\n"), 1):
+    cleaned = sp.strip_html_comments(sp.read_text(root / CHANGELOG))
+    for n, line in enumerate(cleaned.split("\n"), 1):
         if line.lstrip().startswith("```"):
             fenced = not fenced
         if fenced:
@@ -248,7 +134,7 @@ def check_changelog(root: Path) -> list:
         if line.startswith("## "):
             version, kind = line[3:].strip(), None
             seen = seen or version == UNRELEASED
-            if version != UNRELEASED and not VERSION.match(version):
+            if version != UNRELEASED and not VERSION_RE.match(version):
                 out.append(f"{CHANGELOG}:{n}：`##` 標題寫成 `## {UNRELEASED}` 或 `## [<版號>] - YYYY-MM-DD`")
         elif line.startswith("### ") and version is not None:
             kind = line[4:].strip()
@@ -257,156 +143,57 @@ def check_changelog(root: Path) -> list:
         elif version == UNRELEASED and line.startswith("- "):
             if kind is None:
                 out.append(f"{CHANGELOG}:{n}：條目要放在某個分類底下（`### Added` 這類）")
-            elif not ENTRY.match(line):
-                out.append(f"{CHANGELOG}:{n}：條目寫成 `- **<功能>**：<一句>`，續行縮排；總覽頁靠 <功能> 把同一個功能的改動排在一起")
+            elif not ENTRY_RE.match(line):
+                out.append(f"{CHANGELOG}:{n}：條目寫成 `- **<功能>**：<一句>`")
     if not seen:
-        out.append(f"{CHANGELOG}：缺 `## {UNRELEASED}`，沒發版的條目放在它底下")
+        out.append(f"{CHANGELOG}：缺 `## {UNRELEASED}`")
     return out
 
 
-def check_adrs(root: Path) -> list:
-    out = []
-    adr = root / "docs" / "adr"
-    for p in sorted(adr.glob("*.md")) if adr.is_dir() else []:
-        if p.name in ADR_EXEMPT:
-            continue
-        if not ADR_NAME.match(p.name):
-            out.append(f"docs/adr/{p.name}：檔名寫成 NNNN-<小寫英數與連字號>.md")
-        elif not p.read_text(encoding="utf-8").lstrip().startswith("# "):
-            out.append(f"docs/adr/{p.name}：第一行要是 `# ` 開頭的標題")
-    return out
-
-
-def active_milestones(text: str):
-    """(進行中的列對應的目錄名, 違規)：〈里程碑〉表裡狀態以「進行中」開頭的列。"""
-    by_title = {}
-    for title, lines in sections(text):
-        by_title.setdefault(title, lines)
-    if MILESTONES not in by_title:
-        return [], [f"{ROADMAP}：缺〈{MILESTONES}〉段"]
-    head, rows = table(by_title[MILESTONES])
+def _roadmap_table(text: str) -> tuple:
+    secs = sp.numbered_sections(text)
+    if MILESTONES not in secs:
+        return [], [], [f"{ROADMAP}：缺〈{MILESTONES}〉段"]
+    head, rows = _table(secs[MILESTONES])
     missing = [c for c in ROADMAP_COLUMNS if c not in head]
     if missing:
-        return [], [f"{ROADMAP}：〈{MILESTONES}〉的表要有「{'」「'.join(missing)}」欄"]
-    i = head.index(STATE)
-    return [dir_of(head, r) for _, r in rows if len(r) > i and r[i].startswith(ACTIVE)], []
+        return [], [], [f"{ROADMAP}：〈{MILESTONES}〉的表要有「{'」「'.join(missing)}」欄"]
+    return head, rows, []
 
 
-def check_roadmap(text: str) -> list:
-    active, out = active_milestones(text)
-    if out:
-        return out
-    if len(active) > 1:
-        out.append(f"{ROADMAP}：有 {len(active)} 個里程碑的狀態以「{ACTIVE}」開頭，最多一個")
-    by_title = {}
-    for title, lines in sections(text):
-        by_title.setdefault(title, lines)
-    head, rows = table(by_title[MILESTONES])
-    i = head.index(STATE)
-    for n, r in rows:
-        if len(r) <= i or not r[i].startswith(STATES):
-            out.append(f"{ROADMAP}:{n}：狀態要以{'、'.join(f'「{s}」' for s in STATES)}其中一個開頭，後面可以接說明（「已驗收，封存在 …」）")
-    return out
-
-
-def dir_of(head: list, row: list) -> str:
-    """里程碑表一列對應的目錄名：「里程碑」欄第一個詞的小寫（`M1.5 媒體庫` → `m1.5`）；行內程式碼的反引號不算。"""
-    i = head.index(MILESTONES) if MILESTONES in head else 0
-    words = row[i].replace("`", "").split() if len(row) > i else []
+def _dir_of(head: list, row: list) -> str:
+    idx = head.index(MILESTONES) if MILESTONES in head else 0
+    words = sp.plain(row[idx]).split() if len(row) > idx else []
     return words[0].lower() if words else ""
 
 
-def active_dirs(root: Path) -> set:
-    """進行中里程碑的目錄名。"""
-    if not (root / ROADMAP).is_file():
-        return set()
-    active, _ = active_milestones((root / ROADMAP).read_text(encoding="utf-8"))
-    return set(active) - {""}
+def check_roadmap(text: str) -> list:
+    head, rows, errs = _roadmap_table(text)
+    if errs:
+        return errs
+    out = []
+    state_idx = head.index("狀態")
+    active = []
+    for n, r in rows:
+        st = sp.plain(r[state_idx]) if len(r) > state_idx else ""
+        if not st.startswith(STATES):
+            out.append(f"{ROADMAP}:{n}：狀態要以{'、'.join(f'「{s}」' for s in STATES)}其中一個開頭")
+        elif st.startswith(ACTIVE):
+            active.append(_dir_of(head, r))
+    if len(active) > 1:
+        out.append(f"{ROADMAP}：有 {len(active)} 個里程碑的狀態以「{ACTIVE}」開頭，最多一個")
+    return out
 
 
-def listed_dirs(root: Path):
-    """{里程碑表列出的目錄名: 狀態}；roadmap.md 或它的表不在就回傳 None（那是別條規則的違規）。"""
-    if not (root / ROADMAP).is_file():
-        return None
-    by_title = {}
-    for title, lines in sections((root / ROADMAP).read_text(encoding="utf-8")):
-        by_title.setdefault(title, lines)
-    head, rows = table(by_title.get(MILESTONES, []))
-    if MILESTONES not in by_title or not head:
-        return None
-    i = head.index(STATE) if STATE in head else len(head)
-    return {dir_of(head, r): (r[i] if len(r) > i else "") for _, r in rows if dir_of(head, r)}
-
-
-def check_budgets(root: Path) -> list:
+def check_warnings(root: Path) -> list:
+    """字元上限軟警告（不擋 exit code）。"""
     out = []
     for rel, limit in BUDGETS.items():
-        if (root / rel).is_file():
-            size = len((root / rel).read_text(encoding="utf-8"))
-            if size > limit:
-                out.append(f"{rel}：{size} 字元，上限 {limit}（多 {size - limit}）。搬走或刪掉內容，不靠縮短措辭湊數")
-    return out
-
-
-def check_current_state(root: Path) -> list:
-    """brief 與架構文檔只寫現況：票號留在票與 progress.md。"""
-    out = []
-    for rel in (BRIEF, ARCHITECTURE):
-        if not (root / rel).is_file():
-            continue
-        fenced = False
-        for n, line in enumerate((root / rel).read_text(encoding="utf-8").split("\n"), 1):
-            if line.lstrip().startswith("```"):
-                fenced = not fenced
-            elif not fenced and TICKET_NUMBER.search(line):
-                out.append(f"{rel}:{n}：寫了票號。這裡只寫現在的做法，要留證據就連到 ADR 或 docs/research/")
-    return out
-
-
-def check_layout(root: Path) -> list:
-    out = []
-    docs = root / "docs"
-    guide = next((root / name for name in INSTRUCTIONS if (root / name).is_file()), None)
-    if docs.is_dir() and guide is not None:
-        text = guide.read_text(encoding="utf-8")
-        for entry in sorted(docs.iterdir()):
-            name = entry.name + ("/" if entry.is_dir() else "")
-            if not entry.name.startswith(".") and name not in text:
-                out.append(f"docs/{name}：{guide.name} 沒有提到它。在〈文件〉加一行說明它是什麼，或搬到 docs/legacy/、docs/archive/")
-    research = docs / "research"
-    for entry in sorted(research.iterdir()) if research.is_dir() else []:
-        stem = entry.name if entry.is_dir() else entry.stem
-        if DATED.search(stem) and not DATED_LAST.search(stem):
-            out.append(f"docs/research/{entry.name}：日期放在檔名最後，寫成 <主題>-YYYY-MM-DD")
-        if entry.is_file() and entry.name.startswith("facts-") and entry.suffix == ".md":
-            if not any(t == FACTS for t, _ in sections(entry.read_text(encoding="utf-8"))):
-                out.append(f"docs/research/{entry.name}：facts- 開頭的檔要有〈{FACTS}〉段，一條一個編號")
-    return out
-
-
-def tracked_files(root: Path) -> list:
-    try:
-        r = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
-    except (OSError, subprocess.CalledProcessError):
-        return []
-    return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
-
-
-def check_code_refs(root: Path) -> list:
-    """章節號只在文件與票裡用：程式碼引用了，節就搬不動。"""
-    out = []
-    for rel in tracked_files(root):
-        if rel.lower().endswith(".md") or rel.startswith(NOT_CODE):
-            continue
         p = root / rel
-        if not p.is_file() or p.stat().st_size > MAX_SCANNED_BYTES:
-            continue
-        data = p.read_bytes()
-        if b"\0" in data:
-            continue
-        for n, line in enumerate(data.decode("utf-8", "replace").split("\n"), 1):
-            if SECTION_REF.search(line):
-                out.append(f"{rel}:{n}：引用了 brief 或架構文檔的章節號。改引 ADR 編號、事實編號或節的標題")
+        if p.is_file():
+            size = len(sp.read_text(p))
+            if size > limit:
+                out.append(f"WARN: {rel}：{size} 字元，建議上限 {limit}（多 {size - limit}）")
     return out
 
 
@@ -415,135 +202,117 @@ def check_scratch(root: Path) -> list:
     base = root / SCRATCH
     if not base.is_dir():
         return out
-    active, listed = active_dirs(root), listed_dirs(root)
+    roadmap_path = root / ROADMAP
+    listed = None
+    active = set()
+    if roadmap_path.is_file():
+        head, rows, errs = _roadmap_table(sp.read_text(roadmap_path))
+        if not errs and head:
+            s_idx = head.index("狀態")
+            listed = {_dir_of(head, r): (r[s_idx] if len(r) > s_idx else "") for _, r in rows if _dir_of(head, r)}
+            active = {d for d, st in listed.items() if sp.plain(st).startswith(ACTIVE)}
+
     has_changelog = (root / CHANGELOG).is_file()
     for d in sorted(p for p in base.iterdir() if (p / "issues").is_dir()):
         rel = f"{SCRATCH}/{d.name}"
-        if listed is not None and d.name.lower() not in listed:
-            out.append(f"{rel}/：{ROADMAP} 的里程碑表沒有列它。加一列，「里程碑」欄以 `{d.name}` 開頭；不列的話總覽頁和下一個 session 都看不到這批票")
-        spec = d / "spec.md"
-        if not spec.is_file():
-            out.append(f"{rel}/：有票卻沒有 spec.md，里程碑開工的第一步是寫 spec")
+        d_key = d.name.lower()
+        if listed is not None and d_key not in listed:
+            out.append(f"{rel}/：{ROADMAP} 的里程碑表沒有列它")
+        spec_path = d / "spec.md"
+        if not spec_path.is_file():
+            out.append(f"{rel}/：有票卻沒有 spec.md")
         else:
-            secs = [(re.split(r"[（(]", t)[0].strip(), lines) for t, lines in sections(spec.read_text(encoding="utf-8"))]
-            titles = [t for t, _ in secs]
-            missing = [s for s in SPEC_SECTIONS if s not in titles]
+            secs = sp.numbered_sections(sp.read_text(spec_path))
+            missing = [s for s in SPEC_SECTIONS if s not in secs]
             if missing:
                 out.append(f"{rel}/spec.md：缺〈{'〉〈'.join(missing)}〉段")
-            elif d.name in active:
-                body = next(lines for t, lines in secs if t == ACCEPTANCE)
-                if not any(re.match(rf"###\s*{USER_TRIAL}", l) for _, l in body):
-                    out.append(f"{rel}/spec.md：〈{ACCEPTANCE}〉底下要有 `### {USER_TRIAL}`：使用者親手試什麼、怎麼啟動；沒有就寫「無」和理由")
-        tickets = sorted((d / "issues").glob("*.md"))
-        state = listed.get(d.name.lower(), "") if listed else ""
-        if state and not state.startswith((ACTIVE,) + CLOSED) and any(unfinished(t) for t in tickets):
-            after = AFTER.search(state)
-            if not after or after.group(1).lower() == d.name.lower() or after.group(1).lower() not in listed:
-                out.append(f"{ROADMAP}：{d.name} 有票沒做完，狀態又不是「{ACTIVE}」。寫明它排在誰之後（`未開工，排在 M1 之後`，"
-                           f"M1 換成表裡另一列的第一個詞），或把它改成「{ACTIVE}」")
-        if MILESTONE_DIR.match(d.name) and not any(t.name.endswith(ACCEPTANCE_SUFFIXES) for t in tickets):
-            out.append(f"{rel}/issues/：沒有驗收票（檔名以 -acceptance.md 結尾），它是里程碑的最後一張票")
+            elif d_key in active:
+                if not any(re.match(rf"###\s*{USER_TRIAL}", l) for _, l in secs[ACCEPTANCE]):
+                    out.append(f"{rel}/spec.md：〈{ACCEPTANCE}〉底下要有 `### {USER_TRIAL}`")
+
+        tickets = [sp.parse_ticket(p) for p in sorted((d / "issues").glob("*.md"))]
+        state_raw = listed.get(d_key, "") if listed else ""
+        state_plain = sp.plain(state_raw)
+        if state_plain and not state_plain.startswith((ACTIVE,) + CLOSED) and any(not t["closed"] for t in tickets):
+            after = sp.AFTER_RE.search(state_raw) or sp.AFTER_RE.search(state_plain)
+            if not after or after.group(1).lower() == d_key or (listed is not None and after.group(1).lower() not in listed):
+                out.append(f"{ROADMAP}：{d.name} 有票沒做完，狀態又不是「{ACTIVE}」，需寫明排在表裡哪一列之後")
+
+        if sp.MILESTONE_DIR_RE.match(d.name) and not any(t["file"].endswith(sp.ACCEPTANCE_SUFFIXES) for t in tickets):
+            out.append(f"{rel}/issues/：沒有驗收票（檔名以 -acceptance.md 結尾）")
+
         for t in tickets:
-            text = t.read_text(encoding="utf-8")
-            head = text.split("\n## ")[0].split("\n")
-            if not any(STATUS.match(line) for line in head):
-                out.append(f"{rel}/issues/{t.name}：第一個 ## 之前要有一行 `Status:`")
-            elif d.name in active and any(DONE.match(line) for line in head):
-                comments = text.split("\n## Comments", 1)
-                noted = [bare(l) for l in comments[1].split("\n")] if len(comments) == 2 else []
-                where = f"{rel}/issues/{t.name}"
-                if open_questions(noted):
-                    out.append(f"{where}：票做完了，Comments 裡的「{WAITING}」還沒有回答。在它後面加一行「{DECISION_NOTE}…（<決定者>）」")
-                if not any(DATED_SESSION_NOTE.match(l) for l in noted):
-                    out.append(f"{where}：做完的票要在 `## Comments` 之後留一行「{SESSION_NOTE}<YYYY-MM-DD> <做了什麼>」，票是這條紀錄唯一的來源")
-                if has_changelog and not any(l.startswith(CHANGE_NOTE) for l in noted):
-                    out.append(f"{where}：做完的票要在 `## Comments` 之後留至少一行「{CHANGE_NOTE}」：每個使用者看得到的改動一行，沒有就寫「{NO_CHANGE}」")
-                for l in noted:
-                    if l.startswith(DECISION_NOTE) and len(DECIDER.findall(l)) != 1:
+            where = f"{rel}/issues/{t['file']}"
+            raw_clean = sp.strip_html_comments(sp.read_text(d / "issues" / t["file"]))
+            if not t["status"]:
+                out.append(f"{where}：第一個 ## 之前要有一行 `Status:`")
+            elif d_key in active and t["done"]:
+                if t["open_questions_even_if_closed"]:
+                    out.append(f"{where}：票做完了，Comments 裡的「{WAITING}」還沒有回答")
+                comments_lines = [sp.ITEM_PREFIX_RE.sub("", l) for _, l in sp._comments_lines(raw_clean)]
+                if not any(DATED_SESSION_NOTE_RE.match(l) for l in comments_lines):
+                    out.append(f"{where}：做完的票要在 `## Comments` 之後留一行「{SESSION_NOTE}<YYYY-MM-DD> <做了什麼>」")
+                if has_changelog and not any(l.startswith(CHANGE_NOTE) for l in comments_lines):
+                    out.append(f"{where}：做完的票要在 `## Comments` 之後留至少一行「{CHANGE_NOTE}」（無使用者可見變更寫「{NO_CHANGE}」）")
+                for l in comments_lines:
+                    if l.startswith(DECISION_NOTE) and len(sp.DECIDER_RE.findall(l)) != 1:
                         out.append(f"{where}：「{DECISION_NOTE}」那一行要標一個決定者：{DECIDER_LIST}")
-                    if l.startswith(DECISION_NOTE) and len(l) > MAX_NOTE_CHARS:
-                        out.append(f"{where}：「{DECISION_NOTE}」那一行 {len(l)} 字元，上限 {MAX_NOTE_CHARS}。細節寫在它上面的 Comments")
-                    if l.startswith(CHANGE_NOTE) and l.strip() != NO_CHANGE and not CHANGE.match(l):
-                        out.append(f"{where}：「{CHANGE_NOTE}」那一行寫成「{CHANGE_NOTE}<{'|'.join(KINDS)}>｜<功能>｜<一句>」，"
-                                   f"沒有使用者看得到的改動寫「{NO_CHANGE}」")
-            if listed and d.name.lower() in listed and not listed[d.name.lower()].startswith(CLOSED):
-                criteria = next((lines for title, lines in sections(text) if title == ACCEPTANCE), None)
-                if criteria is None or not any(CHECKBOX.match(l) for _, l in criteria):
-                    out.append(f"{rel}/issues/{t.name}：要有 `## {ACCEPTANCE}` 段，驗收條件寫成裡面的勾選框（照 docs/agents/ticket-template.md）")
+                if t["odd_changes"]:
+                    out.append(f"{where}：「{CHANGE_NOTE}」那一行寫成「{CHANGE_NOTE}<{'|'.join(KINDS)}>｜<功能>｜<一句>」（半形 | 亦可）或「{NO_CHANGE}」")
+            if listed and d_key in listed and not state_plain.startswith(CLOSED):
+                if not t["has_acceptance"] or t["boxes"] == 0:
+                    out.append(f"{where}：要有 `## {ACCEPTANCE}` 段並含勾選框")
     return out
 
 
-def bare(line: str) -> str:
-    """去掉行首的縮排和清單符號：`## Comments` 底下的紀錄常被寫成 `- 決定：…`，照樣要認得。"""
-    return ITEM.sub("", line)
-
-
-def unfinished(path: Path) -> bool:
-    head = path.read_text(encoding="utf-8").split("\n## ")[0].split("\n")
-    return not any(DONE.match(line) or DROPPED.match(line) for line in head)
-
-
-def open_questions(noted: list) -> list:
-    """`## Comments` 之後還沒回答的「等使用者：」：最後一行「決定：」之後的那幾題。"""
-    out = []
-    for l in noted:
-        if l.startswith(DECISION_NOTE):
-            out = []
-        elif l.startswith(WAITING) and l[len(WAITING):].strip():
-            out.append(l)
-    return out
-
-
-def any_ticket_done(root: Path) -> bool:
-    for t in (root / SCRATCH).glob("*/issues/*.md") if (root / SCRATCH).is_dir() else []:
-        if any(DONE.match(line) for line in t.read_text(encoding="utf-8").split("\n## ")[0].split("\n")):
-            return True
-    return False
+def _any_ticket_done(root: Path) -> bool:
+    base = root / SCRATCH
+    if not base.is_dir():
+        return False
+    return any(sp.parse_ticket(p)["done"] for p in base.glob("*/issues/*.md"))
 
 
 def check_gates(root: Path) -> list:
-    """成熟專案都有的那幾道閘門，每一道不是有指令，就是寫明為什麼不適用。"""
     if not (root / DEVELOPMENT).is_file():
         return []
-    by_title = {}
-    for title, lines in sections((root / DEVELOPMENT).read_text(encoding="utf-8")):
-        by_title.setdefault(title, lines)
-    names = "、".join(GATE_ROWS)
-    if GATE_SECTION not in by_title:
-        return [f"{DEVELOPMENT}：缺〈{GATE_SECTION}〉段。裡面一張表，欄位是「{'」「'.join(GATE_COLUMNS)}」，每列一道閘門：{names}"]
-    head, rows = table(by_title[GATE_SECTION])
+    secs = sp.numbered_sections(sp.read_text(root / DEVELOPMENT))
+    if GATE_SECTION not in secs:
+        return [f"{DEVELOPMENT}：缺〈{GATE_SECTION}〉段"]
+    head, rows = _table(secs[GATE_SECTION])
     if any(c not in head for c in GATE_COLUMNS):
         return [f"{DEVELOPMENT}：〈{GATE_SECTION}〉的表要有「{'」「'.join(GATE_COLUMNS)}」兩欄"]
     name_at, how_at = head.index(GATE_COLUMNS[0]), head.index(GATE_COLUMNS[1])
-    out, started = [], any_ticket_done(root)
+    out, started = [], _any_ticket_done(root)
     for gate in GATE_ROWS:
         found = [(n, r) for n, r in rows if len(r) > max(name_at, how_at) and r[name_at].replace("*", "").startswith(gate)]
         if not found:
-            out.append(f"{DEVELOPMENT}：〈{GATE_SECTION}〉的表缺「{gate}」這一列。每列一道閘門：{names}")
+            out.append(f"{DEVELOPMENT}：〈{GATE_SECTION}〉的表缺「{gate}」這一列")
             continue
         n, row = found[0]
-        if started and not (INLINE_CODE.search(row[how_at]) or NOT_APPLICABLE.match(row[how_at])):
-            out.append(f"{DEVELOPMENT}:{n}：已經有票做完了，「{gate}」還沒有著落。填指令或設定檔的路徑（行內程式碼），"
-                       f"或寫「不適用：<理由>」")
+        if started and not (INLINE_CODE_RE.search(row[how_at]) or NOT_APPLICABLE_RE.match(row[how_at])):
+            out.append(f"{DEVELOPMENT}:{n}：已經有票做完了，「{gate}」還沒有著落（填行內程式碼指令或「不適用：<理由>」）")
     return out
 
 
 def run(root: Path) -> list:
     out = []
-    for rel, check in ((PROGRESS, check_progress), (DECISIONS, check_decisions), (ROADMAP, check_roadmap)):
+    for rel, fn in ((PROGRESS, check_progress), (DECISIONS, check_decisions), (ROADMAP, check_roadmap)):
         if (root / rel).is_file():
-            out += check((root / rel).read_text(encoding="utf-8"))
+            out += fn(sp.read_text(root / rel))
         else:
             out.append(f"找不到 {rel}")
-    return (out + check_archive(root) + check_adrs(root) + check_changelog(root) + check_budgets(root) + check_current_state(root) + check_layout(root)
-            + check_code_refs(root) + check_scratch(root) + check_gates(root))
+    return out + check_archive(root) + check_changelog(root) + check_scratch(root) + check_gates(root)
 
 
 def main(argv) -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
-    found = run(Path(argv[0]) if argv else Path.cwd())
+            stream.reconfigure(encoding="utf-8")
+    root = Path(argv[0]) if argv else Path.cwd()
+    warns = check_warnings(root)
+    for w in warns:
+        print(w, file=sys.stderr)
+    found = run(root)
     for p in found:
         print(p, file=sys.stderr)
     if found:

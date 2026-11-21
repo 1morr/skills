@@ -3,14 +3,17 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 SCRIPT = os.path.join(HERE, "..", "scripts", "diff.py")
 FILL = os.path.join(HERE, "..", "scripts", "fill.py")
+DIFF_CSS = os.path.join(HERE, "..", "scripts", "diff.css")
 DOCUMENT = os.path.join(HERE, "..", "scripts", "document.html")
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 import diff as d  # noqa: E402
@@ -90,6 +93,82 @@ class Html(unittest.TestCase):
         blocks = d.extract_html("<svg><text>51 : 49</text><text>99.99%</text></svg>")
         self.assertEqual(blocks, p("51 : 49", "99.99%"))
 
+    def test_extracts_structured_table_in_document_order(self):
+        src = (
+            "<h1>Summary</h1>"
+            "<table><caption>表一</caption>"
+            "<thead><tr><th>品項</th><th>備註</th><th>數量</th></tr></thead>"
+            "<tbody><tr><td>紙箱<br>大號</td><td></td><td>1,200</td></tr></tbody>"
+            "</table>"
+            "<p>結尾</p>"
+        )
+        self.assertEqual(
+            d.extract_html(src),
+            [
+                ("p", "Summary"),
+                ("p", "表一"),
+                ("table", [["品項", "備註", "數量"], ["紙箱 大號", "", "1,200"]]),
+                ("p", "結尾"),
+            ],
+        )
+
+    def test_html_files_produce_structured_table_diff_for_columns_and_cells(self):
+        before_html = (
+            "<!doctype html><html><body>"
+            "<h1>盤點表</h1>"
+            "<table>"
+            "<tr><th>品項</th><th>帳面</th><th>備註</th></tr>"
+            "<tr><td>紙箱</td><td>1,200</td><td>待查</td></tr>"
+            "<tr><td>膠帶</td><td>80</td><td>正常</td></tr>"
+            "</table>"
+            "<table>"
+            "<tr><th>倉庫</th><th>舊編號</th><th>負責人</th></tr>"
+            "<tr><td>北區</td><td>N-01</td><td>王小明</td></tr>"
+            "</table>"
+            "</body></html>"
+        )
+        after_html = (
+            "<!doctype html><html><body>"
+            "<h1>盤點表</h1>"
+            "<table>"
+            "<tr><th>品項</th><th>單位</th><th>帳面</th><th>備註</th></tr>"
+            "<tr><td>紙箱</td><td>個</td><td>1,030</td><td>待查</td></tr>"
+            "<tr><td>膠帶</td><td>捲</td><td>80</td><td>正常</td></tr>"
+            "</table>"
+            "<table>"
+            "<tr><th>倉庫</th><th>負責人</th></tr>"
+            "<tr><td>北區</td><td>王小明</td></tr>"
+            "</table>"
+            "</body></html>"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            a = os.path.join(tmp, "before.html")
+            b = os.path.join(tmp, "after.html")
+            out = os.path.join(tmp, "diff.json")
+            with open(a, "w", encoding="utf-8") as f:
+                f.write(before_html)
+            with open(b, "w", encoding="utf-8") as f:
+                f.write(after_html)
+            r = subprocess.run([sys.executable, SCRIPT, a, b, "-o", out, "--json-only"],
+                               capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out, encoding="utf-8") as f:
+                data = json.load(f)
+
+        self.assertEqual([blk["kind"] for blk in data["blocks"]], ["p", "table", "table"])
+        tbl_add_col, tbl_del_col = data["blocks"][1], data["blocks"][2]
+        self.assertEqual(tbl_add_col["status"], "changed")
+        self.assertEqual(tbl_add_col["changed_cells"], 1)
+        self.assertIn([None, 1], tbl_add_col["columns"])
+        self.assertEqual(tbl_add_col["rows"][1]["status"], "changed")
+        self.assertEqual(tbl_add_col["rows"][1]["cells"][2]["before"], "1,200")
+        self.assertEqual(tbl_add_col["rows"][1]["cells"][2]["after"], "1,030")
+
+        self.assertEqual(tbl_del_col["status"], "changed")
+        self.assertEqual(tbl_del_col["changed_cells"], 0)
+        self.assertIn([1, None], tbl_del_col["columns"])
+        self.assertEqual(data["counts"]["table_cells"], 1)
+
 
 class Words(unittest.TestCase):
     def test_english_by_word_chinese_by_char(self):
@@ -122,13 +201,59 @@ class Fill(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "a.png"), "wb") as f:
                 f.write(b"PNG")
-            tpl = ('<script type="application/json" id="d">__DATA__</script>'
-                   '<img src="a.png"><img src="https://x/y.png"><video src="data:video/mp4;base64,AA"></video>')
-            page = fill.fill(tpl, {"t": "</script><b>"}, tmp)
+            tpl = ('<a href="https://example.com/doc">ref</a>'
+                   '<script type="application/json" id="d">__DATA__</script>'
+                   '<img src="a.png"><video src="data:video/mp4;base64,AA"></video>')
+            page = fill.fill(tpl, {"t": "</script><b><img src='https://x/in-json.png'>"}, tmp)
         self.assertNotIn("__DATA__", page)
         self.assertNotIn("</script><b>", page)
         self.assertIn("data:image/png;base64,UE5H", page)
-        self.assertIn("https://x/y.png", page)
+        self.assertIn('href="https://example.com/doc"', page)
+
+    def test_rejects_external_media_urls(self):
+        bad_snippets = (
+            '<img src="https://x/y.png">',
+            "<img src='http://x/y.png'>",
+            '<video src="//cdn.example.com/demo.mp4"></video>',
+            '<source src="https://x/a.webm">',
+            '<video poster="https://x/poster.jpg"></video>',
+        )
+        for snippet in bad_snippets:
+            with self.subTest(snippet=snippet):
+                with self.assertRaises(SystemExit):
+                    fill.fill(snippet, {}, ".")
+                code, page, err = self.run_fill(snippet)
+                self.assertEqual((code, page), (1, None))
+                self.assertIn("外部網址", err)
+
+    def test_skills_root_env_resolves_pages_scripts(self):
+        with tempfile.TemporaryDirectory() as fake_root:
+            self.assertEqual(
+                fill.pages_scripts_dir({"SKILLS_ROOT": fake_root}),
+                fill.Path(fake_root).resolve() / "pages" / "scripts",
+            )
+        self.assertEqual(
+            fill.pages_scripts_dir({}),
+            fill.Path(REPO_ROOT).resolve() / "pages" / "scripts",
+        )
+        # 把 fill.py 與 diff.css 放到脫離 repo 結構的獨立暫存目錄，靠 SKILLS_ROOT 找到 pages/scripts
+        with tempfile.TemporaryDirectory() as isolated:
+            scripts_dir = os.path.join(isolated, "standalone", "scripts")
+            os.makedirs(scripts_dir)
+            copied_fill = os.path.join(scripts_dir, "fill.py")
+            shutil.copy2(FILL, copied_fill)
+            shutil.copy2(DIFF_CSS, os.path.join(scripts_dir, "diff.css"))
+            src = os.path.join(isolated, "page-src.html")
+            out = os.path.join(isolated, "page.html")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("<!doctype html><html><head><title>t</title></head><body><p>ok</p></body></html>")
+            env = {**os.environ, "SKILLS_ROOT": REPO_ROOT, "PATH": ""}
+            r = subprocess.run([sys.executable, copied_fill, src, "-o", out],
+                               env=env, capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out, encoding="utf-8") as f:
+                html_out = f.read()
+            self.assertIn("--paper:", html_out)
 
     def test_missing_placeholder_fails_only_when_there_is_data(self):
         with self.assertRaises(SystemExit):
@@ -153,14 +278,14 @@ class Fill(unittest.TestCase):
         self.assertIn('"hunk": "+added line\\n"', page)
 
     def run_fill(self, body, head="", measure=lambda out: []):
-        tmp = tempfile.mkdtemp()
-        src, out = os.path.join(tmp, "p.html"), os.path.join(tmp, "o.html")
-        with open(src, "w", encoding="utf-8") as f:
-            f.write(f"<!DOCTYPE html><html><head><title>t</title>{head}</head><body>{body}</body></html>")
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-            code = fill.main([src, "-o", out], measure=measure)
-        page = open(out, encoding="utf-8").read() if os.path.exists(out) else None
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = os.path.join(tmp, "p.html"), os.path.join(tmp, "o.html")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write(f"<!DOCTYPE html><html><head><title>t</title>{head}</head><body>{body}</body></html>")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = fill.main([src, "-o", out], measure=measure)
+            page = fill.Path(out).read_text(encoding="utf-8") if os.path.exists(out) else None
         return code, page, err.getvalue()
 
     def test_shared_styles_go_first_in_head(self):
@@ -191,10 +316,10 @@ class Fill(unittest.TestCase):
         self.assertIn("沒有量水平溢出", err)
 
     def test_every_colour_in_diff_css_comes_from_a_token(self):
-        css = open(os.path.join(HERE, "..", "scripts", "diff.css"), encoding="utf-8").read()
+        css = fill.Path(DIFF_CSS).read_text(encoding="utf-8")
         css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
         self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b|\boklch\((?!\s*,)[0-9. ]+\)|\bhsl\(", css), [])
-        tokens = set(re.findall(r"--([a-z0-9-]+)\s*:", open(str(fill.STYLES[0]), encoding="utf-8").read()))
+        tokens = set(re.findall(r"--([a-z0-9-]+)\s*:", fill.STYLES[0].read_text(encoding="utf-8")))
         used = set(re.findall(r"var\(--([a-z0-9-]+)", css))
         self.assertEqual(used - tokens - {"at", "bar-h"}, set())
 

@@ -2,9 +2,9 @@
 // 目錄和頁眉跟著捲動顯示現在在哪；一路讀下來的段落打勾，記在瀏覽器。
 // 課件欄跟著正文：寫了 data-at 的那一塊在講哪一頁，課件欄就停在那一頁、把它框起來；下一塊快捲到時，
 // 課件欄照正文捲動的距離滑到下一頁（隔得遠的等捲到了再一次滑過去）。那一塊後面的小標籤按了也會回到那一頁；
-// 課件欄的圖點了放大，圖說上的 § 跳到講它的段落。「跟著正文」關掉後課件欄只聽讀者的。
+// 課件欄的圖點了放大，圖說上的 § 跳到講它的段落，「看中文」展開／收起圖下方的 HTML 譯文對照層。「跟著正文」關掉後課件欄只聽讀者的。
 // 內文的 § 連結、頁眉的「速查卡」「名詞表」「查表」都在對照欄打開，正文不動；對照欄裡再跳可以按「返回」。跨段跳轉走瀏覽器的上一頁。
-// 正文裡翻譯過的圖預設顯示原文，點圖換成翻譯、再點換回來；圖說上的按鈕做同一件事，鍵盤按得到。
+// 點選題（.quiz）首答對錯寫入 localStorage，答錯時目錄出現「複製自測錯題」鈕供貼回對話對接 COACH.md。
 // 「只看重點」只留標題、重點框、定義、表格、常見錯誤、講必記那一頁課件的那一塊。深淺色由讀者切換，和練習頁共用 tutor-theme。
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -12,6 +12,7 @@ const KEY = `tutor-guide:${document.title}`;
 const store = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch { /* 私密模式存不了就只管這一次 */ } };
 store.read = store.read || [];
+store.quiz = store.quiz || {};
 
 // 一「段」從一個 h1 或 h2 開始，到下一個為止
 const stops = $$("main h1[id], main h2[id]");
@@ -25,11 +26,14 @@ const deckBody = $(".deck-body");
 const marks = deckBody ? $$("main [data-at]") : [];
 let follow = true, onMark = null, zoom = null, zoomFig = null;
 let goal = 0, followed = null, chasing = 0, chased = 0;
+const hasZh = (f) => !!$("img.zh, .deck-zh", f);
 
 // 標題的字：不含 § 編號和課件頁碼的小標籤
 const textOf = (h) => [...h.childNodes].filter((x) => !x.matches?.(".num, .at")).map((x) => x.textContent).join("").trim();
 const titleOf = (h) => h.dataset.short || textOf(h);
 const stopOf = (el) => stops.filter((s) => s === el || (s.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).pop() || stops[0];
+const headOf = (el) => $$("main h1[id], main h2[id], main h3[id]")
+  .filter((h) => h === el || (h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).pop() || stops[0];
 function subsOf(stop) {
   const next = stops[stops.indexOf(stop) + 1];
   return $$("main h3[id]").filter((h) => (stop.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING)
@@ -44,6 +48,17 @@ function paintStatus() {
     const cell = $(`.strip i[data-for="${s.id}"]`);
     if (cell) cell.className = s === current ? "now" : store.read.includes(s.id) ? "read" : "";
   });
+}
+function wrongQuizzes() {
+  return Object.values(store.quiz).filter((v) => v && v.firstOk === false);
+}
+function paintQuizTools() {
+  const box = $(".quiz-tools");
+  if (!box) return;
+  const wrong = wrongQuizzes();
+  box.hidden = wrong.length === 0;
+  const btn = $("[data-act='quiz-report']", box);
+  if (btn) btn.textContent = `複製自測錯題（${wrong.length}）`;
 }
 function setCurrent(stop, sub) {
   if (stop !== current) {
@@ -273,12 +288,19 @@ function setDeck(open) {
   if (open && followed !== null) aim(followed, false);
 }
 function paintZoom() {
-  const zh = zoomFig.classList.contains("show-zh") && $("img.zh", zoomFig);
-  $("img", zoom).src = (zh || $("img", zoomFig)).src;
+  const has = hasZh(zoomFig);
+  const on = zoomFig.classList.contains("show-zh") && has;
+  const zhImg = on && $("img.zh", zoomFig);
+  $("img", zoom).src = (zhImg || $("img", zoomFig)).src;
   $("b", zoom).textContent = $("figcaption b", zoomFig).textContent;
+  const dzh = $(".deck-zh", zoomFig), zzh = $(".zoom-zh", zoom);
+  if (zzh) {
+    zzh.innerHTML = dzh ? dzh.innerHTML : "";
+    zzh.hidden = !(on && dzh);
+  }
   const lang = $("[data-zoom='lang']", zoom);
-  lang.hidden = !$("img.zh", zoomFig);
-  lang.textContent = zh ? "看原文" : "看中文";
+  lang.hidden = !has;
+  lang.textContent = on ? "看原文" : "看中文";
 }
 function stepZoom(by) {
   const figs = $$(".deck figure").filter((f) => f.getClientRects().length);
@@ -294,7 +316,7 @@ function openZoom(fig) {
     zoom.className = "zoom";
     zoom.innerHTML = '<div class="zoom-bar"><b></b><span><button type="button" class="btn" data-zoom="prev">上一頁</button>'
       + '<button type="button" class="btn" data-zoom="next">下一頁</button><button type="button" class="btn" data-zoom="lang"></button>'
-      + '<button type="button" class="btn" data-zoom="close">關閉</button></span></div><img alt="">';
+      + '<button type="button" class="btn" data-zoom="close">關閉</button></span></div><img alt=""><div class="zoom-zh" hidden></div>';
     document.body.append(zoom);
     zoom.addEventListener("click", (e) => {
       const act = e.target.closest("[data-zoom]")?.dataset.zoom;
@@ -336,21 +358,62 @@ function setDigest(on) {
 }
 function paintLang(f) {
   const b = $("button.lang", f);
-  // 課件欄的圖點了是放大，換語言只靠按鈕
-  if (b) b.textContent = (f.closest(".deck") ? "看" : "點圖看") + (f.classList.contains("show-zh") ? "原文" : "中文");
+  const on = f.classList.contains("show-zh");
+  // 課件欄的圖點了是放大，換語言只靠按鈕（展開／收起 HTML 譯文對照層）
+  if (b) {
+    b.textContent = (f.closest(".deck") ? "看" : "點圖看") + (on ? "原文" : "中文");
+    b.setAttribute("aria-expanded", String(on));
+  }
 }
 function setLang(zh) {
-  $$("figure").forEach((f) => { if ($("img.zh", f)) { f.classList.toggle("show-zh", zh); paintLang(f); } });
+  $$("figure").forEach((f) => { if (hasZh(f)) { f.classList.toggle("show-zh", zh); paintLang(f); } });
   $$("[data-act='lang-zh']").forEach((b) => b.setAttribute("aria-pressed", String(zh)));
   $$("[data-act='lang-en']").forEach((b) => b.setAttribute("aria-pressed", String(!zh)));
 }
-// 選擇題：選錯的劃掉、可以再選；選對了整題結束，理由出現
+// 選擇題：選錯的劃掉、可以再選；選對了整題結束，理由出現；首答對錯存入 localStorage 供複製錯題座標
 function answer(li) {
   const quiz = li.closest(".quiz");
   if (quiz.classList.contains("done")) return;
   const ok = li.hasAttribute("data-ok");
+  const qid = quiz.dataset.qid;
+  if (qid && !quiz.dataset.tried) {
+    quiz.dataset.tried = "1";
+    const prev = store.quiz[qid];
+    store.quiz[qid] = {
+      firstOk: prev ? prev.firstOk : ok,
+      lastOk: ok,
+      sec: quiz.dataset.sec || "",
+      q: quiz.dataset.q || "",
+      picked: prev && !prev.firstOk ? prev.picked : li.textContent.trim(),
+    };
+    save();
+    paintQuizTools();
+  } else if (qid && ok && store.quiz[qid]) {
+    store.quiz[qid].lastOk = true;
+    save();
+  }
   li.classList.add(ok ? "right" : "wrong");
   if (ok) quiz.classList.add("done");
+}
+async function copyQuizReport(btn) {
+  const box = btn.closest(".quiz-tools");
+  const status = $(".quiz-status", box);
+  const book = $(".rail .book")?.textContent.trim() || document.title;
+  const lines = [`${book} 導讀頁自測錯題`].concat(
+    wrongQuizzes().map((v) => `- ${v.sec ? `${v.sec} ` : ""}「${v.q}」：首答誤選「${v.picked}」`)
+  );
+  const text = lines.join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    if (status) status.textContent = "已複製：貼回對話";
+  } catch {
+    let ta = $("textarea", box);
+    if (!ta) { ta = document.createElement("textarea"); ta.readOnly = true; box.append(ta); }
+    ta.value = text;
+    ta.rows = Math.min(8, lines.length + 1);
+    ta.select();
+    if (status) status.textContent = "全選下方文字複製";
+  }
 }
 function setTheme(dark) {
   if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
@@ -409,6 +472,7 @@ document.addEventListener("click", (e) => {
   if (act === "digest-toggle") { setDigest(!document.body.classList.contains("digest")); return; }
   if (act === "lang-zh" || act === "lang-en") { setLang(act === "lang-zh"); return; }
   if (act === "theme-light" || act === "theme-dark") { setTheme(act === "theme-dark"); return; }
+  if (act === "quiz-report") { copyQuizReport(btn); return; }
   if (act === "print") {
     document.body.classList.add("print-cheat");
     addEventListener("afterprint", () => document.body.classList.remove("print-cheat"), { once: true });
@@ -422,7 +486,7 @@ document.addEventListener("click", (e) => {
     btn.textContent = open ? "收起全部做法" : "展開全部做法";
     return;
   }
-  if (act === "reset") { store.read = []; save(); paintStatus(); return; }
+  if (act === "reset") { store.read = []; store.quiz = {}; save(); paintStatus(); paintQuizTools(); return; }
   const tab = e.target.closest(".peek-body .tabs button");
   if (tab) {
     $$(".peek-body .tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b === tab)));
@@ -433,24 +497,38 @@ document.addEventListener("click", (e) => {
   if (pick) { answer(pick); return; }
   const fig = e.target.closest("figure");
   if (!fig) return;
-  if (fig.closest(".deck") && e.target.closest("img")) { openZoom(fig); return; }
-  if ($("img.zh", fig) && e.target.closest("button.lang, img")) { fig.classList.toggle("show-zh"); paintLang(fig); }
+  if (fig.closest(".deck")) {
+    if (e.target.closest("img")) openZoom(fig);
+    else if (hasZh(fig) && e.target.closest("button.lang")) { fig.classList.toggle("show-zh"); paintLang(fig); }
+    return;
+  }
+  if (hasZh(fig) && e.target.closest("button.lang, img")) { fig.classList.toggle("show-zh"); paintLang(fig); }
 });
 addEventListener("keydown", (e) => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches?.(".quiz li")) { e.preventDefault(); answer(e.target); }
   if (e.key === "Escape") { closePeek(); document.body.classList.remove("nav-open"); }
 });
 
-// 選擇題：選項每次打開重排（寫了 data-fixed 的照原樣），鍵盤也按得到
+// 選擇題：標記所在 § 座標，選項每次打開重排（寫了 data-fixed 的照原樣），鍵盤也按得到
+const secQuizCounts = {};
+$$("main .quiz").forEach((quiz) => {
+  const h = headOf(quiz);
+  const sec = $(".num", h)?.textContent.trim() || (h?.dataset.n ? `§${h.dataset.n}` : "");
+  const keyBase = h?.id || "top";
+  secQuizCounts[keyBase] = (secQuizCounts[keyBase] || 0) + 1;
+  quiz.dataset.qid = quiz.dataset.id || `${keyBase}:${secQuizCounts[keyBase]}`;
+  quiz.dataset.sec = sec;
+  quiz.dataset.q = $(":scope > p", quiz)?.textContent.trim().slice(0, 60) || quiz.dataset.qid;
+});
 $$(".quiz ul").forEach((ul) => {
   const items = [...ul.children];
   if (!ul.closest(".quiz").hasAttribute("data-fixed")) items.sort(() => Math.random() - 0.5).forEach((li) => ul.append(li));
   items.forEach((li) => { li.tabIndex = 0; li.setAttribute("role", "button"); });
 });
-// 圖說上的按鈕：翻譯過的圖可以換成中文
+// 圖說上的按鈕：有譯文層或翻譯圖的可以切換中文
 $$("figure").forEach((f) => {
   const cap = $("figcaption", f);
-  if (!cap || !$("img.zh", f)) return;
+  if (!cap || !hasZh(f)) return;
   const b = document.createElement("button");
   b.type = "button"; b.className = "lang";
   cap.append(b);
@@ -497,4 +575,5 @@ if (store.digest) setDigest(true);
 jumping = Date.now();
 setTimeout(() => { jumping = 0; }, 1000);
 paintStatus();
+paintQuizTools();
 spy();
