@@ -1,7 +1,7 @@
-"""比對同一份文件的兩個版本，輸出逐段、逐字的改動資料（JSON）。同資料夾的 document.html 把它畫成頁面，見 DOCUMENT.md；改了輸出的格式，document.html 和它的測試跟著改。
+"""比對同一份文件的兩個版本，輸出逐段、逐字與表格逐格的改動資料（JSON）。同資料夾的 document.html 把它畫成頁面，見 DOCUMENT.md；改了輸出的格式，document.html 和它的測試跟著改。
 
 用法：
-  python diff.py <前版> <後版> [-o diff.json] [--notes notes.json] [--before-label 起點] [--after-label 最終版]
+  python diff.py <前版> <後版> [-o diff.json] [--json-only] [--notes notes.json] [--before-label 起點] [--after-label 最終版]
   python diff.py <前版> <後版> --words      只印兩版的字數（英文以詞計、中文以字計）和段數
 
 docx 要 python-docx、pdf 要 pymupdf（用 uv：uv run --no-project --with python-docx --with pymupdf python diff.py …）；
@@ -19,9 +19,9 @@ html、htm 和其他副檔名（當純文字，空行分段）不用套件。圖
    ],
    "unmatched_notes": [...]}
   columns 每項是 [前版欄號, 後版欄號]，null 代表那一欄是新加或刪掉的。
-  計數的單位是區塊：docx 一段或一張表、pdf 一個文字區塊（大約一行）、html 一個區塊元素。groups 是連續改動的
+  計數的單位是區塊：docx 與 html 一段或一張表、pdf 一個文字區塊（大約一行）。groups 是連續改動的
   區塊合成的「處」，給讀者看的改動數用它；changed / added / removed 是區塊數。
-  表格只有 docx 會逐格比；pdf 與 html 的表格會拆成一格或一列一個區塊。
+  docx 與 html 的表格會逐格比（含增刪欄與列）；pdf 的表格依文字區塊拆開。
   有 --notes 時，對上的說明放在該段的 "notes": [{"note", "tag"}]。
 
 notes.json：[{"match": "前版或後版該段裡的一段原文", "note": "為什麼改", "tag": "選填，例如 必須修"}]
@@ -100,6 +100,8 @@ class _Text(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.blocks, self.cur, self.skip = [], [], 0
+        self.in_table = 0
+        self.rows, self.row, self.cell, self.caption = [], None, None, None
 
     def flush(self):
         t = norm("".join(self.cur))
@@ -107,20 +109,113 @@ class _Text(HTMLParser):
             self.blocks.append(("p", t))
         self.cur = []
 
+    def _close_caption(self):
+        if self.caption is not None:
+            t = norm("".join(self.caption))
+            if t:
+                self.blocks.append(("p", t))
+            self.caption = None
+
+    def _close_cell(self):
+        if self.cell is not None:
+            if self.row is None:
+                self.row = []
+            self.row.append(norm("".join(self.cell)))
+            self.cell = None
+
+    def _close_row(self):
+        self._close_cell()
+        if self.row is not None:
+            if self.row:
+                self.rows.append(self.row)
+            self.row = None
+
+    def _close_table(self):
+        self._close_caption()
+        self._close_row()
+        if self.rows:
+            self.blocks.append(("table", self.rows))
+        self.rows = []
+        self.in_table = 0
+
     def handle_starttag(self, tag, attrs):
         if tag in SKIP:
             self.skip += 1
-        elif tag in BLOCK:
+            return
+        if self.skip:
+            return
+        if tag == "table":
+            if self.in_table == 0:
+                self.flush()
+                self.rows, self.row, self.cell, self.caption = [], None, None, None
+            elif self.cell is not None:
+                self.cell.append(" ")
+            self.in_table += 1
+            return
+        if self.in_table == 1:
+            if tag == "caption":
+                self._close_row()
+                self.caption = []
+            elif tag == "tr":
+                self._close_caption()
+                self._close_row()
+                self.row = []
+            elif tag in ("td", "th"):
+                self._close_caption()
+                self._close_cell()
+                if self.row is None:
+                    self.row = []
+                self.cell = []
+            elif tag in BLOCK and self.cell is not None:
+                self.cell.append(" ")
+            return
+        if self.in_table > 1:
+            if tag in BLOCK and self.cell is not None:
+                self.cell.append(" ")
+            return
+        if tag in BLOCK:
             self.flush()
 
     def handle_endtag(self, tag):
         if tag in SKIP:
             self.skip = max(0, self.skip - 1)
-        elif tag in BLOCK:
+            return
+        if self.skip:
+            return
+        if tag == "table" and self.in_table:
+            if self.in_table == 1:
+                self._close_table()
+            else:
+                self.in_table -= 1
+                if self.cell is not None:
+                    self.cell.append(" ")
+            return
+        if self.in_table == 1:
+            if tag == "caption":
+                self._close_caption()
+            elif tag in ("td", "th"):
+                self._close_cell()
+            elif tag in ("tr", "thead", "tbody", "tfoot"):
+                self._close_row()
+            elif tag in BLOCK and self.cell is not None:
+                self.cell.append(" ")
+            return
+        if self.in_table > 1:
+            if tag in BLOCK and self.cell is not None:
+                self.cell.append(" ")
+            return
+        if tag in BLOCK:
             self.flush()
 
     def handle_data(self, data):
-        if not self.skip:
+        if self.skip:
+            return
+        if self.in_table:
+            if self.cell is not None:
+                self.cell.append(data)
+            elif self.caption is not None:
+                self.caption.append(data)
+        else:
             self.cur.append(data)
 
 
@@ -128,6 +223,8 @@ def extract_html(src):
     p = _Text()
     p.feed(src)
     p.close()
+    if p.in_table:
+        p._close_table()
     p.flush()
     return p.blocks
 
@@ -305,6 +402,7 @@ def main(argv=None):
     ap.add_argument("before")
     ap.add_argument("after")
     ap.add_argument("-o", "--out")
+    ap.add_argument("--json-only", action="store_true", help="只輸出差異 JSON（預設行為）")
     ap.add_argument("--words", action="store_true", help="只印兩版的字數和段數")
     ap.add_argument("--notes")
     ap.add_argument("--before-label", default="前版")
