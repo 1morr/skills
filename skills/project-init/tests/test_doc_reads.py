@@ -44,8 +44,27 @@ class DocReadsTest(unittest.TestCase):
                                      "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": command}}]}}))
         p.write_text("\n".join(lines) + "\nnot json\n", encoding="utf-8")
 
-    def scan(self, since=""):
-        total, reads = m.scan(self.logs, self.repo, since)
+    def agy_log(self, conv_id, cwd, *reads, date="2026-01-05", tool="read_file", shell=(), quoted=True):
+        """寫一份 Antigravity 的 transcript.jsonl；reads：(相對 cwd 的路徑, 有沒有帶 StartLine/EndLine)。"""
+        p = self.logs / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        encode = (lambda s: json.dumps(s)) if quoted else (lambda s: s)
+        tool_calls = []
+        for rel, partial in reads:
+            given = {"Path": encode(str(Path(cwd) / rel))}
+            if partial:
+                given.update({"StartLine": "1", "EndLine": "40"})
+            tool_calls.append({"name": tool, "args": given})
+        for command in shell:
+            tool_calls.append({"name": "run_command", "args": {"CommandLine": encode(command)}})
+        lines = [
+            json.dumps({"step_index": 0, "type": "USER_INPUT", "created_at": f"{date}T01:00:00Z", "content": "做票"}),
+            json.dumps({"step_index": 1, "type": "PLANNER_RESPONSE", "created_at": f"{date}T01:01:00Z", "tool_calls": tool_calls}),
+        ]
+        p.write_text("\n".join(lines) + "\nnot json\n", encoding="utf-8")
+
+    def scan(self, since="", harness="auto"):
+        total, reads = m.scan(self.logs, self.repo, since, harness=harness)
         return total, {k: (len(v["sessions"]), v["full"], v["part"]) + ((v["shell"],) if v["shell"] else ()) for k, v in reads.items()}
 
     def test_counts_sessions_full_and_partial_reads(self):
@@ -85,6 +104,36 @@ class DocReadsTest(unittest.TestCase):
             self.assertIn(rel, never)
         self.assertNotIn("docs/archive/M0.md", never)
         self.assertNotIn("- docs/progress.md", never)
+
+    def test_antigravity_counts_reads_partial_worktree_and_run_command(self):
+        self.agy_log("conv-1", self.repo, ("docs/progress.md", False), ("docs/progress.md", True), ("src/main.rs", False),
+                     shell=("sed -n 1,20p docs/roadmap.md", f"cat {self.repo}/docs/progress.md"))
+        self.agy_log("conv-2", self.work, (".scratch/m1/spec.md", False), quoted=False)
+        # transcript_full.jsonl 不重算
+        full_copy = self.logs / "conv-1" / ".system_generated" / "logs" / "transcript_full.jsonl"
+        full_copy.write_text((full_copy.parent / "transcript.jsonl").read_text(encoding="utf-8"), encoding="utf-8")
+        self.assertEqual(self.scan(harness="antigravity"),
+                         (2, {"docs/progress.md": (1, 1, 1, 1), "docs/roadmap.md": (1, 0, 0, 1), ".scratch/m1/spec.md": (1, 1, 0)}))
+
+    def test_antigravity_leaves_out_other_repos_and_earlier_dates(self):
+        other = self.root / "projects" / "DemoTwo"
+        self.agy_log("conv-other", other, ("docs/progress.md", False), shell=("cat docs/roadmap.md",))
+        self.agy_log("conv-old", self.repo, ("docs/roadmap.md", False), date="2025-12-01")
+        self.agy_log("conv-edit", self.repo, ("src/main.rs", False), tool="edit_file", date="2026-01-05")
+        self.assertEqual(self.scan(since="2026-01-01", harness="antigravity"), (1, {}))
+        self.assertEqual(self.scan(harness="antigravity"), (2, {"docs/roadmap.md": (1, 1, 0)}))
+
+    def test_harness_flag_filters_or_combines_claude_and_antigravity(self):
+        self.log("-main/a.jsonl", self.repo, ("docs/progress.md", False))
+        self.agy_log("conv-1", self.repo, ("docs/progress.md", False), ("docs/roadmap.md", True))
+        self.assertEqual(self.scan(harness="claude"), (1, {"docs/progress.md": (1, 1, 0)}))
+        self.assertEqual(self.scan(harness="antigravity"), (1, {"docs/progress.md": (1, 1, 0), "docs/roadmap.md": (1, 0, 1)}))
+        self.assertEqual(self.scan(harness="auto"), (2, {"docs/progress.md": (2, 2, 0), "docs/roadmap.md": (1, 0, 1)}))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(m.main([str(self.repo), "--transcripts", str(self.logs), "--harness", "antigravity"]), 0)
+        self.assertIn("Demo：1 個 session", out.getvalue())
+        self.assertIn("| 1 | 100% | 0 | 1 | 0 | docs/roadmap.md |", out.getvalue())
 
 
 if __name__ == "__main__":

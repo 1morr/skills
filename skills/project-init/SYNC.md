@@ -28,7 +28,7 @@ SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的
 
 ## 3. 問一次
 
-用 AskUserQuestion，每項三個選項：**現在套**、**開成票**（寫進 `.scratch/<effort>/`，照專案的 spec 與票格式）、**不做**。附你的建議：
+向使用者提問（有互動提問工具就用它，否則在對話列點詢問），每項三個選項：**現在套**、**開成票**（寫進 `.scratch/<effort>/`，照專案的 spec 與票格式）、**不做**。附你的建議：
 
 - 會改做票流程的項目（票上要多記什麼、驗收多一步），進行中的里程碑還有票沒做完時，建議等它驗收後再套。
 - 要搬動或改寫大量內容的項目建議開成票。
@@ -44,4 +44,4 @@ SKILL.md〈探查〉判定 repo 已有骨架時走這份：把它對齊現在的
 - 指令檔：只改列出來的那幾段。
 - 還沒套的項目會讓新的 `check_docs.py` 紅：那幾條檢查在專案的副本裡先關掉，旁邊註明由哪張票打開。
 
-完成條件：專案自己的全部檢查通過；套了 `.githooks/` 的，`git config core.hooksPath` 印 `.githooks`；每個「開成票」的項目都有票，被關掉的檢查都對得到一張票；commit `docs: sync agent workflow with project-init`，push 前先問；專案有 `scripts/next_step.py` 時，最後跑它，照專案指令檔「所有 session 的結尾」的寫法告訴使用者下一步。
+完成條件：專案自己的全部檢查通過；套了 `.githooks/` 的，`git config core.hooksPath` 印 `.githooks`；每個「開成票」的項目都有票，被關掉的檢查都對得到一張票；commit `docs: sync agent workflow with project-init`，push 前先問；專案有 `scripts/next_step.py` 時，最後跑它，照專案指令檔〈所有 session 的結尾〉的寫法告訴使用者下一步。

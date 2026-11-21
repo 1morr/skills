@@ -53,7 +53,9 @@
 
 完成標準：票上每個驗收條件打勾、全部檢查與 test 綠燈、Comments 有帶日期的 `Session 紀錄：` 與至少一行 `變更：`、已 commit。缺一就還沒完成。
 
-**所有 session 的結尾**（做票、訪談、寫架構、里程碑開工都算），依序：
+### 所有 session 的結尾
+
+做票、訪談、寫架構、里程碑開工都算，依序：
 
 1. 不是做票的 session 在 progress.md 加一列，「下一步」寫下一個 session 要下的完整指令：里程碑做完是 `/1morr:checkpoint <剛做完的里程碑>`（它結束時寫 `/to-tickets docs/roadmap.md 拆 <下一個里程碑> 的票`），拆完票是第一張票的 `/implement <票路徑>`。
 2. 要使用者先決定才能繼續：做票的 session 在票的 `## Comments` 加一行 `等使用者：<要決定什麼>`，票留著不改 `done`；其他 session 把它寫進 progress.md 的「下一步」。使用者回答後，接手的 session 在那一行下面記 `決定：<一句>（使用者定）`，那一題就結了。
@@ -103,6 +105,7 @@ commit、文件、票、fixture、log 摘錄與截圖：
 - 查證外部事實：`mattpocock-skills:research`，輸出放 `docs/research/`，結論寫成那個檔的〈事實〉段。
 - 每張票與里程碑收尾：`mattpocock-skills:code-review`（Spec 軸讀票，Standards 軸讀本檔）；難 bug 或效能退化：`mattpocock-skills:diagnosing-bugs`。
 - 改本檔或 progress.md 的流程段：`mattpocock-skills:writing-for-agents`。
+- 非 Claude Code 的 harness 呼叫上述 skill 時，省略 `/1morr:` 或 `mattpocock-skills:` 前綴，直接用 skill 名稱。
 
 ## Agent skills
 

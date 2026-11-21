@@ -5,7 +5,7 @@
 - 填好的骨架通得過 check_docs.py。
 - 範本的票改成 done、勾完驗收、留了 Session 紀錄，通得過協調者的 orca/scripts/merge-ticket.sh 與 check_docs.py；沒做完的被擋。
 - check_commit_msg.py 和 merge-ticket.sh 收同一組 commit type。
-- 抄進專案的三個測試在 hook 的 GIT_DIR、GIT_INDEX_FILE 下跑，不改到外面那個 repo。
+- 抄進專案的四個測試在 hook 的 GIT_DIR、GIT_INDEX_FILE 下跑，不改到外面那個 repo。
 - 範本裡沒有留給模型刪、卻不在清單上的佔位。
 - docs/agents/ 的三個範本和這台機器裝的 mattpocock-skills 種子範本沒有走樣（沒裝就跳過）。
 """
@@ -148,7 +148,7 @@ class HookEnvironmentTest(unittest.TestCase):
     """抄進專案的測試在 hook 的環境下跑（git 給了絕對路徑的 GIT_DIR、GIT_INDEX_FILE）：暫存目錄的 git 不能改到外面那個 repo。
     專案常用自己的 hook 跑它們，不經過 templates/pre-commit 的 unset。"""
 
-    MODULES = ("test_check_docs", "test_check_commit_msg", "test_docs_moved_lines")
+    MODULES = ("test_check_docs", "test_check_commit_msg", "test_docs_moved_lines", "test_ticket_notes")
 
     def setUp(self):
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
@@ -201,9 +201,13 @@ def outside_conventions(text: str) -> str:
 
 
 def installed_seed():
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    found = [d for d in config.glob("plugins/cache/*/mattpocock-skills/*/skills/*/setup-matt-pocock-skills")
-             if all((d / s).is_file() for s in SEEDS.values())]
+    claude = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    gemini = Path(os.environ.get("GEMINI_CONFIG_DIR") or Path.home() / ".gemini" / "config")
+    candidates = (
+        list(claude.glob("plugins/cache/*/mattpocock-skills/*/skills/*/setup-matt-pocock-skills"))
+        + list(gemini.glob("plugins/mattpocock-skills/skills/*/setup-matt-pocock-skills"))
+    )
+    found = [d for d in candidates if all((d / s).is_file() for s in SEEDS.values())]
     return max(found, key=lambda d: d.stat().st_mtime) if found else None
 
 
