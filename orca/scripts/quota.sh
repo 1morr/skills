@@ -1,16 +1,33 @@
-# 用法：bash quota.sh [5h 門檻%] [7d 門檻%] [handle]  —— 開票前問額度能不能開
+# 用法：bash quota.sh [5h 門檻%] [7d 門檻%] [handle]  —— 僅限 Claude Code：開票前問額度能不能開
 # 來源依序：
 #   1. QUOTA_FILE（預設 ~/.claude/rate-limits.json）：狀態列指令把 Claude Code 給它的 `rate_limits` 存下來的檔，
 #      格式 {"at": <寫入時間>, "rate_limits": {"five_hour": {"used_percentage", "resets_at"}, "seven_day": {…}}}；
 #      QUOTA_MAX_AGE（預設 600）秒內寫過才算數。設定方式見 plugin 根目錄 README.md〈額度門檻〉。
 #   2. 協調者自己終端的狀態列畫面（handle 預設 $ORCA_TERMINAL_HANDLE），要有 `5h 60% ↻ 18m · 7d 90% ↻ 4d16h` 的格式。
+#      環境變數 SCR_SCREEN_FILE：selftest.sh 用，不叫 orca，把這個檔的內容當畫面。
 # 印一行：gate=open|closed|unknown src=file|screen|none 5h=<%> 5h_reset=<剩餘> 7d=<%> 7d_reset=<剩餘> sleep=<秒>
 #   closed：某個門檻到了，sleep 是到那個額度刷新再多 3 分鐘
 #   unknown：兩個來源都讀不到；有設門檻時 sleep=600（先別開票，過一陣子再問），沒設門檻時 sleep=0
 # 門檻不給或給 0 表示不限。
 cd "$(dirname "$0")"; . ./py.sh
-T5=${1:-0}; T7=${2:-0}; H=${3:-$ORCA_TERMINAL_HANDLE}
-read_line() { [ -n "$H" ] && PYTHONIOENCODING=utf-8 "$PY" scr.py "$H" 12 2>/dev/null; }
+T5=${1:-0}; T7=${2:-0}; H=${3:-${ORCA_TERMINAL_HANDLE:-}}
+read_line() {
+  [ -n "$H" ] || return 1
+  PYTHONIOENCODING=utf-8 "$PY" -c '
+import json, os, subprocess, sys
+fake = os.environ.get("SCR_SCREEN_FILE")
+if fake:
+    lines = open(fake, encoding="utf-8").read().splitlines()
+else:
+    out = subprocess.run(["orca", "terminal", "read", "--terminal", sys.argv[1], "--json"], capture_output=True).stdout
+    d = json.loads(out.decode("utf-8", errors="replace"))
+    if not d.get("ok"): sys.exit(1)
+    lines = d["result"]["terminal"]["tail"]
+nonempty = [l.rstrip() for l in lines if l.strip()]
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+print("\n".join(nonempty[-12:]))
+' "$H" 2>/dev/null
+}
 screen=
 file=${QUOTA_FILE:-$HOME/.claude/rate-limits.json}
 if ! T5="$T5" FILE="$file" MAX_AGE="${QUOTA_MAX_AGE:-600}" "$PY" -c '

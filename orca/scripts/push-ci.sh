@@ -1,4 +1,4 @@
-# 用法：bash push-ci.sh <主 repo 路徑> [workflow 檔名，預設 ci.yml] [分支，預設 main]（Bash run_in_background 掛著）
+# 用法：bash push-ci.sh <主 repo 路徑> [workflow 檔名，預設 ci.yml] [分支，預設 main]（在背景執行）
 # push 之前先等主分支上還在跑的 run 跑完：多數 workflow 的 concurrency 會讓新的 push 取消舊 run，
 # 上一張票（或發版）的驗證就沒了。push 之後等這個 commit 的 run 結束，印結論與失敗的 job；不綠 exit 1。
 # 同一個 repo 一次只跑一個：用 .git/push-ci.lock 排隊，拿鎖的那一個結束（或它的行程已經不在）才輪到下一個。

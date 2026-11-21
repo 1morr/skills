@@ -1,6 +1,6 @@
 # 用法：bash close-worktree.sh <主 repo 路徑> <worktree 路徑>  —— 那個 worktree 的工作都收進分支（或確定不要）之後才跑
 # 關掉開在這個 worktree 的終端、移除 worktree、prune、刪已合併的分支（git branch -d：沒合併就拒絕，不會丟東西）。
-# jsonl 與 session 歷史不動，使用者用 claude --resume <session id> 回看。
+# session 歷史不動（orchestration 可用 orca orchestration worker-read 回看，Claude Code 亦可用 claude --resume）。
 R=$1; W=$2; D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"
 BR=$(git -C "$W" rev-parse --abbrev-ref HEAD 2>/dev/null)
 # 路徑要完全相同：用子字串比對時，關 t07 會連 t07b 的終端一起關掉

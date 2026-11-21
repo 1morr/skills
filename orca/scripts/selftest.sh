@@ -1,61 +1,15 @@
-# 用法：bash selftest.sh  —— 改了 state.py、ask.py、last.py、py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、waitbg.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
+# 用法：bash selftest.sh  —— 改了 py.sh、headsup.py、terminals_in.py、run-check.sh、merge-ticket.sh、push-ci.sh、quota.sh、save-rate-limits.sh 之後跑；每個判準都雙向驗：該紅的紅、無關的改動不紅
 D="$(cd "$(dirname "$0")" && pwd)"; . "$D/py.sh"; X=$(mktemp -d); fail=0
 ok() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 # GNU `touch -d '-5 minutes'` 在 macOS 不認，改用 Python 設 mtime
 old() { "$PY" -c 'import os, sys, time; t = time.time() - 300; os.utime(sys.argv[1], (t, t))' "$1"; }
-
-# ---- state.py
-A='{"type":"assistant","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"hi"}]}}'
-TD='{"type":"system","subtype":"turn_duration"}'
-BGL='{"type":"user","message":{"content":[{"type":"tool_result","content":"Command running in background with ID: b1x2. Output is being written"}]}}'
-AG='{"type":"user","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"Async agent launched successfully.\nagentId: a9f8"}]}]}}'
-NOTE() { echo "{\"type\":\"user\",\"message\":{\"content\":\"<task-notification>\\n<task-id>$1</task-id>\\n<status>completed</status>\\n</task-notification>\"}}"; }
-ASK='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"AskUserQuestion","input":{}}]}}'
-TOOL='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"Bash","input":{}}]}}'
-st() { printf '%s\n' "$@" > "$X/s.jsonl"; old "$X/s.jsonl"; "$PY" "$D/state.py" "$X/s.jsonl"; }
-ok "state done"                      "$(st "$A" "$TD")" done
-ok "state ignores junk lines"        "$(st "$A" 'not json' '' "$TD")" done
-ok "state waiting on bg shell"       "$(st "$BGL" "$A" "$TD")" waiting-bg
-ok "state waiting on subagent"       "$(st "$AG" "$A" "$TD")" waiting-bg
-ok "state bg finished"               "$(st "$BGL" "$AG" "$(NOTE b1x2)" "$(NOTE a9f8)" "$A" "$TD")" done
-STOP='{"type":"user","message":{"content":[{"type":"tool_result","content":"{\"message\":\"Successfully stopped task: b1x2 (uv run x)\"}"}]}}'
-ok "state bg stopped by TaskStop"    "$(st "$BGL" "$STOP" "$A" "$TD")" done
-ok "state one of two bg finished"    "$(st "$BGL" "$AG" "$(NOTE b1x2)" "$A" "$TD")" waiting-bg
-ok "state asking"                    "$(st "$A" "$ASK")" asking
-ok "state tool running"              "$(st "$A" "$TOOL")" busy
-# 並行的兩個工具先回來一個、另一個（例如 pytest）還在跑：最後一行是 tool_result，不是 unknown
-RES='{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Tests 2199 passed"}]}}'
-ok "state parallel tool still running" "$(st "$A" "$TOOL" "$TOOL" "$RES")" busy
-ok "state unknown (no turn end)"     "$(st "$A")" unknown
-printf '%s\n' "$A" "$TD" > "$X/s.jsonl"
-ok "state recent write is busy"      "$("$PY" "$D/state.py" "$X/s.jsonl")" busy
-
-# ---- ask.py（停著的那次 AskUserQuestion 的全部題目；已經答掉的不算）
-Q2='{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"AskUserQuestion","input":{"questions":[{"question":"哪個顏色？","header":"Color","multiSelect":false,"options":[{"label":"Red","description":"紅"},{"label":"Blue"}]},{"question":"哪些尺寸？","header":"Size","multiSelect":true,"options":[{"label":"S","description":"小"}]}]}}]}}'
-ANS='{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"User has answered"}]}}'
-aq() { printf '%s\n' "$@" > "$X/q.jsonl"; "$PY" "$D/ask.py" "$X/q.jsonl"; }
-ok "ask prints every question and option" "$(aq "$A" "$Q2" | tr '\n' '|')" "[1/2] Color（單選）：哪個顏色？|  1. Red —— 紅|  2. Blue|[2/2] Size（複選）：哪些尺寸？|  1. S —— 小|"
-ok "ask ignores junk and system lines"    "$(aq "$Q2" 'not json' "$TD" | grep -c '^\[')" 2
-aq "$Q2" "$ANS" >/dev/null; ok "ask answered question is not pending" $? 1
-aq "$A" "$TD" >/dev/null;   ok "ask no question exits 1" $? 1
-
-# ---- last.py（最後一則回覆的全文：最後一筆 user 行之後 assistant 寫的文字）
-U='{"type":"user","message":{"content":"go"}}'
-A1='{"type":"assistant","message":{"content":[{"type":"text","text":"第一段\n第二行"}]}}'
-A2='{"type":"assistant","message":{"content":[{"type":"text","text":"收尾"}]}}'
-SIDE='{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":"子代理的話"}]}}'
-lr() { printf '%s\n' "$@" > "$X/l.jsonl"; "$PY" "$D/last.py" "$X/l.jsonl"; }
-ok "last joins the text after the last user line" "$(lr "$A" "$U" "$A1" "$TOOL" "$A2" "$TD" | tr '\n' '|')" "第一段|第二行||收尾|"
-ok "last drops the earlier turn"                  "$(lr "$A1" "$U" "$A2" "$TD" | tr '\n' '|')" "收尾|"
-ok "last skips sidechain and junk lines"          "$(lr "$U" "$A2" "$SIDE" 'not json' "$TD" | tr '\n' '|')" "收尾|"
-lr "$A1" "$U" "$TOOL" >/dev/null; ok "last no text since the last user line exits 1" $? 1
 
 # ---- py.sh
 ok "py.sh picked a python 3"           "$("$PY" -c 'import sys; print(sys.version_info[0])')" 3
 touch "$X/a"; old "$X/a"; a=$(age "$X/a"); [ "$a" -ge 299 ] && [ "$a" -le 330 ]; ok "age of a 5-minute-old file" $? 0
 touch "$X/a"; [ "$(age "$X/a")" -le 5 ]; ok "age of a fresh file" $? 0
 
-# ---- headsup.py（讀 You should know mod 的狀態檔；只認 offer / explained 兩種帶內容的 view，而且只看自己的 session）
+# ---- headsup.py（僅限 Claude Code worker；讀 You should know mod 的狀態檔，支援 jsonl/session id 與 --worktree）
 HS="$X/ysk.json"
 hstore() { "$PY" -c 'import json, sys; json.dump({"sessions": json.loads(sys.argv[1]), "seen": [], "known": []}, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False)' "$1" "$HS"; }
 hu() { HEADSUP_STORE="$HS" "$PY" "$D/headsup.py" "$@" "$X/me.jsonl"; }
@@ -78,6 +32,21 @@ hu --summary >/dev/null; ok "headsup unknown shape is unavailable" $? 2
 hstore '[{"id":"me","view":{"kind":"offer","explanation":"x"}}]'
 hu --summary >/dev/null; ok "headsup offer without a line is unavailable" $? 2
 
+# --worktree 模式：以 worktree 路徑反查 ~/.claude/projects/<sanitized>/*.jsonl
+CCFG="$X/ccfg"; WT="/tmp/demo/wt-01"; PDIR="$CCFG/projects/-tmp-demo-wt-01"
+mkdir -p "$PDIR"
+: > "$PDIR/old-sid.jsonl"; old "$PDIR/old-sid.jsonl"
+: > "$PDIR/new-sid.jsonl"
+hstore "[{\"id\":\"new-sid\",\"tag\":\"Heads up\",\"view\":$OFFER}]"
+ok "headsup --worktree finds active session" "$(CLAUDE_CONFIG_DIR="$CCFG" HEADSUP_STORE="$HS" "$PY" "$D/headsup.py" --summary --worktree "$WT")" "主代理刪了 tests。."
+hstore '[{"id":"new-sid","view":{"kind":"asked","line":"L。","shownAt":1}}]'
+CLAUDE_CONFIG_DIR="$CCFG" HEADSUP_STORE="$HS" "$PY" "$D/headsup.py" --summary --worktree "$WT" >/dev/null
+ok "headsup --worktree dismissed returns 1" $? 1
+CLAUDE_CONFIG_DIR="$CCFG" HEADSUP_STORE="$HS" "$PY" "$D/headsup.py" --summary --worktree "/tmp/demo/empty-wt" >/dev/null
+ok "headsup --worktree with no jsonl returns 1" $? 1
+CLAUDE_CONFIG_DIR="$CCFG" HEADSUP_STORE="$X/missing.json" "$PY" "$D/headsup.py" --summary --worktree "$WT" >/dev/null
+ok "headsup --worktree missing store returns 2" $? 2
+
 # ---- terminals_in.py（close-worktree.sh 只關這個 worktree 的終端；Git Bash 會把環境變數裡的 /w/t07 改寫成 W:/t07，用 MSYS2_ENV_CONV_EXCL 擋掉這個變數）
 export MSYS2_ENV_CONV_EXCL=W
 TL='{"result":{"terminals":[{"handle":"term_a","worktreePath":"/w/t07"},{"handle":"term_b","worktreePath":"/w/t07b"},{"handle":"term_c","worktreePath":"/w/t07/"}]}}'
@@ -85,7 +54,6 @@ ok "terminals: exact worktree only"     "$(echo "$TL" | W=/w/t07 "$PY" "$D/termi
 ok "terminals: sibling with same prefix" "$(echo "$TL" | W=/w/t07b "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_b "
 TW='{"result":{"terminals":[{"handle":"term_w","worktreePath":"c:\\ws\\t07"},{"handle":"term_x","worktreePath":"C:\\ws\\t07b"}]}}'
 ok "terminals: windows path, drive case" "$(echo "$TW" | W=C:/ws/t07 "$PY" "$D/terminals_in.py" | tr '\n' ' ')" "term_w "
-
 unset MSYS2_ENV_CONV_EXCL
 
 # ---- run-check.sh
@@ -106,6 +74,11 @@ flaky 9 'AssertionError: expected 3 got 4' 1
 bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "ordinary failure not retried" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG" | tr -d ' ')" 1/1/2
 flaky 9 'eslint 0xC0000005' 1
 bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; ok "crash twice stays red" "$?/$(cat "$X/n")/$(wc -l < "$CRASH_LOG" | tr -d ' ')" 1/2/4
+# 未設 CRASH_LOG 且沒有 ~/.claude/ 時，預設寫進 XDG_STATE_HOME 並自動 mkdir -p
+unset CRASH_LOG
+flaky 1 '' 139
+XDG_STATE_HOME="$X/xdg-state" HOME="$X/no-claude-home" bash "$D/run-check.sh" bash "$X/cmd.sh" > /dev/null; rc=$?
+ok "run-check default XDG path creates parent dir" "$rc/$(wc -l < "$X/xdg-state/1morr/crash-log.tsv" | tr -d ' ')" 0/1
 
 # ---- merge-ticket.sh
 R="$X/repo"; W="$X/wt"; git init -q -b main "$R"; cd "$R"
@@ -155,72 +128,9 @@ ok "push-ci retries a failed run list before pushing" "$(tr '\n' ' ' < "$LOG")" 
 grep -q "ci=success" "$P/out"; ok "push-ci reports the run" $? 0
 [ -d "$L" ]; ok "push-ci releases the lock" $? 1
 
-# ---- waitbg.sh（scr.py 從 SCR_SCREEN_FILE 讀指定的畫面，不叫 orca：Windows 的 Python 叫不到 PATH 上的假 sh 腳本；
-#      每個情境都限時，舊版會卡住的那幾個靠限時判出來）
-Wb="$X/wb"; mkdir -p "$Wb"; SCREEN="$Wb/screen.txt"; export SCR_SCREEN_FILE="$SCREEN"
-# 跑 waitbg 最多 $1 秒，印它的 state= 那一行（沒返回就印 TIMEOUT）
-wb() { secs=$1; shift
-  WAITBG_POLL=1 STATE_RECENT_SECS=1 WAITBG_HU_SEEN="$Wb/seen" HEADSUP_STORE="${HEADSUP_STORE:-$Wb/nostore.json}" \
-    bash "$D/waitbg.sh" term_x "$Wb/s.jsonl" "$@" > "$Wb/out" 2>&1 & p=$!
-  for i in $(seq 1 "$secs"); do kill -0 $p 2>/dev/null || break; sleep 1; done
-  if kill -0 $p 2>/dev/null; then kill $p 2>/dev/null; wait $p 2>/dev/null; echo TIMEOUT; else wait $p; grep -m1 '^state=' "$Wb/out"; fi; }
-printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
-echo '❯' > "$SCREEN"
-ok "waitbg done returns at once"                   "$(wb 5)" "state=done"
-grep -q '^--- questions' "$Wb/out"; ok "waitbg done prints no questions" $? 1
-ok "waitbg done prints the last message"           "$(sed -n '/^--- last message/,/^--- end ---/p' "$Wb/out" | sed -n 2p)" "hi"
-# 停在多題的 AskUserQuestion：畫面只有第一題，全部題目從 transcript 印出來
-printf '%s\n' "$A" "$Q2" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
-ok "waitbg asking returns"                         "$(wb 5)" "state=asking"
-grep -q '^--- last message' "$Wb/out"; ok "waitbg asking prints no last message" $? 1
-ok "waitbg asking prints every question"          "$(sed -n '/^--- questions/,/^--- end ---/p' "$Wb/out" | grep -c '^\[')" 2
-printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
-# 票 22：回合結束了，畫面卻還掛著子代理留下的 shell，舊版一直等
-echo '  ⏵⏵ bypass permissions on · 1 shell' > "$SCREEN"
-ok "waitbg done with a lingering shell keeps waiting while fresh" "$(WAITBG_BG_STALE=600 wb 4)" "TIMEOUT"
-ok "waitbg done with a lingering shell returns once stale"        "$(WAITBG_BG_STALE=60 wb 5)" "state=done-bg"
-# 送出新指示後馬上掛等待：transcript 還是上一輪的 done，不能算這一次做完
-echo '❯' > "$SCREEN"
-ok "waitbg sent: old done is not this turn"        "$(WAITBG_SENT_TIMEOUT=3 wb 8 sent)" "state=no-response"
-( sleep 2; printf '%s\n' "$A" "$TD" >> "$Wb/s.jsonl" ) & writer=$!
-ok "waitbg sent: a new turn after the send counts" "$(WAITBG_SENT_TIMEOUT=30 wb 15 sent)" "state=done"
-wait $writer 2>/dev/null
-# Heads up（讀不到狀態檔、退回讀畫面）：子 session 還在跑工具時跳出來的新一則要叫醒；回報過的同一則不再叫醒；換一則再叫醒；可關
-printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
-printf '%s\n' '✻ Working…' '✦ Heads up · 主代理刪了整個 tests 目錄。' '  1: Learn more   2: Knew this already   0: Dismiss' '❯' > "$SCREEN"
-ok "waitbg heads-up wakes while busy"              "$(wb 5)" "state=heads-up"
-ok "waitbg heads-up prints the summary"            "$(grep -m1 '^headsup=' "$Wb/out")" "headsup=主代理刪了整個 tests 目錄。"
-ok "waitbg same heads-up does not wake again"      "$(wb 3)" "TIMEOUT"
-# 題目開著時跳出 Heads up：state 是 heads-up，題目照樣要印（協調者得先答題才能收 Heads up）
-printf '%s\n' "$A" "$Q2" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
-ok "waitbg heads-up over an open question"         "$(wb 5)" "state=heads-up"
-ok "waitbg heads-up still prints the questions"    "$(grep -c '^\[' "$Wb/out")" 2
-printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
-ok "waitbg heads-up without a question prints none" "$(wb 5 >/dev/null; grep -c '^\[' "$Wb/out")" 0
-printf '%s\n' '✻ Working…' '✦ Heads up · 主代理開了 SIMD，舊瀏覽器載不起來。' '❯' > "$SCREEN"
-ok "waitbg a different heads-up wakes"             "$(wb 5)" "state=heads-up"
-printf '%s\n' '✻ Working…' '✦ Heads up · 第三則' '❯' > "$SCREEN"
-ok "waitbg heads-up detection can be turned off"   "$(WAITBG_HEADSUP=0 wb 3)" "TIMEOUT"
-printf '%s\n' "$A" "$TD" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"
-ok "waitbg done with a heads-up still says done"   "$(WAITBG_HEADSUP=0 wb 5)" "state=done"
-grep -qxF '第三則' "$Wb/seen"; ok "waitbg records the heads-up shown at return" $? 0
-# Heads up（讀狀態檔）：不看畫面也叫醒、印出全文；狀態檔說沒有就不看畫面
-WS="$Wb/ysk.json"
-wstore() { "$PY" -c 'import json, sys; json.dump({"sessions": json.loads(sys.argv[1])}, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False)' "$1" "$WS"; }
-printf '%s\n' "$A" "$TOOL" > "$Wb/s.jsonl"; old "$Wb/s.jsonl"; : > "$Wb/seen"
-printf '%s\n' '✻ Working…' '❯' > "$SCREEN"
-wstore '[{"id":"s","tag":"Heads up","view":{"kind":"offer","line":"主代理改了公開 API。.","explanation":"**公開 API 變了**\n- 呼叫端會壞","shownAt":1}}]'
-ok "waitbg file heads-up wakes without the screen" "$(HEADSUP_STORE="$WS" wb 5)" "state=heads-up"
-ok "waitbg file heads-up prints the summary"       "$(grep -m1 '^headsup=' "$Wb/out")" "headsup=主代理改了公開 API。."
-ok "waitbg file heads-up says where it came from"  "$(grep -m1 '^headsup-src=' "$Wb/out")" "headsup-src=file"
-grep -qxF -- '- 呼叫端會壞' "$Wb/out"; ok "waitbg file heads-up prints the full text" $? 0
-ok "waitbg file same heads-up does not wake again" "$(HEADSUP_STORE="$WS" wb 3)" "TIMEOUT"
-wstore '[{"id":"s","view":{"kind":"asked","line":"主代理改了公開 API。.","shownAt":1}}]'
-printf '%s\n' '✻ Working…' '✦ Heads up · 畫面上殘留的一則' '❯' > "$SCREEN"
-ok "waitbg file says none, the screen is not used" "$(HEADSUP_STORE="$WS" wb 3)" "TIMEOUT"
-
-# ---- quota.sh（先讀狀態列存下的檔，太舊或沒有才讀畫面；畫面同樣來自 SCR_SCREEN_FILE）
-QF="$Wb/rl.json"
+# ---- quota.sh（僅限 Claude Code；先讀狀態列存下的檔，太舊或沒有才讀畫面；畫面來自 SCR_SCREEN_FILE）
+Qd="$X/qt"; mkdir -p "$Qd"; SCREEN="$Qd/screen.txt"; export SCR_SCREEN_FILE="$SCREEN"
+QF="$Qd/rl.json"
 qt() { QUOTA_FILE="$QF" bash "$D/quota.sh" "$@" term_x; }
 fields() { sed -E 's/ (5h|7d)(_reset)?=[^ ]*//g'; }   # 只留 gate、src、sleep
 rl() { "$PY" -c 'import json, sys, time; n = time.time(); json.dump({"at": int(n) - int(sys.argv[1]), "rate_limits": {"five_hour": {"used_percentage": 60, "resets_at": int(n) + 1020}, "seven_day": {"used_percentage": 90, "resets_at": int(n) + 400000}}}, open(sys.argv[2], "w"))' "$1" "$QF"; }
