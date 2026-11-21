@@ -1,4 +1,4 @@
-// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給助教批改）、填答格在頁面上對答案、卡住時一次看一個提示再看逐步詳解、右下角查表面板、點圖切換原文和翻譯、頁首切換深淺色。
+// 練習頁：每題一張畫布（手寫、打字、橡皮擦、復原、自動儲存、複製成圖片給助教批改）與選配流式文字步驟框、填答格對答案、階梯提示與逐步詳解、進度 JSON 匯出匯入、右下角查表面板、深淺色切換。
 (function () {
   "use strict";
   const KEY = document.body.dataset.key;
@@ -13,9 +13,30 @@
   const TOKEN = new RegExp("[" + CJK + "]|[^\\s" + CJK + "]+\\s*|\\s+", "g");
   const measure = document.createElement("canvas").getContext("2d");
   let lastPad = null;
-  const fillLines = {};  // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
+  const fillLines = {};   // 題目代號 → 回傳這題每個填答格的結果（一格一行字）
+  const fillAllOk = {};   // 題目代號 → 這題填答格是否全對（沒有填答格回傳 null）
   const modelLines = {};  // 題目代號 → 回傳這題對範本答案的自評（一行字）
-  const hintLines = {};  // 題目代號 → 回傳這題用了幾個提示、有沒有看逐步詳解（一行字）
+  const modelAllOk = {};  // 題目代號 → 這題給分點是否拿滿（沒有給分點回傳 null）
+  const hintLines = {};   // 題目代號 → 回傳這題用了幾個提示、有沒有看逐步詳解（一行字）
+  const workLines = {};   // 題目代號 → 回傳外部 textarea.work 的文字步驟
+  const padInfo = {};     // 題目代號 → { flush(), texts(), hasStrokes(), workText() }
+
+  function loadStore(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function saveStore(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   // 題目導覽鈕的狀態：填答格全對是 ok、有答錯是 no、對過範本答案是 graded
   function mark(section) {
@@ -57,10 +78,13 @@
     const drill = section.classList.contains("drill");
     const store = KEY + ":" + id + ":fill";
     const els = Array.from(section.querySelectorAll(".fill"));
-    const saved = JSON.parse(localStorage.getItem(store) || "[]");
+    const saved = loadStore(store, []);
     const state = els.map(function (_, i) { return saved[i] || { tries: [], ok: false }; });
     fillLines[id] = function () {
       return els.map(function (el, i) { return el.dataset.label + " " + describe(state[i]); });
+    };
+    fillAllOk[id] = function () {
+      return els.length ? state.every(function (f) { return !!f.ok; }) : null;
     };
     els.forEach(function (el, i) {
       const f = state[i];
@@ -87,13 +111,13 @@
         input.value = f.draft || "";
         input.addEventListener("input", function () {
           f.draft = input.value;
-          localStorage.setItem(store, JSON.stringify(state));
+          saveStore(store, state);
         });
         mockChecks.push(function () {
           const v = (f.draft || "").trim();
           f.tries = v ? [v] : [];
           f.ok = !!v && matches(v, answers, tol);
-          localStorage.setItem(store, JSON.stringify(state));
+          saveStore(store, state);
           input.disabled = true;
           el.classList.toggle("ok", f.ok);
           el.classList.toggle("no", !f.ok);
@@ -122,7 +146,7 @@
         if (!v || input.disabled) return;
         f.tries.push(v);
         f.ok = matches(v, answers, tol);
-        localStorage.setItem(store, JSON.stringify(state));
+        saveStore(store, state);
         show();
       }
       btn.addEventListener("click", check);
@@ -130,7 +154,7 @@
         f.rounds = (f.rounds || []).concat({ tries: f.tries, ok: f.ok });
         f.tries = [];
         f.ok = false;
-        localStorage.setItem(store, JSON.stringify(state));
+        saveStore(store, state);
         show();
         input.focus();
       });
@@ -145,7 +169,7 @@
     if (!box) return;
     const id = section.dataset.id;
     const store = KEY + ":" + id + ":model";
-    const st = JSON.parse(localStorage.getItem(store) || "null") || { seen: false, got: [] };
+    const st = loadStore(store, null) || { seen: false, got: [] };
     const items = Array.from(box.querySelectorAll(".rubric li"));
     const total = items.reduce(function (n, li) { return n + (+li.dataset.marks || 0); }, 0);
     const score = document.createElement("p");
@@ -176,7 +200,7 @@
       li.append(label);
       cb.addEventListener("change", function () {
         st.got[i] = cb.checked;
-        localStorage.setItem(store, JSON.stringify(st));
+        saveStore(store, st);
         show();
       });
     });
@@ -184,7 +208,7 @@
       // 印答案時是頁面自己打開的，不算讀者對過答案
       if (!box.open || st.seen || document.body.classList.contains("print-key")) return;
       st.seen = true;
-      localStorage.setItem(store, JSON.stringify(st));
+      saveStore(store, st);
       show();
     });
     show();
@@ -193,6 +217,9 @@
       if (!items.length) return ["對過範本答案"];
       const lost = items.filter(function (_, i) { return !st.got[i]; }).map(function (li) { return li.dataset.label; });
       return ["自評 " + earned() + "/" + total + " 分" + (lost.length ? "；沒拿到：" + lost.join("、") : "")];
+    };
+    modelAllOk[id] = function () {
+      return items.length ? (st.seen && earned() === total) : null;
     };
   }
 
@@ -203,7 +230,7 @@
     if (!list && !steps) return;
     const id = section.dataset.id;
     const store = KEY + ":" + id + ":hints";
-    const st = JSON.parse(localStorage.getItem(store) || "null") || { shown: 0, steps: false };
+    const st = loadStore(store, null) || { shown: 0, steps: false };
     const items = list ? Array.from(list.children) : [];
     const bar = document.createElement("p");
     bar.className = "hint-bar";
@@ -221,18 +248,34 @@
     }
     btn.addEventListener("click", function () {
       st.shown += 1;
-      localStorage.setItem(store, JSON.stringify(st));
+      saveStore(store, st);
       show();
     });
     if (steps) steps.addEventListener("toggle", function () {
       if (!steps.open || st.steps) return;
       st.steps = true;
-      localStorage.setItem(store, JSON.stringify(st));
+      saveStore(store, st);
     });
     show();
     hintLines[id] = function () {
       const used = items.length ? (st.shown ? "看了提示 " + st.shown + "/" + items.length : "沒看提示") : "";
       return [[used, st.steps ? "看了逐步詳解" : ""].filter(Boolean).join("，") || "沒看逐步詳解"];
+    };
+  }
+
+  // 題目內直接寫的選配流式文字作答框 textarea.work
+  function makeWork(section) {
+    const id = section.dataset.id;
+    const ta = section.querySelector(":scope > textarea.work");
+    if (!ta) return;
+    const store = KEY + ":" + id + ":work";
+    const saved = loadStore(store, "");
+    if (typeof saved === "string" && saved) ta.value = saved;
+    if (!ta.getAttribute("aria-label")) ta.setAttribute("aria-label", (section.querySelector("h2")?.textContent.trim() || id) + " 的文字步驟");
+    ta.addEventListener("input", function () { saveStore(store, ta.value); });
+    workLines[id] = function () {
+      const v = ta.value.trim();
+      return v ? v.replace(/\s*\n\s*/g, " ； ") : "";
     };
   }
 
@@ -293,7 +336,10 @@
     const section = host.closest("section.q");
     const question = section ? section.querySelector("h2").textContent.trim() : id;
     const store = KEY + ":" + id;
-    const saved = JSON.parse(localStorage.getItem(store) || "null");
+    const workStore = KEY + ":" + id + ":work";
+    const hasOwnWork = !!(section && section.querySelector(":scope > textarea.work"));
+    const saved = loadStore(store, null);
+    const savedWork = hasOwnWork ? "" : (loadStore(workStore, "") || "");
     const st = { items: saved ? saved.items : [], h: saved ? saved.h : +host.dataset.h, w: saved ? saved.w : 0, tool: "black" };
 
     host.innerHTML =
@@ -303,25 +349,35 @@
       '<button type="button" data-tool="blue" aria-pressed="false"><span class="dot" style="background:' + COLORS.blue + '"></span>藍筆</button>' +
       '<button type="button" data-tool="text" aria-pressed="false">文字</button>' +
       '<button type="button" data-tool="eraser" aria-pressed="false">橡皮擦</button>' +
+      (hasOwnWork ? "" : '<button type="button" data-act="work" aria-pressed="' + (savedWork ? "true" : "false") + '">文字步驟</button>') +
       '<span class="sep"></span>' +
       '<button type="button" data-act="undo">復原</button>' +
       '<button type="button" data-act="grow">加長</button>' +
       '<button type="button" data-act="clear" class="danger">清空</button>' +
       '<button type="button" data-act="send" class="send">複製給助教</button>' +
       '<span class="status" aria-live="polite"></span></div>' +
+      (hasOwnWork ? "" : '<textarea class="work"' + (savedWork ? "" : " hidden") +
+        ' placeholder="打字寫算式或推理步驟（按「複製填答結果」會自動附上）" aria-label="' + question + ' 的文字步驟"></textarea>') +
       '<div class="board"><canvas></canvas></div>';
     const board = host.querySelector(".board");
     const canvas = host.querySelector("canvas");
     const ctx = canvas.getContext("2d");
     const status = host.querySelector(".status");
+    const padWork = host.querySelector("textarea.work");
     let current = null;  // 正在畫的一筆
     let editing = null;  // 正在打的字：{ item, index, ta }
     let scale = 1;
 
+    if (padWork) {
+      padWork.value = savedWork;
+      padWork.addEventListener("input", function () {
+        say(saveStore(workStore, padWork.value) ? "已自動儲存" : "儲存空間已滿，請匯出進度");
+      });
+    }
+
     function say(msg) { status.textContent = msg; }
     function save() {
-      localStorage.setItem(store, JSON.stringify({ w: st.w, h: st.h, items: st.items }));
-      say("已自動儲存");
+      say(saveStore(store, { w: st.w, h: st.h, items: st.items }) ? "已自動儲存" : "儲存空間已滿，請按「匯出進度」備份");
     }
     function redraw() {
       ctx.save();
@@ -491,6 +547,10 @@
         host.querySelectorAll("[data-tool]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
         canvas.classList.toggle("erasing", st.tool === "eraser");
         canvas.classList.toggle("typing", st.tool === "text");
+      } else if (b.dataset.act === "work" && padWork) {
+        padWork.hidden = !padWork.hidden;
+        b.setAttribute("aria-pressed", String(!padWork.hidden));
+        if (!padWork.hidden) padWork.focus();
       } else if (b.dataset.act === "undo") {
         api.undo();
       } else if (b.dataset.act === "grow") {
@@ -508,6 +568,23 @@
       }
     });
 
+    padInfo[id] = {
+      flush: function () { if (editing) commitEditor(); },
+      texts: function () {
+        return st.items
+          .filter(function (it) { return it.tool === "text" && it.text && it.text.trim(); })
+          .slice()
+          .sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); })
+          .map(function (it) { return it.text.trim().replace(/\s*\n\s*/g, " ； "); });
+      },
+      hasStrokes: function () {
+        return st.items.some(function (it) { return it.tool !== "text" && it.tool !== "eraser" && it.pts && it.pts.length > 0; });
+      },
+      workText: function () {
+        return padWork && padWork.value.trim() ? padWork.value.trim().replace(/\s*\n\s*/g, " ； ") : "";
+      }
+    };
+
     const api = {
       undo: function () {
         if (!st.items.length) return;
@@ -524,6 +601,7 @@
   sections.forEach(makeFills);
   sections.forEach(makeHints);
   sections.forEach(makeModel);
+  sections.forEach(makeWork);
   const pads = Array.from(document.querySelectorAll(".pad")).map(makePad);
 
   // 模擬卷：在紙上做。按「我在紙上做完了」才對填答格、才出現範本答案；兩個列印鈕各印考卷和答案
@@ -531,7 +609,7 @@
   const bar = document.querySelector(".mockbar");
   if (MOCK && bar) {
     const store = KEY + ":mock";
-    const st = JSON.parse(localStorage.getItem(store) || "null") || { end: 0 };
+    const st = loadStore(store, null) || { end: 0 };
     const done = bar.querySelector('[data-act="done"]');
     const status = bar.querySelector(".status");
     const DONE = done.textContent;
@@ -565,7 +643,7 @@
         return;
       }
       st.end = Date.now();
-      localStorage.setItem(store, JSON.stringify(st));
+      saveStore(store, st);
       show();
     });
     mockLine = function () { return st.end ? "模擬卷在紙上做完，已對答案" : "模擬卷還沒按「我在紙上做完了」"; };
@@ -573,17 +651,42 @@
     if (location.hash === "#answers") answerKey(true);  // practice.py 印答案 PDF 時開這個網址
   }
 
-  // 複製填答結果：每題一行字，貼到對話讓助教記進學習紀錄
+  function isSectionAllCorrect(id) {
+    const fOk = fillAllOk[id] ? fillAllOk[id]() : null;
+    const mOk = modelAllOk[id] ? modelAllOk[id]() : null;
+    if (fOk === null && mOk === null) return false;
+    return (fOk === null || fOk === true) && (mOk === null || mOk === true);
+  }
+
+  function buildReportLines() {
+    const lines = [TITLE + " 填答結果"].concat(mockLine ? [mockLine()] : []);
+    sections.forEach(function (sec) {
+      const id = sec.dataset.id;
+      const p = padInfo[id];
+      if (p) p.flush();
+      const got = fillLines[id]().concat(
+        hintLines[id] ? hintLines[id]() : [],
+        modelLines[id] ? modelLines[id]() : []
+      );
+      const stepParts = [];
+      if (workLines[id] && workLines[id]()) stepParts.push(workLines[id]());
+      if (p && p.workText()) stepParts.push(p.workText());
+      if (p) stepParts.push.apply(stepParts, p.texts());
+      if (stepParts.length) got.push("步驟：" + stepParts.join(" ； "));
+      if (p && p.hasStrokes() && !isSectionAllCorrect(id)) {
+        got.push("[此題含手寫步驟，請按該題「複製給助教」貼圖]");
+      }
+      const name = id + "（" + sec.querySelector("h2").textContent.trim() + "）";
+      got.forEach(function (s) { lines.push(name + "：" + s); });
+    });
+    return lines;
+  }
+
+  // 複製填答結果：每題含填答、提示、自評、按 y 排序的算式文字與手寫貼圖提醒
   const report = document.getElementById("report");
   if (report) report.addEventListener("click", async function () {
     const status = report.parentNode.querySelector(".status");
-    const lines = [TITLE + " 填答結果"].concat(mockLine ? [mockLine()] : []);
-    sections.forEach(function (sec) {
-      const got = fillLines[sec.dataset.id]().concat(hintLines[sec.dataset.id] ? hintLines[sec.dataset.id]() : [],
-        modelLines[sec.dataset.id] ? modelLines[sec.dataset.id]() : []);
-      const name = sec.dataset.id + "（" + sec.querySelector("h2").textContent.trim() + "）";
-      got.forEach(function (s) { lines.push(name + "：" + s); });
-    });
+    const lines = buildReportLines();
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
       status.textContent = "已複製：到對話裡貼上";
@@ -596,6 +699,50 @@
       status.textContent = "瀏覽器不讓複製：全選下面的字自己複製";
     }
   });
+
+  // 進度 JSON 匯出／匯入（跨 port 或換裝置時保留填答與畫布筆跡）
+  const exportBtn = document.getElementById("export-progress");
+  const importBtn = document.getElementById("import-progress");
+  const importFile = document.getElementById("import-file");
+  if (exportBtn) exportBtn.addEventListener("click", function () {
+    Object.keys(padInfo).forEach(function (id) { padInfo[id].flush(); });
+    const status = exportBtn.parentNode.querySelector(".status");
+    const prefix = KEY + ":";
+    const data = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(prefix) === 0) data[k.slice(prefix.length)] = loadStore(k, null);
+      }
+    } catch (e) { /* ignore */ }
+    const blob = new Blob([JSON.stringify({ version: 1, key: KEY, data: data }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = KEY + "-progress.json";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    if (status) status.textContent = "已匯出進度 JSON";
+  });
+  if (importBtn && importFile) {
+    importBtn.addEventListener("click", function () { importFile.click(); });
+    importFile.addEventListener("change", async function () {
+      const status = importBtn.parentNode.querySelector(".status");
+      const file = importFile.files && importFile.files[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        if (!parsed || typeof parsed.data !== "object" || Array.isArray(parsed.data)) throw new Error("bad");
+        Object.keys(parsed.data).forEach(function (suffix) {
+          saveStore(KEY + ":" + suffix, parsed.data[suffix]);
+        });
+        location.reload();
+      } catch (e) {
+        if (status) status.textContent = "進度檔格式不對，無法匯入";
+      }
+    });
+  }
+
   let timer;
   window.addEventListener("resize", function () {
     clearTimeout(timer);

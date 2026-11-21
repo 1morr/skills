@@ -1,6 +1,6 @@
 """把幾份導讀頁的速查卡接成一頁考前速查，每個題型下面接讀者自己的筆記；規則不過就不產出。
 
-    python review.py <topic4-guide.html> <topic5-guide.html> … [--notes <筆記.md>] [--title <標題>] -o <review.html>
+    python scripts/review.py <topic4-guide.html> <topic5-guide.html> … [--notes <筆記.md>] [--title <標題>] -o <review.html>
 
 導讀頁是 build.py 組好的頁（不是原始檔），照寫的順序排。速查卡原樣搬過來：題型表、公式、判斷規則；
 卡上的 §N 連回那份導讀頁（連結相對於產出的頁）。產出是離線打得開的單一檔案，樣式和導讀頁同一套。
@@ -32,6 +32,7 @@ import html
 import os
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -39,8 +40,6 @@ import build  # noqa: E402  共用樣式、深淺色、量溢出
 
 overflow = build.overflow
 
-CHEAT = re.compile(rf"<div\b{build.has_class('cheat')}>", re.I)
-DIV = re.compile(r"<(/?)div\b[^>]*>", re.I)
 H1 = re.compile(r"<h1\b[^>]*>(.*?)</h1\s*>", re.I | re.S)
 REF = re.compile(r'(<a\b[^>]*\bhref=")#([^"]+)(")', re.I)
 ROW = re.compile(r"""<tr\b[^>]*\bdata-type\s*=\s*["']([^"']+)["'][^>]*>.*?</tr\s*>""", re.I | re.S)
@@ -60,17 +59,57 @@ document.addEventListener("click", (e) => {
 """
 
 
+class _CheatFinder(HTMLParser):
+    """用 HTMLParser 擷取第一個 <div class="cheat">…</div>，自動忽略註解、<script>/<style> 與屬性內的 <div。"""
+
+    def __init__(self, page: str):
+        super().__init__(convert_charrefs=False)
+        self.page = page
+        self.offs = build.line_offsets(page)
+        self.start = None
+        self.end = None
+        self.depth = 0
+
+    def _pos(self) -> int:
+        ln, col = self.getpos()
+        return self.offs[ln - 1] + col
+
+    def handle_starttag(self, tag, attrs):
+        if self.end is not None:
+            return
+        t = tag.lower()
+        if self.start is None:
+            if t == "div" and "cheat" in build.classes(attrs):
+                self.start = self._pos()
+                self.depth = 1
+        elif t == "div":
+            self.depth += 1
+
+    def handle_startendtag(self, tag, attrs):
+        if self.end is not None:
+            return
+        if self.start is None and tag.lower() == "div" and "cheat" in build.classes(attrs):
+            p = self._pos()
+            self.start = p
+            self.end = p + len(self.get_starttag_text())
+
+    def handle_endtag(self, tag):
+        if self.start is not None and self.end is None and tag.lower() == "div":
+            self.depth -= 1
+            if self.depth == 0:
+                p = self._pos()
+                m = re.match(r"</div\s*>", self.page[p:], re.I)
+                self.end = m.end() + p if m else p
+
+
 def cheat_of(page: str):
     """組好的導讀頁裡那張速查卡（整個 <div class="cheat">…</div>）；沒有回傳 None。"""
-    m = CHEAT.search(page)
-    if not m:
+    finder = _CheatFinder(page)
+    finder.feed(page)
+    finder.close()
+    if finder.start is None or finder.end is None:
         return None
-    depth = 0
-    for d in DIV.finditer(page, m.start()):
-        depth += -1 if d.group(1) else 1
-        if depth == 0:
-            return page[m.start():d.end()]
-    return None
+    return page[finder.start:finder.end]
 
 
 def parse_notes(text: str):
@@ -195,7 +234,8 @@ def assemble(guides: list, notes: dict, title: str, lang: str = "zh-Hant"):
 
 def main(argv=None, measure=build.measure) -> int:
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("guides", type=Path, nargs="+")
     ap.add_argument("--notes", type=Path)

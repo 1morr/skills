@@ -1,23 +1,24 @@
 """把導讀頁的原始 HTML 組成單一檔案；會讓頁面壞掉的事不過就不產出。
 
-    python build.py <src.html> [-o <out.html>]
+    python scripts/build.py <src.html> [-o <out.html>]
 
 原始檔是一份普通的 HTML：<h1>、<h2>、<h3> 和正文，怎麼分段、用哪些元件由作者決定。build 加上的東西：
 § 編號和連結、左邊的目錄、頁眉、名詞表（每個 <dfn>）、速查卡的標題和列印鈕、
-查表面板（<aside class="panel">）、右邊的課件欄，並把圖片和樣式內嵌成離線打得開的單一檔案。
+查表面板（<aside class="panel">）、右邊的課件欄（含 HTML 譯文對照層），並把圖片和樣式內嵌成離線打得開的單一檔案。
 
-課件欄：<body data-slides="slides/slides.json">（deck.py 寫的清單，路徑相對於原始檔）。
+課件欄：<body data-slides="slides/slides.json">（deck.py 寫的清單，路徑相對於原始檔；同目錄有 zh.json 時自動讀入譯文）。
 正文裡在講某一頁課件的元素寫 data-slide="L20 p.25"（或 "L20 p.25-28"、"L20 p.29; L22 p.6"），
 讀者捲到那裡，課件欄就跟到那一頁；再加 data-key 的頁是必記的：課件欄標出來，「只看重點」時那一塊留著。
+純過場／行政課件可在 slides.json 標記 "skip": true，或在 <body> 寫 data-skip="L20 p.1; L20 p.30"（或元素加 data-skip），不計入「沒講到」。
 
 不產出的情況（逐條印出原因）：
 - 圖片、樣式、腳本連到網路上（頁面要能離線打開）；找不到圖片檔。
-- 內文的 §N 指到不存在的段落。
+- 內文的 §N 指到不存在的段落（<code>、<pre>、<script>、<style> 與註解內的不算）。
 - 寫了題型表 <table class="types">，某一列卻沒有不重複的 data-type：練習頁、模擬卷、考前速查、學習紀錄靠它對回題型。
   （速查卡 <div class="cheat"> 和題型表都可以不寫。）
 - 查表面板的 figure 沒有 data-tab。
-- data-slide 寫了清單上沒有的頁，或寫了 data-slide 卻沒有 data-slides。
-- 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次（pages/scripts/overflow.py）：有水平溢出，
+- data-slide 或 data-skip 寫了清單上沒有的頁，或寫了卻沒有 data-slides。
+- 組好之後用本機的 Chrome 或 Edge 在寬螢幕和手機寬各量一次（pages/scripts/overflow.py，可用 SKILLS_ROOT 指定根目錄）：有水平溢出，
   或寬螢幕上正文裡的公式、算式、表格比正文欄寬、右邊被切掉。找不到瀏覽器只提醒。
 
 成功時印產出的路徑、整頁大約要讀幾分鐘（給寫頁的人對照計畫的份量，頁面上不顯示），有課件欄時再印正文講到幾頁、哪幾頁沒講到。
@@ -36,19 +37,23 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
-# 共用的水平溢出量測在 plugin 根目錄的 pages/scripts/
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pages" / "scripts"))
+# 共用的水平溢出量測：優先讀環境變數 SKILLS_ROOT，未設時 fallback 到 plugin 根目錄的 pages/scripts/
+_SKILLS_ROOT = os.environ.get("SKILLS_ROOT")
+_PAGES_SCRIPTS = (Path(_SKILLS_ROOT).expanduser().resolve() / "pages" / "scripts"
+                  if _SKILLS_ROOT else Path(__file__).resolve().parents[3] / "pages" / "scripts")
+sys.path.insert(0, str(_PAGES_SCRIPTS))
 import overflow  # noqa: E402
 
 CSS = Path(__file__).resolve().parents[1] / "assets" / "lesson.css"
 JS = Path(__file__).resolve().parents[1] / "assets" / "lesson.js"
 
-# 估閱讀時間：一分鐘讀幾個字（單位見 text_units）；每個算式、每個自測、每題選擇題再各加半分鐘
-UNITS_PER_MIN = 200
-WORK_MIN = 0.5
+# 估零基礎閱讀與動手時間：一分鐘讀 110 個字（單位見 text_units）；每個算式、自測、選擇題、獨立摺疊題再加動手時間
+UNITS_PER_MIN = 110
+WORK_MIN = 1.5
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
+NON_PROSE_TAGS = ("script", "style", "code", "pre")
 
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 WORD = re.compile(r"[A-Za-z0-9]+")
@@ -69,6 +74,14 @@ def classes(attrs) -> set:
     return set((dict(attrs).get("class") or "").split())
 
 
+def line_offsets(src: str) -> list:
+    offs = [0]
+    for i, ch in enumerate(src):
+        if ch == "\n":
+            offs.append(i + 1)
+    return offs
+
+
 def slide_keys(value: str) -> list:
     """data-slide 的值拆成 [(代號, 頁)]；看不懂就丟 ValueError。"""
     keys = []
@@ -85,13 +98,51 @@ def slide_keys(value: str) -> list:
     return keys
 
 
+def _parse_manifest_skip(raw) -> set:
+    if not raw:
+        return set()
+    items = [raw] if isinstance(raw, str) else list(raw)
+    out = set()
+    for item in items:
+        if isinstance(item, str) and item.strip():
+            out.update(slide_keys(item))
+    return out
+
+
+def _page_zh_lines(page: dict, zh_map: dict) -> list:
+    """取出單頁課件的 HTML 譯文行清單（來自 slides.json 的 zh 清單，或 blocks 對照同目錄 zh.json）。"""
+    raw_zh = page.get("zh")
+    if isinstance(raw_zh, list):
+        return [str(x).strip() for x in raw_zh if str(x).strip()]
+    if isinstance(page.get("blocks"), list):
+        return [zh_map[b].strip() for b in page["blocks"] if isinstance(zh_map.get(b), str) and zh_map[b].strip()]
+    if isinstance(raw_zh, str) and raw_zh.strip() and not raw_zh.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")):
+        return [raw_zh.strip()]
+    return []
+
+
 def load_slides(path: Path) -> dict:
-    """讀 deck.py 寫的清單：{(代號, 頁): {"src", "zh", "w", "h"}}，圖檔路徑換成絕對路徑；照課件和頁碼的順序。"""
+    """讀 deck.py 寫的清單：{(代號, 頁): {"src", "zh": [譯文HTML, ...], "w", "h", "skip"}}，圖檔路徑換成絕對路徑。"""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return {(d["id"], p["n"]): {"src": path.parent / p["src"], "zh": path.parent / p["zh"] if p.get("zh") else None,
-                                    "w": int(p["w"]), "h": int(p["h"])}
-                for d in data["decks"] for p in d["pages"]}
+        zh_path = path.parent / "zh.json"
+        zh_map = json.loads(zh_path.read_text(encoding="utf-8")) if zh_path.is_file() else {}
+        if not isinstance(zh_map, dict):
+            zh_map = {}
+        top_skip = _parse_manifest_skip(data.get("skip"))
+        out = {}
+        for d in data["decks"]:
+            did = d["id"]
+            for p in d["pages"]:
+                n = int(p["n"])
+                out[(did, n)] = {
+                    "src": path.parent / p["src"],
+                    "zh": _page_zh_lines(p, zh_map),
+                    "w": int(p["w"]),
+                    "h": int(p["h"]),
+                    "skip": bool(p.get("skip")) or (did, n) in top_skip,
+                }
+        return out
     except (OSError, ValueError, KeyError, TypeError) as e:
         raise SystemExit(f"讀不了課件清單 {path}（{e}）：用 deck.py 產生 slides.json")
 
@@ -107,6 +158,7 @@ class Lint(HTMLParser):
         self.types = None  # 題型表每一列的 data-type；None 表示沒有這張表
         self.row = None  # 正在讀的題型表列：{"slug", "cells", "text"}
         self.slides = []  # 每個 data-slide 的值
+        self.skips = []  # 每個 data-skip 的值（非空白字串）
         self.deck = None  # <body data-slides>
 
     def inside_class(self, name) -> bool:
@@ -133,7 +185,11 @@ class Lint(HTMLParser):
         if tag == "figure" and self.inside_class("panel") and not (a.get("data-tab") or "").strip():
             self.problems.append("查表面板的 figure 沒有 data-tab：寫分頁名稱，例如「Z 表」")
         if "data-slide" in a:
-            self.slides.append(a["data-slide"] or "")
+            val = a["data-slide"] or ""
+            if val.strip().lower() != "skip":
+                self.slides.append(val)
+        if "data-skip" in a and (a["data-skip"] or "").strip():
+            self.skips.append(a["data-skip"].strip())
         if tag not in VOID:
             self.stack.append((tag, cls))
 
@@ -162,7 +218,7 @@ class Lint(HTMLParser):
     def handle_data(self, data):
         if self.row is not None:
             self.row["text"] += data
-        if not any(t in ("script", "style") for t, _ in self.stack):
+        if not any(t in NON_PROSE_TAGS for t, _ in self.stack):
             self.refs += SECTION_REF.findall(data)
 
 
@@ -177,17 +233,18 @@ def lint(src: str, slides=None) -> list:
     labels = {f"{i}" for i in range(1, p.h2 + 1)} | {f"{i}.{j}" for i, n in p.h3.items() for j in range(1, n + 1)}
     for ref in sorted(set(p.refs) - labels):
         problems.append(f"內文提到 §{ref}，但頁面沒有這一段：§ 編號由 build 依 h2、h3 的順序產生")
-    if p.slides and slides is None:
+    if (p.slides or p.skips) and slides is None:
         problems.append('正文寫了 data-slide，<body> 卻沒有 data-slides：寫上 deck.py 產生的 slides.json 的路徑')
-    for value in p.slides if slides is not None else ():
-        try:
-            missing = [k for k in slide_keys(value) if k not in slides]
-        except ValueError as e:
-            problems.append(f'data-slide="{value}" 的「{e}」看不懂：寫成「代號 p.3」或「代號 p.3-5」，多份用 ; 分開')
-            continue
-        if missing:
-            problems.append(f'data-slide="{value}"：課件清單沒有 {missing[0][0]} p.{missing[0][1]}'
-                            "（代號是 deck.py 的 <代號>=<pdf>，頁碼從 1 起算）")
+    for attr_name, values in (("data-slide", p.slides), ("data-skip", p.skips)):
+        for value in values if slides is not None else ():
+            try:
+                missing = [k for k in slide_keys(value) if k not in slides]
+            except ValueError as e:
+                problems.append(f'{attr_name}="{value}" 的「{e}」看不懂：寫成「代號 p.3」或「代號 p.3-5」，多份用 ; 分開')
+                continue
+            if missing:
+                problems.append(f'{attr_name}="{value}"：課件清單沒有 {missing[0][0]} p.{missing[0][1]}'
+                                "（代號是 deck.py 的 <代號>=<pdf>，頁碼從 1 起算）")
     return problems
 
 
@@ -220,27 +277,63 @@ def number_headings(src: str):
     return HEADING.sub(repl, src), anchors
 
 
+class _RefLinker(HTMLParser):
+    """用 HTMLParser 定位純文字節點，排除 <a>、<code>、<pre>、<script>、<style>、標題 .num 與 HTML 註解。"""
+
+    def __init__(self, src: str, anchors: dict):
+        super().__init__(convert_charrefs=False)
+        self.src = src
+        self.anchors = anchors
+        self.offs = line_offsets(src)
+        self.stack = []  # [(tag, classes)]
+        self.edits = []  # [(start, end, replacement)]
+
+    def _pos(self) -> int:
+        ln, col = self.getpos()
+        return self.offs[ln - 1] + col
+
+    def handle_starttag(self, tag, attrs):
+        t = tag.lower()
+        if t not in VOID:
+            self.stack.append((t, classes(attrs)))
+
+    def handle_endtag(self, tag):
+        t = tag.lower()
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i][0] == t:
+                del self.stack[i:]
+                break
+
+    def handle_data(self, data):
+        if "§" not in data:
+            return
+        if any(t in ("a", "code", "pre", "script", "style") or (t == "span" and "num" in c) for t, c in self.stack):
+            return
+        replaced = SECTION_REF.sub(
+            lambda m: f'<a class="ref" href="#{self.anchors[m.group(1)]}">{m.group(0)}</a>'
+            if m.group(1) in self.anchors else m.group(0),
+            data,
+        )
+        if replaced != data:
+            p = self._pos()
+            self.edits.append((p, p + len(data), replaced))
+
+
 def link_refs(src: str, anchors: dict) -> str:
-    """把內文的 §N、§N.M 換成連到那一段的連結（class="ref"：按了在對照欄打開）；標籤裡、<a> 裡、標題編號不動。"""
-    out, depth_a, in_num = [], 0, False
-    for part in re.split(r"(<[^>]+>)", src):
-        if part.startswith("<"):
-            low = part.lower()
-            if re.match(r"<a[\s>]", low):
-                depth_a += 1
-            elif low.startswith("</a"):
-                depth_a = max(0, depth_a - 1)
-            elif re.match(r"<span[^>]*class=\"num\"", low):
-                in_num = True
-            elif low.startswith("</span") and in_num:
-                in_num = False
-            out.append(part)
-        elif depth_a or in_num:
-            out.append(part)
-        else:
-            out.append(SECTION_REF.sub(
-                lambda m: f'<a class="ref" href="#{anchors[m.group(1)]}">{m.group(0)}</a>' if m.group(1) in anchors else m.group(0),
-                part))
+    """把內文的 §N、§N.M 換成連到那一段的連結（class="ref"：按了在對照欄打開）；標籤屬性、註解、<a>/<code>/<pre>/<script>/<style>、標題編號不動。"""
+    if not anchors or "§" not in src:
+        return src
+    parser = _RefLinker(src, anchors)
+    parser.feed(src)
+    parser.close()
+    if not parser.edits:
+        return src
+    out, last = [], 0
+    for start, end, rep in parser.edits:
+        out.append(src[last:start])
+        out.append(rep)
+        last = end
+    out.append(src[last:])
     return "".join(out)
 
 
@@ -254,8 +347,8 @@ def icon(name: str) -> str:
     return f'<svg class="i" viewBox="0 0 16 16" aria-hidden="true">{ICONS[name]}</svg>'
 
 
-def plain(html: str) -> str:
-    return " ".join(TAG.sub("", html).split())
+def plain(html_str: str) -> str:
+    return " ".join(TAG.sub("", html_str).split())
 
 
 def has_class(name: str) -> str:
@@ -265,11 +358,11 @@ def has_class(name: str) -> str:
 
 # 目錄上不重複標題尾巴的頁碼：「……（講義 p.3）」
 PAGE_TAIL = re.compile(r"\s*[（(][^（）()]*\bp{1,2}\.\s*\d[^（）()]*[）)]\s*$")
-WORK = re.compile(rf"<(?:div|details)\b(?:{has_class('calc')}|{has_class('check')}|{has_class('quiz')})>", re.I)
+WORK = re.compile(rf"<(?:div|details)\b(?:{has_class('calc')}|{has_class('check')}|{has_class('quiz')}|{has_class('answer')})>", re.I)
 
 
 def minutes(body: str) -> int:
-    """這一段大約要讀幾分鐘：字數，加上每個算式、自測、選擇題要自己動手的時間。"""
+    """這一段大約要讀幾分鐘：字數，加上每個算式、自測、選擇題、獨立摺疊題要自己動手的時間。"""
     return max(1, round(text_units(TAG.sub("", body)) / UNITS_PER_MIN + len(WORK.findall(body)) * WORK_MIN))
 
 
@@ -340,6 +433,8 @@ def add_terms(src: str, anchors: dict) -> str:
 
 OPEN_TAG = re.compile(r"<([a-zA-Z][\w-]*)\b([^<>]*)>")
 SLIDE_ATTR = re.compile(r"""\sdata-slide\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
+SKIP_VAL_ATTR = re.compile(r"""\sdata-skip\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
+SKIP_BOOL_ATTR = re.compile(r"\sdata-skip(?=\s|/|>|$)", re.I)
 KEY_ATTR = re.compile(r"\sdata-key\b", re.I)
 # 圖說上最多列幾個講到這一頁的段落
 MAX_USES = 4
@@ -349,11 +444,27 @@ def slide_id(key) -> str:
     return f"slide-{key[0]}-{key[1]}"
 
 
+def _slide_zh_html(zh_val, base: Path) -> tuple:
+    """回傳 (img 上的舊版 data-zh 屬性字串, 圖下方的 HTML 譯文對照層字串)。"""
+    if not zh_val:
+        return "", ""
+    if isinstance(zh_val, Path):  # 相容舊式雙圖路徑測試資料
+        rel_zh = Path(os.path.relpath(zh_val, base)).as_posix()
+        return f' data-zh="{html.escape(rel_zh)}"', ""
+    lines = [str(x).strip() for x in (zh_val if isinstance(zh_val, list) else [zh_val]) if str(x).strip()]
+    if not lines:
+        return "", ""
+    paragraphs = "".join(f"<p>{line}</p>" for line in lines)
+    return "", f'<div class="deck-zh">{paragraphs}</div>'
+
+
 def add_deck(src: str, slides: dict, anchors: dict, base: Path) -> tuple:
-    """課件欄：清單上的每一頁一張圖，照課件順序；圖說連到講到它的段落。正文裡的 data-slide 換成 data-at（那幾張圖的 id）。
+    """課件欄：清單上的每一頁一張原圖，有譯文時在圖下方附上可切換的 .deck-zh HTML 譯文層；圖說連到講到它的段落。
+    正文裡的 data-slide 換成 data-at（那幾張圖的 id）；標記 skip 的課件不計入 idle。
     回傳 (新的 HTML, {"pages": 總頁數, "used": 講到幾頁, "key": 必記幾頁, "idle": 沒講到的 [(代號, 頁)]})。"""
     label_of = {anchor: label for label, anchor in anchors.items()}
     uses, keyed, current = {}, set(), [None]
+    skipped = {k for k, page in slides.items() if page.get("skip")}
 
     def repl(m):
         tag, attrs = m.group(1).lower(), m.group(2)
@@ -361,11 +472,31 @@ def add_deck(src: str, slides: dict, anchors: dict, base: Path) -> tuple:
             own = ID_ATTR.search(attrs)
             if own and own.group(1) in label_of:
                 current[0] = own.group(1)
+        skip_val = SKIP_VAL_ATTR.search(attrs)
+        if skip_val:
+            raw_skip = skip_val.group(1) if skip_val.group(1) is not None else skip_val.group(2)
+            try:
+                skipped.update(slide_keys(raw_skip))
+            except ValueError:
+                pass
+            attrs = SKIP_VAL_ATTR.sub("", attrs)
         hit = SLIDE_ATTR.search(attrs)
         if not hit:
+            if skip_val:
+                close = " /" if attrs.rstrip().endswith("/") else ""
+                return f'<{m.group(1)}{attrs.rstrip("/").rstrip()}{close}>'
             return m.group(0)
+        raw_slide = hit.group(1) if hit.group(1) is not None else hit.group(2)
+        if SKIP_BOOL_ATTR.search(attrs):
+            try:
+                skipped.update(slide_keys(raw_slide))
+            except ValueError:
+                return m.group(0)
+            rest = SKIP_BOOL_ATTR.sub("", SLIDE_ATTR.sub("", attrs, count=1)).rstrip()
+            close = " /" if rest.endswith("/") else ""
+            return f'<{m.group(1)}{rest.rstrip("/").rstrip()}{close}>'
         try:
-            keys = slide_keys(hit.group(1) if hit.group(1) is not None else hit.group(2))
+            keys = slide_keys(raw_slide)
         except ValueError:  # 註解裡的範例：lint 沒看到它，原樣留著
             return m.group(0)
         for k in keys:
@@ -385,20 +516,22 @@ def add_deck(src: str, slides: dict, anchors: dict, base: Path) -> tuple:
         if key[0] != deck:
             deck = key[0]
             figs.append(f'<h3 class="deck-name">{html.escape(deck)}</h3>')
-        rel = [Path(os.path.relpath(f, base)).as_posix() if f else None for f in (page["src"], page["zh"])]
-        zh = f' data-zh="{html.escape(rel[1])}"' if rel[1] else ""
+        rel_src = Path(os.path.relpath(page["src"], base)).as_posix()
+        zh_attr, zh_layer = _slide_zh_html(page.get("zh"), base)
         to = "".join(f'<a class="to" href="#{a}">§{label_of[a]}</a>' for a in uses.get(key, [])[:MAX_USES])
-        cls = ' class="key"' if key in keyed else ""
+        cls_names = (["key"] if key in keyed else []) + (["skip"] if key in skipped and key not in uses else [])
+        cls = f' class="{" ".join(cls_names)}"' if cls_names else ""
         figs.append(f'<figure id="{slide_id(key)}"{cls}>'
                     # 寫上大小：圖還沒載入時先佔好位置，課件欄才捲得到對的地方
-                    f'<img src="{html.escape(rel[0])}"{zh} width="{page["w"]}" height="{page["h"]}" alt="" loading="lazy">'
-                    f'<figcaption><b>{html.escape(key[0])} p.{key[1]}</b>{to}</figcaption></figure>')
+                    f'<img src="{html.escape(rel_src)}"{zh_attr} width="{page["w"]}" height="{page["h"]}" alt="" loading="lazy">'
+                    f'<figcaption><b>{html.escape(key[0])} p.{key[1]}</b>{to}</figcaption>{zh_layer}</figure>')
     aside = ('<aside class="deck" aria-label="課件"><div class="deck-head"><b>課件</b>'
              '<button type="button" class="btn" data-act="follow" aria-pressed="true">跟著正文</button>'
              f'<button type="button" class="close" data-act="deck-close" aria-label="收起課件">{icon("x")}</button></div>'
              f'<div class="deck-body">{"".join(figs)}</div></aside>')
     end = body_end(src)
-    report = {"pages": len(slides), "used": len(uses), "key": len(keyed), "idle": [k for k in slides if k not in uses]}
+    report = {"pages": len(slides), "used": len(uses), "key": len(keyed),
+              "idle": [k for k in slides if k not in uses and k not in skipped]}
     return src[:end] + aside + src[end:], report
 
 
@@ -452,7 +585,7 @@ def outline(src: str) -> list:
 
 
 def rail(src: str, groups: list) -> str:
-    """左邊固定的目錄：書名、讀了幾段、每段一格的進度條、切換鈕，再來是一組一組的段落。"""
+    """左邊固定的目錄：書名、讀了幾段、自測錯題複製鈕、每段一格的進度條、切換鈕，再來是一組一組的段落。"""
     h1 = re.search(r"<h1\b[^>]*>(.*?)</h1\s*>", src, re.I | re.S)
     title = re.search(r"<title[^>]*>(.*?)</title\s*>", src, re.I | re.S)
     book = plain(h1.group(1)) if h1 else plain(title.group(1)) if title else ""
@@ -462,12 +595,15 @@ def rail(src: str, groups: list) -> str:
            '<button type="button" data-act="{}" aria-pressed="false">{}</button></div>')
     quick = "".join(f'<button type="button" class="btn" data-act="{act}">{label}</button>'
                     for act, label in (("cheat", "速查卡"), ("terms", "名詞表"), ("panel", "查表")) if f'id="{act}"' in src)
+    quiz_tools = ('<p class="quiz-tools" hidden><button type="button" class="btn" data-act="quiz-report">複製自測錯題</button>'
+                  '<span class="quiz-status" aria-live="polite"></span></p>'
+                  if re.search(rf"<div\b{has_class('quiz')}>", src, re.I) else "")
     out = ['<nav class="rail" aria-label="目錄"><div class="rail-top">', f'<p class="book">{book}</p>',
            f'<button type="button" class="shut" data-act="scrim" aria-label="關閉目錄">{icon("x")}</button>',
-           '<p class="status" aria-live="polite"></p>', f'<div class="strip" aria-hidden="true">{cells}</div>',
+           '<p class="status" aria-live="polite"></p>', quiz_tools, f'<div class="strip" aria-hidden="true">{cells}</div>',
            seg.format("顯示多少", "digest-off", "全文", "digest-on", "只看重點"),
            f'<div class="quick">{quick}</div>' if quick else "", "</div>"]
-    if re.search(r"<img\b[^>]*\bdata-zh\s*=", src, re.I):
+    if re.search(r'<img\b[^>]*\bdata-zh\s*=|<div\b[^>]*\bclass="deck-zh"', src, re.I):
         out.append(seg.format("截圖的語言", "lang-en", "截圖：原文", "lang-zh", "截圖：翻譯"))
     out.append(seg.format("頁面的明暗", "theme-light", "淺色", "theme-dark", "深色"))
     for g in groups:
@@ -644,7 +780,8 @@ BODY_SLIDES = re.compile(r"""<body\b[^>]*\sdata-slides\s*=\s*["']([^"']+)["']"""
 
 def main(argv=None, measure=measure) -> int:
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")  # Windows 終端機預設不是 UTF-8
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("src", type=Path)
     ap.add_argument("-o", "--out", type=Path)

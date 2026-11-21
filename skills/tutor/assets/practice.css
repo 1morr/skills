@@ -75,10 +75,16 @@ section.q th, section.q td { padding: .3rem .9rem; text-align: center; border-bo
 section.q tr:last-child > td { border-bottom: 0; }
 section.q th { font-weight: 600; border-bottom-color: var(--rule); white-space: nowrap; }
 .note { color: var(--muted); font-size: .94rem; }
-pre.mtb {
+pre.output, pre.mtb {
   font-family: var(--mono); font-size: .84rem; line-height: 1.45; background: var(--tint); color: var(--ink);
   border-radius: 3px; padding: .7rem .9rem; overflow-x: auto; white-space: pre;
 }
+textarea.work {
+  display: block; width: 100%; min-height: 5.5rem; margin: .6rem 0; padding: .55rem .75rem;
+  font: .94rem/1.6 var(--mono); color: var(--ink); background: var(--card);
+  border: 1px solid var(--rule); border-radius: 4px; resize: vertical;
+}
+.pad textarea.work { margin: 0; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; }
 section.q figure { margin: .9rem 0; }
 section.q figure img {
   max-width: 100%; max-height: 85vh; display: block; cursor: pointer; background: #fff;
@@ -246,7 +252,7 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
     background: #fff; color: #000; font-size: 11pt; line-height: 1.6;
   }
   body[data-mode="mock"] main { max-width: none; margin: 0; padding: 0; }
-  body[data-mode="mock"] :is(.prefs, .howto, .mockbar, nav.jump, .report, #panel-btn, #panel header, .score),
+  body[data-mode="mock"] :is(.prefs, .howto, .mockbar, nav.jump, .report, #panel-btn, #panel header, .score, textarea.work),
   body[data-mode="mock"] .fill :is(input, button, .result) { display: none !important; }
   body[data-mode="mock"] h1 { font-size: 18pt; }
   body[data-mode="mock"] .cover { break-after: page; }
@@ -257,11 +263,11 @@ body[data-mode="mock"]:not(.submitted) details.model, body[data-mode="mock"]:not
   /* 題目代號印在每題和每張作答頁的角落：拍照貼回對話時，批改的人靠它找答案 */
   body[data-mode="mock"] section.q::before { content: attr(data-id); position: absolute; top: 0; right: 0; font: 8pt var(--mono); color: #666; }
   body[data-mode="mock"] section.q h2 { break-after: avoid; padding-right: 11em; }
-  body[data-mode="mock"] section.q p:has(+ :is(figure, table, pre.mtb)) { break-after: avoid; }
-  body[data-mode="mock"] section.q :is(figure, table, pre.mtb), body[data-mode="mock"] .rubric li { break-inside: avoid; }
+  body[data-mode="mock"] section.q p:has(+ :is(figure, table, pre.output, pre.mtb)) { break-after: avoid; }
+  body[data-mode="mock"] section.q :is(figure, table, pre.output, pre.mtb), body[data-mode="mock"] .rubric li { break-inside: avoid; }
   body[data-mode="mock"] section.q table { overflow: visible; }
   body[data-mode="mock"] section.q figure img { max-height: 110mm; cursor: auto; }
-  body[data-mode="mock"] pre.mtb { border: 1px solid #999; font-size: 8.5pt; overflow: visible; white-space: pre-wrap; }
+  body[data-mode="mock"] :is(pre.output, pre.mtb) { border: 1px solid #999; font-size: 8.5pt; overflow: visible; white-space: pre-wrap; }
   body[data-mode="mock"] .fill::after { content: ""; display: inline-block; width: 9em; margin-left: .4em; border-bottom: 1px solid #000; }
   /* 填答的底線跟著前一塊走，不會單獨一行掉到下一頁 */
   body[data-mode="mock"] .fill { break-inside: avoid; break-before: avoid; }

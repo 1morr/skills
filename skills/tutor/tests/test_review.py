@@ -49,6 +49,15 @@ class CheatCard(unittest.TestCase):
     def test_page_without_a_card_gives_none(self):
         self.assertIsNone(review.cheat_of(GUIDE.replace('class="cheat"', 'class="cheats"')))
 
+    def test_ignores_div_in_comments_scripts_and_attributes(self):
+        noisy = (
+            '<!-- <div class="cheat">註解裡的假卡</div> -->'
+            '<script>const fake = "<div class=\\"cheat\\">script</div>";</script>'
+            '<div class="cheat" data-x="<div>"><p>真卡<!-- <div>未關 --><code>&lt;div&gt;</code></p></div>'
+            '<p>後面</p>'
+        )
+        self.assertEqual(review.cheat_of(noisy), '<div class="cheat" data-x="<div>"><p>真卡<!-- <div>未關 --><code>&lt;div&gt;</code></p></div>')
+
 
 class Notes(unittest.TestCase):
     def test_reads_notes_by_guide_and_type(self):

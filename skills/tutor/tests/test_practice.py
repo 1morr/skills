@@ -434,9 +434,13 @@ class ModelRule(Case):
 
     def test_figure_or_output_in_question_passes(self):
         (self.dir / "guide.html").write_text(self.READS, encoding="utf-8")
-        for shown in (self.FIG, '<pre class="mtb">Lag  ACF  T  LBQ</pre>'):
-            with self.subTest(shown=shown[:20]):
+        for shown in (self.FIG, '<pre class="output">Lag  ACF  T</pre>', '<pre class="mtb">Lag  ACF  T  LBQ</pre>'):
+            with self.subTest(shown=shown[:24]):
                 self.assertGreen(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", shown)))
+
+    def test_work_textarea_is_allowed_in_full_question(self):
+        work = '<textarea class="work" placeholder="寫推導步驟"></textarea>'
+        self.assertGreen(src(DRILLS + FULL.replace("<p>畫時間序列圖。</p>", f"<p>畫時間序列圖。</p>{work}")))
 
 
 class FigureRule(Case):
@@ -533,10 +537,15 @@ class Build(Case):
         self.assertIn('<a href="guide.html#s1-2" target="_blank">§1.2</a>', out)
 
     def test_hints_and_steps_link_to_guide(self):
-        out = self.page(src(DRILLS + FULL.replace(STEPS, STEPS.replace("所以", "見 §20，所以"))))
+        nested = ('<details class="steps"><div class="calc">r = 0.4（見 §16）</div>'
+                  '<p>見 §20，程式碼 <code>§16 與 §99</code><!-- §99 --></p></details>')
+        out = self.page(src(DRILLS + FULL.replace(STEPS, nested)))
         sec = out[out.index('id="q-acf-seasonal"'):out.index('id="q-acf-trend"')]
         self.assertIn('做法在導讀頁 <a href="guide.html#s16" target="_blank">§16</a>', sec)
+        self.assertIn('r = 0.4（見 <a href="guide.html#s16" target="_blank">§16</a>）', sec)
         self.assertIn('見 <a href="guide.html#s20" target="_blank">§20</a>', sec)
+        self.assertIn("<code>§16 與 §99</code>", sec)
+        self.assertIn("<!-- §99 -->", sec)
 
     def test_pad_comes_before_hints_steps_and_model(self):
         out = self.page()
@@ -699,6 +708,25 @@ class Build(Case):
         """考卷和答案各一份：答案版的網址結尾是頁面 JS 認的 #answers。"""
         self.assertEqual(practice.PDFS, (("", ""), ("-answers", "#answers")))
         self.assertIn('location.hash === "#answers"', practice.JS.read_text(encoding="utf-8"))
+
+    def test_progress_export_import_and_safe_storage_present(self):
+        out = self.page()
+        self.assertIn('id="export-progress"', out)
+        self.assertIn('id="import-progress"', out)
+        js = practice.JS.read_text(encoding="utf-8")
+        # 所有 localStorage.setItem 必須包在 try 區塊內（saveStore 與 setTheme）
+        self.assertEqual(js.count("localStorage.setItem"), 2)
+        self.assertIn("[此題含手寫步驟，請按該題「複製給助教」貼圖]", js)
+
+    def test_skills_root_env_resolves_pages_scripts(self):
+        import os
+        import subprocess
+        import sys
+        repo_root = Path(__file__).resolve().parents[3]
+        env = {**os.environ, "SKILLS_ROOT": str(repo_root)}
+        r = subprocess.run([sys.executable, "-c", f'import runpy; m = runpy.run_path({str(SCRIPT)!r}); assert hasattr(m["overflow"], "measure")'],
+                           env=env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
 
 if __name__ == "__main__":
