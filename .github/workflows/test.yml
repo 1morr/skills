@@ -24,12 +24,10 @@ jobs:
         run: python -m unittest discover -s pages/tests -v
       - name: project-init
         run: python -m unittest discover -s skills/project-init/tests -v
-      - name: dashboard
-        run: if [ -d skills/dashboard/tests ]; then python -m unittest discover -s skills/dashboard/tests -v; fi
       - name: ticket-coordinator
         run: python -m unittest discover -s skills/ticket-coordinator/tests -v
       - name: tools
-        run: if [ -d tools/tests ]; then python -m unittest discover -s tools/tests -v; fi
+        run: python -m unittest discover -s tools/tests -v
       - name: tutor
         run: |
           # tutor 測試要 PyMuPDF 和 Pillow
