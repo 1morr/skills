@@ -19,13 +19,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # 模型可以自己觸發的 skill：加進來之前先看 AGENTS.md〈結構〉
 MODEL_INVOKED = {"diff"}
-# 過渡期 md 裡的路徑縮寫指到哪：值是相對 repo 根的路徑，{skill} 換成那份 md 所屬的 skill
-SHORT = {"O": "orca", "P": "pages", "S": "skills/{skill}/scripts", "T": "skills/{skill}/templates"}
 # 有 md 要檢查的目錄
-DOC_DIRS = ("skills", "orca", "pages")
+DOC_DIRS = ("skills", "pages")
 
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
-SHORT_PATH = re.compile(r"<([A-Z]+)>/([A-Za-z0-9_./-]+)")
 README_ROW = re.compile(r"^\|\s*\[([^\]]+)\]\(skills/([^/]+)/SKILL\.md\)", re.M)
 REL_UP = re.compile(r"(?<![A-Za-z0-9_.])((?:[A-Za-z0-9_-]+/)*(?:\.\./)+[A-Za-z0-9_./-]*)")
 DOUBLE = '"' * 3
@@ -82,23 +79,16 @@ def check_listed(root: Path) -> list:
 
 
 def check_paths(root: Path) -> list:
-    """md 裡的標準相對連結與過渡期縮寫路徑（<O>/…、<P>/… 等）都指得到檔案。"""
+    """md 裡的標準相對連結都指得到檔案。"""
     out = []
     for md in docs(root):
         text = read(md)
         rel = md.relative_to(root)
-        skill = rel.parts[1] if rel.parts[0] == "skills" else ""
         for target in LINK.findall(text):
             if re.match(r"[a-z]+:", target):
                 continue
             if not (md.parent / target).exists():
                 out.append(f"{rel} 連到 {target}，沒有這個檔")
-        for key, path in SHORT_PATH.findall(text):
-            if key not in SHORT:
-                continue
-            path = path.rstrip("./")
-            if not (root / SHORT[key].format(skill=skill) / path).exists():
-                out.append(f"{rel} 寫了 <{key}>/{path}，{SHORT[key].format(skill=skill)}/ 底下沒有")
     return out
 
 
@@ -173,7 +163,7 @@ def check_invocation(root: Path, allowed=frozenset(MODEL_INVOKED)) -> list:
 
 
 def check_tested(root: Path) -> list:
-    """有 Python 腳本的目錄都有 tests/test_*.py，而且在 CI .github/workflows/*.yml 執行；orca 的腳本由 selftest.sh 測。"""
+    """有 Python 腳本的目錄都有 tests/test_*.py，而且在 CI .github/workflows/*.yml 執行。"""
     ci = "\n".join(read(p) for p in sorted((root / ".github/workflows").glob("*.yml")))
     out = []
     dirs = [p.parent.parent for p in root.glob("skills/*/scripts/*.py")] + [p.parent.parent for p in root.glob("pages/scripts/*.py")]
@@ -183,9 +173,6 @@ def check_tested(root: Path) -> list:
             out.append(f"{t}/ 沒有 test_*.py")
         if not re.search(rf"-s {re.escape(t)}(?![\w/-])", ci):
             out.append(f"CI 沒有跑 {t}")
-    if (root / "orca/scripts").is_dir() and list((root / "orca/scripts").glob("*.sh")):
-        if "orca/scripts/selftest.sh" not in ci:
-            out.append("CI 沒有跑 orca/scripts/selftest.sh")
     return out
 
 
@@ -220,8 +207,7 @@ GNU_ONLY = re.compile(r"\bstat -c\b|\btouch -d\b|\bsed -i\b")
 
 
 def shell_scripts(root: Path) -> list:
-    orca_sh = list((root / "orca").rglob("*.sh")) if (root / "orca").is_dir() else []
-    return sorted(orca_sh + list((root / "skills").rglob("*.sh")))
+    return sorted((root / "skills").rglob("*.sh"))
 
 
 def check_shell_portable(root: Path) -> list:
@@ -320,11 +306,9 @@ class Fixture(unittest.TestCase):
         write(r, "skills/diff/scripts/diff.py", DOUBLE + "比對兩個版本。\n" + DOUBLE + "\n")
         write(r, "skills/diff/tests/test_diff.py", "")
         write(r, "skills/notes/SKILL.md", "---\nname: notes\ndescription: 記筆記\ndisable-model-invocation: true\n---\n\n"
-              "先讀 `<O>/COORDINATOR.md`，再跑 `bash <O>/scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
+              "先跑 `bash scripts/wait.sh <handle>`，寫到 `<批次目錄>/notes.md`。\n")
         write(r, "skills/notes/agents/openai.yaml", "policy:\n  allow_implicit_invocation: false\n")
-        write(r, "orca/COORDINATOR.md", "# 流程\n")
-        write(r, "orca/scripts/wait.sh", "# 用法：bash wait.sh <handle>\necho \"${H}沒有回應\"\n")
-        write(r, "orca/scripts/selftest.sh", "# 用法：bash selftest.sh\n")
+        write(r, "skills/notes/scripts/wait.sh", "# 用法：bash wait.sh <handle>\necho \"${H}沒有回應\"\n")
         write(r, "pages/TOKENS.md", "# 配色\n")
         write(r, "tests/test_repo_rules.py", "")
         write(r, "README.md", "| Skill | 做什麼 |\n|---|---|\n| [diff](skills/diff/SKILL.md) | 對照 |\n| [notes](skills/notes/SKILL.md) | 筆記 |\n")
@@ -332,7 +316,7 @@ class Fixture(unittest.TestCase):
         write(r, ".claude-plugin/plugin.json", json.dumps({"name": "x", "description": desc}, ensure_ascii=False))
         write(r, ".claude-plugin/marketplace.json", json.dumps({"plugins": [{"name": "x", "description": desc}]}, ensure_ascii=False))
         write(r, ".github/workflows/test.yml", "steps:\n  - run: python -m unittest discover -s skills/diff/tests -v\n"
-              "  - run: bash orca/scripts/selftest.sh\n  - run: python -m unittest discover -s tests -v\n")
+              "  - run: python -m unittest discover -s tests -v\n")
 
     def clean(self, check, **kw):
         self.assertEqual(check(self.root, **kw), [])
@@ -357,7 +341,7 @@ class NamesTest(Fixture):
 
     def test_other_frontmatter_and_body_do_not_matter(self):
         sub(self.root, "skills/notes/SKILL.md", "description: 記筆記", "description: name: something-else\nargument-hint: \"[題目]\"")
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "name: body-text\n\n先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "name: body-text\n\n先跑")
         self.clean(check_names)
 
 
@@ -389,32 +373,28 @@ class PathsTest(Fixture):
         sub(self.root, "skills/diff/LOOK.md", "../../pages/TOKENS.md", "../../pages/COLORS.md")
         self.red(check_paths)
 
-    def test_legacy_shorthand_missing_target(self):
-        sub(self.root, "skills/notes/SKILL.md", "<O>/scripts/wait.sh", "<O>/scripts/waitbg.sh")
-        self.red(check_paths)
-
     def test_placeholders_urls_and_anchors_do_not_matter(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "見 [文檔](https://example.com/x.md) 和 [下面](#流程)，存到 `<暫存>/out.json`、`<repo>/docs/x.md`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "見 [文檔](https://example.com/x.md) 和 [下面](#流程)，存到 `<暫存>/out.json`、`<repo>/docs/x.md`。先跑")
         sub(self.root, "skills/diff/SKILL.md", "[LOOK.md](LOOK.md)", "[外觀](LOOK.md#token)")
         self.clean(check_paths)
 
 
 class CrossLinksTest(Fixture):
     def test_link_into_another_skill(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "照 [LOOK.md](../diff/LOOK.md)。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "照 [LOOK.md](../diff/LOOK.md)。先跑")
         self.red(check_no_cross_links)
 
     def test_detour_path_into_another_skill(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "照 `../../skills/diff/LOOK.md`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "照 `../../skills/diff/LOOK.md`。先跑")
         self.red(check_no_cross_links)
 
     def test_plain_path_from_shared_into_skill(self):
-        sub(self.root, "orca/COORDINATOR.md", "# 流程", "# 流程\n\n腳本在 `../skills/diff/scripts`。")
+        sub(self.root, "pages/TOKENS.md", "# 配色", "# 配色\n\n腳本在 `../skills/diff/scripts`。")
         self.red(check_no_cross_links)
 
     def test_relative_path_to_shared_pages_and_own_skill_is_allowed(self):
         write(self.root, "skills/notes/sub/step.md", "見 [SKILL](../SKILL.md) 與 `../../../pages/TOKENS.md`。\n")
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "照 `../../pages/TOKENS.md`；載入 `diff` skill，省略寫 `...` 或 `.../x`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "照 `../../pages/TOKENS.md`；載入 `diff` skill，省略寫 `...` 或 `.../x`。先跑")
         self.clean(check_no_cross_links)
 
 
@@ -475,7 +455,6 @@ class TestedTest(Fixture):
 
     def test_ci_stops_running_a_suite(self):
         for old in ("  - run: python -m unittest discover -s skills/diff/tests -v\n",
-                    "  - run: bash orca/scripts/selftest.sh\n",
                     "  - run: python -m unittest discover -s tests -v\n"):
             with self.subTest(old.strip()):
                 original = read(self.root / ".github/workflows/test.yml")
@@ -507,43 +486,43 @@ class NoClaudeVarsTest(Fixture):
                 write(self.root, rel, original)
 
     def test_claude_plugin_root_in_skill_or_shared_file(self):
-        for rel in ("skills/notes/SKILL.md", "orca/COORDINATOR.md"):
+        for rel in ("skills/notes/SKILL.md", "pages/TOKENS.md"):
             with self.subTest(rel):
                 original = read(self.root / rel)
-                write(self.root, rel, original + "\n路徑在 `${CLAUDE_PLUGIN_ROOT}/orca`。\n")
+                write(self.root, rel, original + "\n路徑在 `${CLAUDE_PLUGIN_ROOT}/pages`。\n")
                 self.red(check_no_claude_vars)
                 write(self.root, rel, original)
 
     def test_literal_arguments_var_forbidden(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "參數：$ARGUMENTS。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "參數：$ARGUMENTS。先跑")
         self.red(check_no_claude_vars)
 
     def test_standard_shell_env_vars_are_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "可用 `SKILLS_ROOT`、`$HOME`、`${XDG_STATE_HOME:-$HOME/.local/state}`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "可用 `SKILLS_ROOT`、`$HOME`、`${XDG_STATE_HOME:-$HOME/.local/state}`。先跑")
         self.clean(check_no_claude_vars)
 
 
 class PortableWordingTest(Fixture):
     def test_ask_user_question_is_forbidden(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "用 `AskUserQuestion` 問使用者。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "用 `AskUserQuestion` 問使用者。先跑")
         self.red(check_portable_wording)
 
     def test_hardcoded_claude_model_fields_are_forbidden(self):
         for snippet in ('model: "opus"', 'model: "sonnet"', "model: 'opus'", "model: sonnet"):
             with self.subTest(snippet):
                 original = read(self.root / "skills/notes/SKILL.md")
-                sub(self.root, "skills/notes/SKILL.md", "先讀", f"開子代理（{snippet}）。先讀")
+                sub(self.root, "skills/notes/SKILL.md", "先跑", f"開子代理（{snippet}）。先跑")
                 self.red(check_portable_wording)
                 write(self.root, "skills/notes/SKILL.md", original)
 
     def test_portable_tier_descriptions_are_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀",
-            "向使用者提問（有互動提問工具就用它）；開高階推理子代理（如 Opus / Pro 級）與快速子代理（如 Sonnet / Flash 級），傳 `--model <模型>`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑",
+            "向使用者提問（有互動提問工具就用它）；開高階推理子代理（如 Opus / Pro 級）與快速子代理（如 Sonnet / Flash 級），傳 `--model <模型>`。先跑")
         self.clean(check_portable_wording)
 
 
 class ShellPortableTest(Fixture):
-    SH = "orca/scripts/wait.sh"
+    SH = "skills/notes/scripts/wait.sh"
 
     def test_bare_variable_followed_by_cjk(self):
         sub(self.root, self.SH, "${H}沒有回應", "$H沒有回應")
@@ -562,8 +541,8 @@ class ShellPortableTest(Fixture):
             "stat -f %m \"$H\"; sed -e s/a/b/ f; echo \"$H: ${H}號\"\necho")
         self.clean(check_shell_portable)
 
-    def test_scripts_inside_a_skill_are_checked_too(self):
-        write(self.root, "skills/notes/scripts/run.sh", "echo \"$H沒有\"\n")
+    def test_scripts_inside_another_skill_are_checked_too(self):
+        write(self.root, "skills/diff/scripts/run.sh", "echo \"$H沒有\"\n")
         self.red(check_shell_portable)
 
 
@@ -581,7 +560,7 @@ class ManifestsMatchTest(Fixture):
 
 class NoOpeningForUserTest(Fixture):
     def test_opening_the_default_browser(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "用預設瀏覽器打開（Linux `xdg-open`）。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "用預設瀏覽器打開（Linux `xdg-open`）。先跑")
         self.red(check_no_opening_for_user)
 
     def test_opening_an_orca_tab(self):
@@ -589,12 +568,12 @@ class NoOpeningForUserTest(Fixture):
         self.red(check_no_opening_for_user)
 
     def test_opening_with_the_macos_command(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "做完跑 `open page.html`。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "做完跑 `open page.html`。先跑")
         self.red(check_no_opening_for_user)
 
     def test_checking_with_browser_automation_is_fine(self):
-        sub(self.root, "skills/notes/SKILL.md", "先讀", "用瀏覽器自動化工具打開頁面截圖，再在對話給網址；`orca terminal create` 照用；"
-            "open source 的套件、`openssl dgst`、`with open(path) as f` 都不算。先讀")
+        sub(self.root, "skills/notes/SKILL.md", "先跑", "用瀏覽器自動化工具打開頁面截圖，再在對話給網址；`orca terminal create` 照用；"
+            "open source 的套件、`openssl dgst`、`with open(path) as f` 都不算。先跑")
         self.clean(check_no_opening_for_user)
 
 
